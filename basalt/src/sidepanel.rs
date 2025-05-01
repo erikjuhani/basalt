@@ -48,6 +48,10 @@ impl<'a> SidePanelState<'a> {
     }
 
     fn calculate_offset(&self, window_height: usize) -> usize {
+        if self.items.is_empty() {
+            return 0;
+        }
+
         let half = window_height / 2;
 
         let idx = self.list_state.selected().unwrap_or_default();
