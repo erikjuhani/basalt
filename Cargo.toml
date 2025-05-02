@@ -3,6 +3,6 @@ members = ["basalt", "basalt-core", "basalt-widgets"]
 resolver = "2"
 
 [workspace.dependencies]
-basalt = { path = "basalt", version = "0.3.0" }
-basalt-core = { path = "basalt-core", version = "0.4.1" }
+basalt = { path = "basalt", version = "0.3.1" }
+basalt-core = { path = "basalt-core", version = "0.4.2" }
 basalt-widgets = { path = "basalt-widgets", version = "0.1.1" }

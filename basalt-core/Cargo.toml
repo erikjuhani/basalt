@@ -6,7 +6,7 @@ Provides the core functionality for Basalt TUI application
 readme = "README.md"
 repository = "https://github.com/erikjuhani/basalt"
 license = "MIT"
-version = "0.4.1"
+version = "0.4.2"
 edition = "2021"
 
 [dependencies]

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.2 (2025-05-01)
+
+### Fixed
+
+- [Adjusted the conditional config location for linux from ~/.../Obsidian to ~/.../obsidian, following the information provided by the link in the original source.](https://github.com/erikjuhani/basalt/commit/1bcc0375b9cb101e3fe8ace979c055ab0206bbd1)
+
 ## 0.4.1 (2025-04-20)
 
 ### Changed

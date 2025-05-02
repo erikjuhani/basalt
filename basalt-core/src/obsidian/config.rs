@@ -188,14 +188,14 @@ impl<'de> Deserialize<'de> for ObsidianConfig {
 /// For reference:
 /// - macOS:  `/Users/username/Library/Application Support/obsidian`
 /// - Windows: `%APPDATA%\Obsidian\`
-/// - Linux:   `$XDG_CONFIG_HOME/Obsidian/` or `~/.config/Obsidian/`
+/// - Linux:   `$XDG_CONFIG_HOME/obsidian/` or `~/.config/obsidian/`
 ///
 /// More info: [https://help.obsidian.md/Files+and+folders/How+Obsidian+stores+data]
 fn obsidian_config_dir() -> Option<PathBuf> {
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
     const OBSIDIAN_CONFIG_DIR_NAME: &str = "obsidian";
 
-    #[cfg(any(target_os = "windows", target_os = "linux"))]
+    #[cfg(target_os = "windows")]
     const OBSIDIAN_CONFIG_DIR_NAME: &str = "Obsidian";
 
     config_local_dir().map(|config_path| config_path.join(OBSIDIAN_CONFIG_DIR_NAME))
