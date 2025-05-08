@@ -1,0 +1,109 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'basalt/v*.*.*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+          - os: ubuntu-latest
+            target: armv7-unknown-linux-gnueabihf
+          - os: windows-latest
+            target: x86_64-pc-windows-gnu
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: macos-latest
+            target: aarch64-apple-darwin
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build
+        run: cargo build --profile release
+
+      - name: Add Rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Build binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Prepare artifact
+        shell: bash
+        run: |
+          ref_name="${{ github.ref_name }}"
+          version="${ref_name##*/}"
+
+          target="${{ matrix.target }}"
+          bin_path="target/${target}/release"
+          archive="basalt-${version}-${target}"
+
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            archive="${archive}.zip"
+            7z a "${archive}" "${bin_path}/basalt.exe"
+          else
+            archive="${archive}.tar.gz"
+            tar -czf "${archive}" "${bin_path}/basalt"
+          fi
+
+          echo "ARCHIVE=${archive}" >> "${GITHUB_ENV}"
+
+      - name: Generate checksum (Windows)
+        shell: bash
+        if: matrix.os == 'windows-latest'
+        run: |
+          archive="${{ env.ARCHIVE }}"
+          certutil -hashfile "${archive}" SHA256 > "${archive}.sha256"
+          echo "ARTIFACT_SUM=${archive}.sha256" >> $GITHUB_ENV
+
+      - name: Generate checksum (Unix)
+        shell: bash
+        if: matrix.os != 'windows-latest'
+        run: |
+          archive="${{ env.ARCHIVE }}"
+          shasum -a 256 "${archive}" > "${archive}.sha256"
+          echo "ARTIFACT_SUM=${archive}.sha256" >> $GITHUB_ENV
+
+      - name: Upload artifact and checksum to existing GitHub release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          ref_name="${{ github.ref_name }}"
+
+          artifact="${{ env.ARCHIVE }}"
+          artifact_sum="${{ env.ARTIFACT_SUM }}"
+          gh release upload "${ref_name}" "${artifact}" "${artifact_sum}"
+

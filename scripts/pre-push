@@ -1,0 +1,5 @@
+#!/bin/sh
+
+cargo check --profile ci
+cargo clippy --profile ci --workspace --all-targets
+cargo test --profile ci --workspace --all-targets

@@ -61,9 +61,11 @@ For now these are not configurable, but this will change when the configuration 
 - [x] Add vault selection screen with basalt logo (Splash screen)
 - [x] Add vault selector modal
 - [ ] GitHub Workflows !
-    - [ ] Run tests and build
-    - [ ] Run create release artifacts (cross-platform binaries)
+    - [x] Run tests and build
+    - [x] Run create release artifacts (cross-platform binaries)
+    - [ ] Do not run test when pushing a tag
     - [ ] Run vhs when basalt dir changes and commit it to the current PR
+- [ ] Add mdbook and gh pages
 - [ ] Async file loading (tokio)
 - [ ] Persistent scroll state in help modal
 - [ ] Fuzzy search in panes (note, sidepanel, modals)
@@ -103,3 +105,11 @@ For now these are not configurable, but this will change when the configuration 
 I haven't yet had the chance to add a contributors' guide. If you would like to help, please feel free to create a pull request directly. At this stage, opening a separate issue is not required unless you would like to start a discussion first.
 
 Please note that this process may change in the future. The expected contribution flow will likely become: Create issue → Create pull request.
+
+There's a useful pre-push git-hook under `scripts`, which you can enable by running the following command:
+
+```
+cp scripts/pre-push .git/hooks/
+```
+
+The script runs the same test commands as in the `test.yml` workflow.
