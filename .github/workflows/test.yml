@@ -1,0 +1,36 @@
+name: Test
+
+on: [push, workflow_dispatch]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Check
+      run: cargo check --profile ci
+
+    - name: Clippy
+      # Add the following after fixing clippy warnings: "-- -D warnings"
+      # This will ensure that no additional warnings are merged into 'main'
+      run: cargo clippy --profile ci --workspace --all-targets
+
+    - name: Test
+      run: cargo test --profile ci --workspace --all-targets
+
+    - name: Build
+      run: cargo build --profile ci
