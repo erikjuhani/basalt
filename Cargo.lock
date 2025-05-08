@@ -20,6 +20,7 @@ version = "0.4.2"
 dependencies = [
  "dirs",
  "indoc",
+ "ki",
  "pulldown-cmark",
  "serde",
  "serde_json",
@@ -34,6 +35,7 @@ dependencies = [
  "basalt-widgets",
  "crossterm",
  "indoc",
+ "ki",
  "ratatui",
 ]
 
@@ -277,6 +279,15 @@ name = "itoa"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
+
+[[package]]
+name = "ki"
+version = "0.1.0"
+source = "git+https://github.com/Ikken9/ki#14f1a6297c6d7aa505fa2723ce42a54c1b06316c"
+dependencies = [
+ "ratatui",
+ "unicode-width 0.2.0",
+]
 
 [[package]]
 name = "libc"
