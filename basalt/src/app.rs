@@ -453,6 +453,7 @@ fn render_ui<'a>(frame: &mut ratatui::Frame<'_>, state: &mut AppState<'a>) {
         Context::VaultSelector => {
             if let Some(modal_state_data) = &state.vault_selector_state {
                 let mut modal_state_for_render = modal_state_data.clone();
+                modal_state_for_render.is_modal = true;
                 VaultSelector::default().render_ref(
                     area,
                     frame.buffer_mut(),
