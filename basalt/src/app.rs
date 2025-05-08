@@ -1,47 +1,470 @@
-use basalt_core::obsidian::{Note, Vault};
-use basalt_widgets::markdown::{MarkdownView, MarkdownViewState};
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use basalt_core::obsidian::Vault;
+use basalt_widgets::{
+    help::{Help, HelpModalState},
+    markdown::MarkdownView,
+    statusbar::{StatusBar, StatusBarState},
+    vault::{VaultSelector, VaultSelectorState},
+};
+use crossterm::event::{self, Event, KeyEventKind};
 use ratatui::{
-    buffer::Buffer,
-    layout::{Constraint, Layout, Rect, Size},
+    layout::{Constraint, Layout, Size},
     widgets::{StatefulWidget, StatefulWidgetRef},
     DefaultTerminal,
 };
 
-use std::{cell::RefCell, io::Result, marker::PhantomData};
-
 use crate::{
-    help_modal::{HelpModal, HelpModalState},
-    sidepanel::{SidePanel, SidePanelState},
-    start::{StartScreen, StartState},
-    statusbar::{StatusBar, StatusBarState},
+    actions::Action,
+    events::key_event_to_action,
+    main_view::MainView,
+    mode::Mode,
+    screen::Screen,
+    start_view::{StartView, StartViewState},
     text_counts::{CharCount, WordCount},
-    vault_selector_modal::{VaultSelectorModal, VaultSelectorModalState},
 };
+use std::{fs, io::Result, marker::PhantomData, time::Duration};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
-
 const HELP_TEXT: &str = include_str!("./help.txt");
 
-#[derive(Debug, Clone, Default, PartialEq)]
-pub enum Mode {
+#[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Context {
+    HelpModal,
+    VaultSelector,
     #[default]
-    Select,
-    Normal,
-    Insert,
+    StartScreen,
+    Explorer,
+    Editor,
 }
 
-impl Mode {
-    fn as_str(&self) -> &'static str {
-        match self {
-            Mode::Select => "Select",
-            Mode::Normal => "Normal",
-            Mode::Insert => "Insert",
+#[derive(Debug, Clone, PartialEq)]
+pub struct AppState<'a> {
+    pub vaults: Vec<&'a Vault>,
+    pub selected_vault: Option<&'a Vault>,
+    pub help_modal_state: Option<HelpModalState>,
+    pub vault_selector_state: Option<VaultSelectorState<'a>>,
+    pub size: Size,
+    pub is_running: bool,
+    pub ctx: Context,
+    pub screen: Screen<'a>,
+    pub previous_ctx: Option<Context>, // This is for restoring context after modal closes
+    _lifetime: PhantomData<&'a ()>,
+}
+
+impl<'a> AppState<'a> {
+    fn new(vaults: Vec<&'a Vault>, size: Size, version: &'a str) -> Self {
+        AppState {
+            vaults: vaults.clone(),
+            selected_vault: None,
+            help_modal_state: None,
+            vault_selector_state: None,
+            size,
+            is_running: true,
+            ctx: Context::default(),
+            screen: Screen::Start(StartView {
+                start_state: StartViewState::new(version, size, vaults),
+            }),
+            previous_ctx: None,
+            _lifetime: PhantomData,
         }
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq)]
+pub struct App<'a> {
+    state: AppState<'a>,
+    terminal: DefaultTerminal,
+}
+
+impl<'a> App<'a> {
+    pub fn start(terminal: DefaultTerminal, vaults: Vec<&'a Vault>) -> Result<()> {
+        let version = format!("{VERSION}~alpha");
+        let size = terminal.size()?;
+        let initial_state = AppState::new(vaults, size, &version);
+
+        let mut app = App {
+            state: initial_state,
+            terminal,
+        };
+        app.run()
+    }
+
+    pub fn run(&mut self) -> Result<()> {
+        while self.state.is_running {
+            self.draw()?;
+            if let Some(action) = self.handle_input()? {
+                let new_state = update(self.state.clone(), action);
+                self.state = new_state;
+                // In a full TEA, `update` might also return Commands (side effects) but I'm not
+                // going to go into that now.
+                // self.execute_commands(commands);
+            }
+        }
+        Ok(())
+    }
+
+    fn draw(&mut self) -> Result<()> {
+        let current_state = &mut self.state;
+        self.terminal.draw(|frame| {
+            render_ui(frame, current_state);
+        })?;
+        Ok(())
+    }
+
+    fn handle_input(&mut self) -> Result<Option<Action>> {
+        if event::poll(Duration::from_millis(100))? {
+            match event::read()? {
+                Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
+                    return Ok(key_event_to_action(key_event, &self.state.ctx)); // Pass current context
+                }
+                Event::Resize(cols, rows) => {
+                    return Ok(Some(Action::Resize(Size::new(cols, rows))));
+                }
+                _ => {}
+            }
+        }
+        Ok(None)
+    }
+}
+
+// --- Update Function ---
+// This function takes the current state and an action, and returns the new state.
+// It should be a pure function: no side effects, only transforms state.
+fn update(mut current_state: AppState, action: Action) -> AppState {
+    let determine_ctx_after_modal_close_pure = |state: &AppState| -> Context {
+        if let Some(prev_ctx) = &state.previous_ctx {
+            prev_ctx.clone()
+        } else {
+            match state.screen {
+                Screen::Main(_) => Context::Explorer,
+                Screen::Start(_) => Context::StartScreen,
+            }
+        }
+    };
+
+    match action {
+        Action::Quit => {
+            current_state.is_running = false;
+        }
+        // Action::Resize(new_size) => {
+        //     current_state.size = new_size;
+        //     // Propagate size change to relevant states if they need it (e.g., for layout)
+        //     // This might be better handled in the view or specific component states if they cache size-dependent things.
+        //     match &mut current_state.screen {
+        //         Screen::Start(start_view) => start_view.start_state.resize(new_size),
+        //         Screen::Main(main_view) => { /* main_view.resize(new_size) if needed */ }
+        //     }
+        // }
+        Action::ToggleHelp => {
+            if current_state.ctx == Context::HelpModal {
+                current_state.ctx = determine_ctx_after_modal_close_pure(&current_state);
+                current_state.previous_ctx = None;
+                current_state.help_modal_state = None;
+            } else {
+                current_state.previous_ctx = Some(current_state.ctx.clone());
+                current_state.ctx = Context::HelpModal;
+                let help_text_content = help_text();
+                current_state.help_modal_state =
+                    Some(HelpModalState::new(help_text_content.lines().count()));
+            }
+        }
+        Action::ToggleVaultSelector => {
+            if current_state.ctx == Context::VaultSelector {
+                current_state.ctx = determine_ctx_after_modal_close_pure(&current_state);
+                current_state.previous_ctx = None;
+                current_state.vault_selector_state = None;
+            } else {
+                current_state.previous_ctx = Some(current_state.ctx.clone());
+                current_state.ctx = Context::VaultSelector;
+                current_state.vault_selector_state =
+                    Some(VaultSelectorState::new(current_state.vaults.clone()));
+            }
+        }
+        _ => match current_state.ctx {
+            Context::HelpModal => {
+                current_state = update_help_modal(current_state, action);
+            }
+            Context::VaultSelector => {
+                current_state = update_vault_selector(current_state, action);
+            }
+            Context::StartScreen => {
+                current_state = update_start_screen(current_state, action);
+            }
+            Context::Explorer => {
+                current_state = update_explorer(current_state, action);
+            }
+            Context::Editor => {
+                current_state = update_editor(current_state, action);
+            }
+        },
+    }
+    current_state
+}
+
+fn update_help_modal(mut state: AppState, action: Action) -> AppState {
+    if let Some(modal_state) = state.help_modal_state.as_mut() {
+        match action {
+            Action::ScrollUp(amount) => {
+                modal_state.scroll_up(calc_scroll_amount(amount, state.size))
+            }
+            Action::ScrollDown(amount) => {
+                modal_state.scroll_down(calc_scroll_amount(amount, state.size))
+            }
+            Action::Next => modal_state.scroll_down(1),
+            Action::Prev => modal_state.scroll_up(1),
+            _ => {}
+        }
+    }
+    state
+}
+
+fn update_vault_selector(mut state: AppState, action: Action) -> AppState {
+    let mut close_modal_and_revert_ctx = false;
+    let mut new_ctx_after_selection: Option<Context> = None;
+
+    if let Some(modal_state) = state.vault_selector_state.as_mut() {
+        match action {
+            Action::Select => {
+                modal_state.select();
+                if let Some(index) = modal_state.selected() {
+                    if let Some(vault) = modal_state.get_item(index) {
+                        let entries = vault.load().unwrap_or_default();
+                        let size = state.size;
+                        match MainView::new(&vault, entries, size) {
+                            Ok(main_view) => {
+                                state.screen = Screen::Main(main_view);
+                                state.selected_vault = Some(&vault);
+                                new_ctx_after_selection = Some(Context::Explorer);
+                                close_modal_and_revert_ctx = true;
+                            }
+                            Err(_) => {
+                                close_modal_and_revert_ctx = true;
+                            }
+                        }
+                    }
+                }
+            }
+            Action::Next => modal_state.next(),
+            Action::Prev => modal_state.previous(),
+            _ => {}
+        }
+    }
+
+    if close_modal_and_revert_ctx {
+        state.vault_selector_state = None;
+        state.ctx = new_ctx_after_selection.unwrap_or_else(|| {
+            let determine_ctx_after_modal_close_pure = |s: &AppState| -> Context {
+                if let Some(prev_ctx) = &s.previous_ctx {
+                    prev_ctx.clone()
+                } else {
+                    match s.screen {
+                        Screen::Main(_) => Context::Explorer,
+                        Screen::Start(_) => Context::StartScreen,
+                    }
+                }
+            };
+            determine_ctx_after_modal_close_pure(&state)
+        });
+        state.previous_ctx = None;
+    }
+    state
+}
+
+fn update_start_screen(mut state: AppState, action: Action) -> AppState {
+    if let Screen::Start(start_view) = &mut state.screen {
+        match action {
+            Action::Select => {
+                start_view.start_state.select();
+                if let Some(index) = start_view.start_state.selected() {
+                    if let Some(vault) = start_view.start_state.get_item(index) {
+                        let entries = vault.load().unwrap_or_default();
+                        let size = state.size;
+                        if let Ok(main_view) = MainView::new(&vault, entries, size) {
+                            state.screen = Screen::Main(main_view);
+                            state.selected_vault = Some(&vault);
+                            state.ctx = Context::Explorer;
+                        }
+                    }
+                }
+            }
+            Action::Next => start_view.start_state.next(),
+            Action::Prev => start_view.start_state.previous(),
+            _ => {}
+        }
+    }
+    state
+}
+
+fn update_explorer(mut state: AppState, action: Action) -> AppState {
+    if let Screen::Main(main_view) = &mut state.screen {
+        match action {
+            Action::ToggleMode => {
+                state.ctx = Context::Editor;
+                main_view.mode = Mode::Normal;
+            }
+            Action::Select => {
+                let selected_path = main_view.explorer_state.selected().last();
+                if let Some(path) = selected_path {
+                    if path.is_dir() {
+                        main_view.explorer_state.toggle_selected();
+                    } else {
+                        // Perform side effect (file reading) conceptually as a Command later.
+                        // For now, I'm doing it like this, but it breaks "purity".
+                        // To maintain that purity, Action::SelectOnFile(path) would be dispatched,
+                        // and a command handler would read the file and dispatch Action::FileContentLoaded(content).
+                        if let Ok(content) = fs::read_to_string(&path) {
+                            main_view.markdown_view_state.set_text(content);
+                            main_view.markdown_view_state.reset_scrollbar();
+                            state.ctx = Context::Editor;
+                            main_view.mode = Mode::Normal;
+                        }
+                    }
+                }
+                main_view.explorer_state.scroll_selected_into_view();
+            }
+            Action::Next => {
+                if main_view.explorer_state.select_next() {
+                    main_view.explorer_state.scroll_selected_into_view();
+                }
+            }
+            Action::Prev => {
+                if main_view.explorer_state.select_prev() {
+                    main_view.explorer_state.scroll_selected_into_view();
+                }
+            }
+            _ => {}
+        }
+    }
+    state
+}
+
+fn update_editor(mut state: AppState, action: Action) -> AppState {
+    if let Screen::Main(main_view) = &mut state.screen {
+        match action {
+            Action::ToggleMode => {
+                state.ctx = Context::Explorer;
+                main_view.mode = Mode::Select;
+            }
+            Action::ScrollUp(amount) => {
+                main_view
+                    .markdown_view_state
+                    .scroll_up(calc_scroll_amount(amount, state.size));
+            }
+            Action::ScrollDown(amount) => {
+                main_view
+                    .markdown_view_state
+                    .scroll_down(calc_scroll_amount(amount, state.size));
+            }
+            Action::Next => main_view.markdown_view_state.scroll_down(1),
+            Action::Prev => main_view.markdown_view_state.scroll_up(1),
+            _ => {}
+        }
+    }
+    state
+}
+
+// --- Pure View Function (render_ui) ---
+// Takes an immutable reference to state.
+// TEA prefers view functions to be pure. If widgets mutate state for rendering, it's a slight deviation.
+// Often, render-specific mutable state (like scroll position) is updated in the `update` function.
+fn render_ui<'a>(frame: &mut ratatui::Frame<'_>, state: &mut AppState<'a>) {
+    let area = frame.area();
+
+    // Render current screen
+    match &mut state.screen {
+        Screen::Start(start_view) => {
+            let mut start_view_state_for_render = &mut start_view.start_state;
+            StartView::default().render_ref(
+                area,
+                frame.buffer_mut(),
+                &mut start_view_state_for_render,
+            );
+        }
+        Screen::Main(main_view) => {
+            let [content_area, statusbar_area] =
+                Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).areas(area);
+
+            let explorer_constraint =
+                if state.ctx == Context::Explorer || main_view.mode == Mode::Select {
+                    Constraint::Length(35)
+                } else {
+                    Constraint::Length(5)
+                };
+            let [explorer_area, note_area] =
+                Layout::horizontal([explorer_constraint, Constraint::Fill(1)]).areas(content_area);
+
+            main_view.explorer.render_ref(
+                explorer_area,
+                frame.buffer_mut(),
+                &mut main_view.explorer_state,
+            );
+
+            let mut md_view_state_for_render = main_view.markdown_view_state.clone();
+
+            MarkdownView.render_ref(note_area, frame.buffer_mut(), &mut md_view_state_for_render);
+
+            if let Some(selected_vault) = &state.selected_vault {
+                let name = selected_vault.name.as_str();
+                let (word_count, char_count) = main_view.explorer_state.selected().last().map_or(
+                    (WordCount::from(0), CharCount::from(0)),
+                    |selected_path| {
+                        if selected_path.is_dir() {
+                            (WordCount::from(0), CharCount::from(0))
+                        } else {
+                            fs::read_to_string(selected_path).map_or_else(
+                                |_| (WordCount::from(0), CharCount::from(0)),
+                                |content| {
+                                    (
+                                        WordCount::from(content.as_str()),
+                                        CharCount::from(content.as_str()),
+                                    )
+                                },
+                            )
+                        }
+                    },
+                );
+
+                let mode_str = main_view.mode.as_str().to_uppercase();
+                let mut status_bar_state_for_render = StatusBarState::new(
+                    &mode_str,
+                    Some(name),
+                    word_count.into(),
+                    char_count.into(),
+                );
+                StatusBar::default().render_ref(
+                    statusbar_area,
+                    frame.buffer_mut(),
+                    &mut status_bar_state_for_render,
+                );
+            }
+        }
+    }
+
+    // Render modals on top
+    match state.ctx {
+        Context::HelpModal => {
+            if let Some(modal_state_data) = &state.help_modal_state {
+                let mut modal_state_for_render = modal_state_data.clone();
+                Help::new(help_text().as_str()).render(
+                    area,
+                    frame.buffer_mut(),
+                    &mut modal_state_for_render,
+                );
+            }
+        }
+        Context::VaultSelector => {
+            if let Some(modal_state_data) = &state.vault_selector_state {
+                let mut modal_state_for_render = modal_state_data.clone();
+                VaultSelector::default().render_ref(
+                    area,
+                    frame.buffer_mut(),
+                    &mut modal_state_for_render,
+                );
+            }
+        }
+        _ => {}
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ScrollAmount {
     #[default]
     One,
@@ -51,158 +474,7 @@ pub enum ScrollAmount {
 fn calc_scroll_amount(scroll_amount: ScrollAmount, size: Size) -> usize {
     match scroll_amount {
         ScrollAmount::One => 1,
-        ScrollAmount::HalfPage => (size.height / 3).into(),
-    }
-}
-
-#[derive(Debug, PartialEq)]
-pub enum Action {
-    Select,
-    Next,
-    Prev,
-    Insert,
-    Resize(Size),
-    ScrollUp(ScrollAmount),
-    ScrollDown(ScrollAmount),
-    ToggleMode,
-    ToggleHelp,
-    ToggleVaultSelector,
-    Quit,
-}
-
-#[derive(Debug, Default, Clone, PartialEq)]
-pub struct Start<'a> {
-    pub start_state: StartState<'a>,
-}
-
-#[derive(Debug, Default, Clone, PartialEq)]
-pub struct Main<'a> {
-    pub sidepanel_state: SidePanelState<'a>,
-    pub selected_note: Option<SelectedNote>,
-    pub markdown_view_state: MarkdownViewState,
-    pub notes: Vec<Note>,
-    pub vaults: Vec<&'a Vault>,
-    pub size: Size,
-    pub mode: Mode,
-}
-
-impl<'a> Main<'a> {
-    fn new(vault_name: &'a str, notes: Vec<Note>, size: Size, vaults: Vec<&'a Vault>) -> Self {
-        Self {
-            notes: notes.clone(),
-            sidepanel_state: SidePanelState::new(vault_name, notes),
-            vaults,
-            size,
-            ..Default::default()
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Screen<'a> {
-    Start(Start<'a>),
-    Main(Main<'a>),
-}
-
-impl Default for Screen<'_> {
-    fn default() -> Self {
-        Screen::Start(Start::default())
-    }
-}
-
-#[derive(Debug, Default, Clone, PartialEq)]
-pub struct AppState<'a> {
-    pub help_modal: Option<HelpModalState>,
-    pub vault_selector_modal: Option<VaultSelectorModalState<'a>>,
-    pub size: Size,
-    pub is_running: bool,
-    pub screen: Screen<'a>,
-    _lifetime: PhantomData<&'a ()>,
-}
-
-pub struct App<'a> {
-    pub state: AppState<'a>,
-    terminal: RefCell<DefaultTerminal>,
-}
-
-impl<'a> StatefulWidgetRef for App<'a> {
-    type State = AppState<'a>;
-
-    fn render_ref(&self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        let screen = state.screen.clone();
-
-        match screen {
-            Screen::Start(mut state) => {
-                StartScreen::default().render_ref(area, buf, &mut state.start_state)
-            }
-            Screen::Main(mut state) => {
-                let [content, statusbar] =
-                    Layout::vertical([Constraint::Fill(1), Constraint::Length(1)])
-                        .horizontal_margin(1)
-                        .areas(area);
-
-                let (left, right) = if state.mode == Mode::Select {
-                    (Constraint::Length(35), Constraint::Fill(1))
-                } else {
-                    (Constraint::Length(5), Constraint::Fill(1))
-                };
-
-                let [sidepanel, note] = Layout::horizontal([left, right]).areas(content);
-
-                SidePanel::default().render_ref(sidepanel, buf, &mut state.sidepanel_state);
-
-                MarkdownView.render_ref(note, buf, &mut state.markdown_view_state);
-
-                let mode = state.mode.as_str().to_uppercase();
-                let (name, counts) = state
-                    .selected_note
-                    .clone()
-                    .map(|note| {
-                        let content = note.content.as_str();
-                        (
-                            note.name,
-                            (WordCount::from(content), CharCount::from(content)),
-                        )
-                    })
-                    .unzip();
-
-                let (word_count, char_count) = counts.unwrap_or_default();
-
-                let mut status_bar_state = StatusBarState::new(
-                    &mode,
-                    name.as_deref(),
-                    word_count.into(),
-                    char_count.into(),
-                );
-
-                StatusBar::default().render_ref(statusbar, buf, &mut status_bar_state);
-            }
-        }
-
-        if let Some(mut vault_selector_modal_state) = state.vault_selector_modal.clone() {
-            VaultSelectorModal::default().render(area, buf, &mut vault_selector_modal_state)
-        }
-
-        if let Some(mut help_modal_state) = state.help_modal.clone() {
-            HelpModal.render(area, buf, &mut help_modal_state)
-        }
-    }
-}
-
-#[derive(Debug, Default, Clone, PartialEq)]
-pub struct SelectedNote {
-    name: String,
-    path: String,
-    content: String,
-}
-
-impl From<&Note> for SelectedNote {
-    fn from(value: &Note) -> Self {
-        Self {
-            name: value.name.clone(),
-            path: value.path.to_string_lossy().to_string(),
-            content: Note::read_to_string(value).unwrap(),
-        }
+        ScrollAmount::HalfPage => (size.height / 3).max(1) as usize,
     }
 }
 
@@ -214,394 +486,8 @@ fn help_text() -> String {
     )
 }
 
-impl<'a> App<'a> {
-    pub fn start(terminal: DefaultTerminal, vaults: Vec<&Vault>) -> Result<()> {
-        let version = format!("{VERSION}~alpha");
-        let size = terminal.size()?;
-
-        let state = AppState {
-            screen: Screen::Start(Start {
-                start_state: StartState::new(&version, size, vaults),
-            }),
-            size,
-            is_running: true,
-            _lifetime: PhantomData,
-            ..Default::default()
-        };
-
-        App {
-            state: state.clone(),
-            terminal: RefCell::new(terminal),
-        }
-        .run(state)
-    }
-
-    fn run(&mut self, state: AppState<'a>) -> Result<()> {
-        self.draw(&state)?;
-        let event = &event::read()?;
-        match self.update(&state, self.handle_event(event)) {
-            state if state.is_running => self.run(state),
-            _ => Ok(()),
-        }
-    }
-
-    fn update_help_modal(
-        &self,
-        state: AppState<'a>,
-        inner: HelpModalState,
-        action: Option<Action>,
-    ) -> AppState<'a> {
-        match action {
-            Some(Action::ScrollUp(amount)) => AppState {
-                help_modal: Some(inner.scroll_up(calc_scroll_amount(amount, state.size))),
-                ..state
-            },
-            Some(Action::ScrollDown(amount)) => AppState {
-                help_modal: Some(inner.scroll_down(calc_scroll_amount(amount, state.size))),
-                ..state
-            },
-            Some(Action::Next) => AppState {
-                help_modal: Some(inner.scroll_down(1)),
-                ..state
-            },
-            Some(Action::Prev) => AppState {
-                help_modal: Some(inner.scroll_up(1)),
-                ..state
-            },
-            _ => state,
-        }
-    }
-
-    fn update_vault_selector_modal(
-        &self,
-        state: AppState<'a>,
-        inner: VaultSelectorModalState<'a>,
-        action: Option<Action>,
-    ) -> AppState<'a> {
-        match action {
-            Some(Action::ToggleVaultSelector) => AppState {
-                vault_selector_modal: None,
-                ..state
-            },
-            Some(Action::Select) => {
-                // TODO: Add logic to not load the vault again if the same vault was picked in the
-                // selector.
-                let alphabetically =
-                    |a: &Note, b: &Note| a.name.to_lowercase().cmp(&b.name.to_lowercase());
-
-                let vault_selector_state = inner.vault_selector_state.select();
-
-                let vault_with_notes = vault_selector_state
-                    .selected()
-                    .and_then(|index| inner.vault_selector_state.get_item(index))
-                    .map(|vault| (vault, vault.notes_sorted_by(alphabetically)));
-
-                if let Some((vault, notes)) = vault_with_notes {
-                    AppState {
-                        screen: Screen::Main(Main::new(
-                            &vault.name,
-                            notes,
-                            state.size,
-                            vault_selector_state.items(),
-                        )),
-                        vault_selector_modal: None,
-                        ..state
-                    }
-                } else {
-                    state
-                }
-            }
-            Some(Action::Next) => AppState {
-                vault_selector_modal: Some(VaultSelectorModalState {
-                    vault_selector_state: inner.vault_selector_state.next(),
-                }),
-                ..state
-            },
-            Some(Action::Prev) => AppState {
-                vault_selector_modal: Some(VaultSelectorModalState {
-                    vault_selector_state: inner.vault_selector_state.previous(),
-                }),
-                ..state
-            },
-            _ => state,
-        }
-    }
-
-    fn update_select_mode(
-        &self,
-        state: AppState<'a>,
-        inner: Main<'a>,
-        action: Option<Action>,
-    ) -> AppState<'a> {
-        match action {
-            Some(Action::ToggleMode) => AppState {
-                screen: Screen::Main(Main {
-                    mode: Mode::Normal,
-                    sidepanel_state: inner.sidepanel_state.close(),
-                    ..inner
-                }),
-                ..state
-            },
-            Some(Action::ScrollUp(amount)) => AppState {
-                screen: Screen::Main(Main {
-                    markdown_view_state: inner
-                        .markdown_view_state
-                        .scroll_up(calc_scroll_amount(amount, state.size)),
-                    ..inner
-                }),
-                ..state
-            },
-            Some(Action::ScrollDown(amount)) => AppState {
-                screen: Screen::Main(Main {
-                    markdown_view_state: inner
-                        .markdown_view_state
-                        .scroll_down(calc_scroll_amount(amount, state.size)),
-                    ..inner
-                }),
-                ..state
-            },
-            Some(Action::Select) => {
-                let sidepanel_state = inner.sidepanel_state.select();
-
-                let selected_note = inner
-                    .notes
-                    .get(sidepanel_state.selected().unwrap_or_default())
-                    .map(SelectedNote::from);
-
-                AppState {
-                    screen: Screen::Main(Main {
-                        sidepanel_state,
-                        selected_note: selected_note.clone(),
-                        markdown_view_state: inner
-                            .markdown_view_state
-                            .set_text(selected_note.map(|note| note.content).unwrap_or_default())
-                            .reset_scrollbar(),
-                        ..inner
-                    }),
-                    ..state
-                }
-            }
-            Some(Action::Next) => AppState {
-                screen: Screen::Main(Main {
-                    sidepanel_state: inner.sidepanel_state.next(),
-                    ..inner
-                }),
-                ..state
-            },
-            Some(Action::Prev) => AppState {
-                screen: Screen::Main(Main {
-                    sidepanel_state: inner.sidepanel_state.previous(),
-                    ..inner
-                }),
-                ..state
-            },
-            _ => state,
-        }
-    }
-
-    fn update_normal_mode(
-        &self,
-        state: AppState<'a>,
-        inner: Main<'a>,
-        action: Option<Action>,
-    ) -> AppState<'a> {
-        let Some(action) = action else {
-            return state;
-        };
-
-        match action {
-            Action::ToggleMode => AppState {
-                screen: Screen::Main(Main {
-                    mode: Mode::Select,
-                    sidepanel_state: inner.sidepanel_state.open(),
-                    ..inner
-                }),
-                ..state
-            },
-            Action::ScrollUp(amount) => AppState {
-                screen: Screen::Main(Main {
-                    markdown_view_state: inner
-                        .markdown_view_state
-                        .scroll_up(calc_scroll_amount(amount, state.size)),
-                    ..inner
-                }),
-                ..state
-            },
-            Action::ScrollDown(amount) => AppState {
-                screen: Screen::Main(Main {
-                    markdown_view_state: inner
-                        .markdown_view_state
-                        .scroll_down(calc_scroll_amount(amount, state.size)),
-                    ..inner
-                }),
-                ..state
-            },
-            Action::Next => AppState {
-                screen: Screen::Main(Main {
-                    markdown_view_state: inner.markdown_view_state.scroll_down(1),
-                    ..inner
-                }),
-                ..state
-            },
-            Action::Prev => AppState {
-                screen: Screen::Main(Main {
-                    markdown_view_state: inner.markdown_view_state.scroll_up(1),
-                    ..inner
-                }),
-                ..state
-            },
-            _ => state,
-        }
-    }
-
-    fn update_main_state(
-        &self,
-        state: AppState<'a>,
-        inner: Main<'a>,
-        action: Option<Action>,
-    ) -> AppState<'a> {
-        if let Some(Action::ToggleVaultSelector) = action {
-            return AppState {
-                vault_selector_modal: if state.vault_selector_modal.is_some() {
-                    None
-                } else {
-                    Some(VaultSelectorModalState::new(inner.vaults.clone()))
-                },
-                ..state
-            };
-        }
-
-        match inner.mode {
-            Mode::Select => self.update_select_mode(state, inner, action),
-            Mode::Normal => self.update_normal_mode(state, inner, action),
-            Mode::Insert => state,
-        }
-    }
-
-    fn update_start_state(
-        &self,
-        state: AppState<'a>,
-        inner: Start<'a>,
-        action: Option<Action>,
-    ) -> AppState<'a> {
-        match action {
-            Some(Action::Select) => {
-                let alphabetically =
-                    |a: &Note, b: &Note| a.name.to_lowercase().cmp(&b.name.to_lowercase());
-
-                let splash_state = inner.start_state.select();
-
-                let vault_with_notes = splash_state
-                    .selected()
-                    .and_then(|index| splash_state.get_item(index))
-                    .map(|vault| (vault, vault.notes_sorted_by(alphabetically)));
-
-                if let Some((vault, notes)) = vault_with_notes {
-                    AppState {
-                        screen: Screen::Main(Main::new(
-                            &vault.name,
-                            notes,
-                            state.size,
-                            inner.start_state.items(),
-                        )),
-                        ..state
-                    }
-                } else {
-                    state
-                }
-            }
-            Some(Action::Next) => AppState {
-                screen: Screen::Start(Start {
-                    start_state: inner.start_state.next(),
-                }),
-                ..state
-            },
-            Some(Action::Prev) => AppState {
-                screen: Screen::Start(Start {
-                    start_state: inner.start_state.previous(),
-                }),
-                ..state
-            },
-            _ => state,
-        }
-    }
-
-    fn update(&self, state: &AppState<'a>, action: Option<Action>) -> AppState<'a> {
-        let state = state.clone();
-        let screen = state.screen.clone();
-        match action {
-            Some(Action::Quit) => AppState {
-                is_running: false,
-                ..state
-            },
-            Some(Action::ToggleHelp) => AppState {
-                help_modal: if state.help_modal.is_some() {
-                    None
-                } else {
-                    Some(HelpModalState::new(&help_text()))
-                },
-                ..state
-            },
-            Some(Action::Resize(size)) => AppState { size, ..state },
-            _ if state.help_modal.is_some() => {
-                self.update_help_modal(state.clone(), state.help_modal.unwrap().clone(), action)
-            }
-            _ if state.vault_selector_modal.is_some() => self.update_vault_selector_modal(
-                state.clone(),
-                state.vault_selector_modal.unwrap().clone(),
-                action,
-            ),
-            _ => match screen {
-                Screen::Start(inner) => self.update_start_state(state, inner, action),
-                Screen::Main(inner) => self.update_main_state(state, inner, action),
-            },
-        }
-    }
-
-    fn handle_event(&self, event: &Event) -> Option<Action> {
-        match event {
-            Event::Resize(cols, rows) => Some(Action::Resize(Size::new(*cols, *rows))),
-            Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
-                self.handle_press_key_event(key_event)
-            }
-            _ => None,
-        }
-    }
-
-    fn handle_press_key_event(&self, key_event: &KeyEvent) -> Option<Action> {
-        match key_event.code {
-            KeyCode::Char('q') => Some(Action::Quit),
-            KeyCode::Char('?') => Some(Action::ToggleHelp),
-            KeyCode::Char(' ') => Some(Action::ToggleVaultSelector),
-            KeyCode::Up => Some(Action::ScrollUp(ScrollAmount::One)),
-            KeyCode::Down => Some(Action::ScrollDown(ScrollAmount::One)),
-            KeyCode::Char('u') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(Action::ScrollUp(ScrollAmount::HalfPage))
-            }
-            KeyCode::Char('c') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(Action::Quit)
-            }
-            KeyCode::Char('d') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(Action::ScrollDown(ScrollAmount::HalfPage))
-            }
-            KeyCode::Char('t') => Some(Action::ToggleMode),
-            KeyCode::Char('k') => Some(Action::Prev),
-            KeyCode::Char('j') => Some(Action::Next),
-            KeyCode::Enter => Some(Action::Select),
-            _ => None,
-        }
-    }
-
-    fn draw(&self, state: &AppState<'a>) -> Result<()> {
-        let mut terminal = self.terminal.borrow_mut();
-        let mut state = state.clone();
-
-        terminal.draw(move |frame| {
-            let area = frame.area();
-            let buf = frame.buffer_mut();
-            self.render_ref(area, buf, &mut state);
-        })?;
-
-        Ok(())
-    }
-}
+// I'll try to implement something like this after I've made more progress on the explorer
+// pub enum Command {
+//     SaveFile(String, String), // path, content
+//     ReadFile(String),         // path
+// }
