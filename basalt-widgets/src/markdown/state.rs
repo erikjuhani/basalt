@@ -24,40 +24,28 @@ impl MarkdownViewState {
         self.text.lines().collect()
     }
 
-    pub fn scroll_up(self, amount: usize) -> Self {
+    pub fn scroll_up(&mut self, amount: usize) {
         let new_position = self.scrollbar.position.saturating_sub(amount);
         let new_state = self.scrollbar.state.position(new_position);
 
-        Self {
-            scrollbar: Scrollbar {
-                state: new_state,
-                position: new_position,
-            },
-            ..self
-        }
+        self.scrollbar.state = new_state;
+        self.scrollbar.position = new_position;
     }
 
-    pub fn scroll_down(self, amount: usize) -> Self {
+    pub fn scroll_down(&mut self, amount: usize) {
         let new_position = self.scrollbar.position.saturating_add(amount);
         let new_state = self.scrollbar.state.position(new_position);
 
-        Self {
-            scrollbar: Scrollbar {
-                state: new_state,
-                position: new_position,
-            },
-            ..self
-        }
+        self.scrollbar.state = new_state;
+        self.scrollbar.position = new_position;
     }
 
-    pub fn set_text(self, text: String) -> Self {
-        Self { text, ..self }
+    pub fn set_text(&mut self, text: String) {
+        self.text = text;
     }
 
-    pub fn reset_scrollbar(self) -> Self {
-        Self {
-            scrollbar: Scrollbar::default(),
-            ..self
-        }
+    pub fn reset_scrollbar(&mut self) {
+        self.scrollbar = Scrollbar::default();
+        self.scrollbar.position = 0;
     }
 }
