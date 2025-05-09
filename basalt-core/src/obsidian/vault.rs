@@ -1,11 +1,11 @@
 use std::{
     cmp::Ordering,
-    fs::{self, read_dir},
     path::{Path, PathBuf},
     result,
 };
 
 use serde::{Deserialize, Deserializer};
+use tokio::fs;
 
 use crate::obsidian::Note;
 
@@ -41,13 +41,33 @@ impl Vault {
     ///     ..Default::default()
     /// };
     ///
-    /// assert_eq!(vault.notes().collect::<Vec<_>>(), vec![]);
+    /// assert_eq!(vault.notes().await.unwrap(), vec![]);
     /// ```
-    pub fn notes(&self) -> impl Iterator<Item = Note> {
-        read_dir(&self.path)
-            .into_iter()
-            .flatten()
-            .filter_map(|entry| Option::<Note>::from(DirEntry::from(entry.ok()?)))
+    pub async fn notes(&self) -> Result<Vec<Note>, std::io::Error> {
+        let mut notes = Vec::new();
+        let mut dir = fs::read_dir(&self.path).await?;
+
+        while let Some(entry) = dir.next_entry().await? {
+            let file_name = entry.file_name().to_string_lossy().into_owned();
+            if let Some((name, extension)) = file_name.split_once('.') {
+                if extension != "md" {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        "Invalid extension",
+                    ));
+                }
+                let path = entry.path();
+                let created = entry.metadata().await?.created()?;
+
+                notes.push(Note {
+                    name: name.to_string(),
+                    path,
+                    created,
+                });
+            }
+        }
+
+        Ok(notes)
     }
 
     /// Returns a sorted vector [`Vec<Note>`] of all notes in the vault, sorted according to the
@@ -67,11 +87,13 @@ impl Vault {
     ///
     /// let alphabetically = |a: &Note, b: &Note| a.name.to_lowercase().cmp(&b.name.to_lowercase());
     ///
-    /// _ = vault.notes_sorted_by(alphabetically);
+    /// _ = vault.notes_sorted_by(alphabetically).await;
     /// ```
-    pub fn notes_sorted_by(&self, compare: impl Fn(&Note, &Note) -> Ordering) -> Vec<Note> {
-        let mut notes: Vec<Note> = self.notes().collect();
+    pub async fn notes_sorted_by(&self, compare: impl Fn(&Note, &Note) -> Ordering) -> Vec<Note> {
+        let mut notes: Vec<Note> = self.notes().await.unwrap_or_default();
+
         notes.sort_by(compare);
+
         notes
     }
 }
@@ -108,40 +130,5 @@ impl<'de> Deserialize<'de> for Vault {
 
         let deserialized: Json = Deserialize::deserialize(deserializer)?;
         deserialized.try_into().map_err(serde::de::Error::custom)
-    }
-}
-
-/// Internal wrapper for directory entries to implement custom conversion between [`fs::DirEntry`]
-/// and [`Option<Note>`].
-#[derive(Debug)]
-struct DirEntry(fs::DirEntry);
-
-impl From<fs::DirEntry> for DirEntry {
-    fn from(value: fs::DirEntry) -> Self {
-        DirEntry(value)
-    }
-}
-
-impl From<DirEntry> for Option<Note> {
-    /// Transforms path with extension `.md` into [`Option<Note>`].
-    fn from(value: DirEntry) -> Option<Note> {
-        let dir = value.0;
-        let created = dir.metadata().ok()?.created().ok()?;
-        let path = dir.path();
-
-        if path.extension()? != "md" {
-            return None;
-        }
-
-        let name = path
-            .with_extension("")
-            .file_name()
-            .map(|file_name| file_name.to_string_lossy().into_owned())?;
-
-        Some(Note {
-            name,
-            path,
-            created,
-        })
     }
 }

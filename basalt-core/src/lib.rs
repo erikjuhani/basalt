@@ -6,7 +6,7 @@
 //! ```
 //! use basalt_core::obsidian::{ObsidianConfig, Error};
 //!
-//! let config = ObsidianConfig::load();
+//! let config = ObsidianConfig::load().await;
 //! ```
 //!
 //! This crate also provides a markdown parser that produces a custom AST using the
