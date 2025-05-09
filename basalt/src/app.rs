@@ -196,16 +196,6 @@ pub struct SelectedNote {
     content: String,
 }
 
-impl From<&Note> for SelectedNote {
-    fn from(value: &Note) -> Self {
-        Self {
-            name: value.name.clone(),
-            path: value.path.to_string_lossy().to_string(),
-            content: Note::read_to_string(value).unwrap(),
-        }
-    }
-}
-
 fn help_text() -> String {
     let version = format!("{VERSION}~alpha");
     HELP_TEXT.replace(
@@ -215,7 +205,7 @@ fn help_text() -> String {
 }
 
 impl<'a> App<'a> {
-    pub fn start(terminal: DefaultTerminal, vaults: Vec<&Vault>) -> Result<()> {
+    pub async fn start(terminal: DefaultTerminal, vaults: Vec<&Vault>) -> Result<()> {
         let version = format!("{VERSION}~alpha");
         let size = terminal.size()?;
 
@@ -234,13 +224,14 @@ impl<'a> App<'a> {
             terminal: RefCell::new(terminal),
         }
         .run(state)
+        .await
     }
 
-    fn run(&mut self, state: AppState<'a>) -> Result<()> {
+    async fn run(&mut self, state: AppState<'a>) -> Result<()> {
         self.draw(&state)?;
         let event = &event::read()?;
-        match self.update(&state, self.handle_event(event)) {
-            state if state.is_running => self.run(state),
+        match self.update(&state, self.handle_event(event)).await {
+            state if state.is_running => Box::pin(self.run(state)).await,
             _ => Ok(()),
         }
     }
@@ -272,7 +263,7 @@ impl<'a> App<'a> {
         }
     }
 
-    fn update_vault_selector_modal(
+    async fn update_vault_selector_modal(
         &self,
         state: AppState<'a>,
         inner: VaultSelectorModalState<'a>,
@@ -291,24 +282,21 @@ impl<'a> App<'a> {
 
                 let vault_selector_state = inner.vault_selector_state.select();
 
-                let vault_with_notes = vault_selector_state
+                match vault_selector_state
                     .selected()
                     .and_then(|index| inner.vault_selector_state.get_item(index))
-                    .map(|vault| (vault, vault.notes_sorted_by(alphabetically)));
-
-                if let Some((vault, notes)) = vault_with_notes {
-                    AppState {
+                {
+                    Some(vault) => AppState {
                         screen: Screen::Main(Main::new(
                             &vault.name,
-                            notes,
+                            vault.notes_sorted_by(alphabetically).await,
                             state.size,
                             vault_selector_state.items(),
                         )),
                         vault_selector_modal: None,
                         ..state
-                    }
-                } else {
-                    state
+                    },
+                    None => state,
                 }
             }
             Some(Action::Next) => AppState {
@@ -327,7 +315,7 @@ impl<'a> App<'a> {
         }
     }
 
-    fn update_select_mode(
+    async fn update_select_mode(
         &self,
         state: AppState<'a>,
         inner: Main<'a>,
@@ -363,10 +351,17 @@ impl<'a> App<'a> {
             Some(Action::Select) => {
                 let sidepanel_state = inner.sidepanel_state.select();
 
-                let selected_note = inner
+                let selected_note = match inner
                     .notes
                     .get(sidepanel_state.selected().unwrap_or_default())
-                    .map(SelectedNote::from);
+                {
+                    Some(note) => Some(SelectedNote {
+                        name: note.name.clone(),
+                        path: note.path.to_string_lossy().into_owned(),
+                        content: Note::read_to_string(note).await.unwrap_or_default(),
+                    }),
+                    None => None,
+                };
 
                 AppState {
                     screen: Screen::Main(Main {
@@ -454,7 +449,7 @@ impl<'a> App<'a> {
         }
     }
 
-    fn update_main_state(
+    async fn update_main_state(
         &self,
         state: AppState<'a>,
         inner: Main<'a>,
@@ -472,13 +467,13 @@ impl<'a> App<'a> {
         }
 
         match inner.mode {
-            Mode::Select => self.update_select_mode(state, inner, action),
+            Mode::Select => self.update_select_mode(state, inner, action).await,
             Mode::Normal => self.update_normal_mode(state, inner, action),
             Mode::Insert => state,
         }
     }
 
-    fn update_start_state(
+    async fn update_start_state(
         &self,
         state: AppState<'a>,
         inner: Start<'a>,
@@ -491,23 +486,20 @@ impl<'a> App<'a> {
 
                 let splash_state = inner.start_state.select();
 
-                let vault_with_notes = splash_state
+                match splash_state
                     .selected()
                     .and_then(|index| splash_state.get_item(index))
-                    .map(|vault| (vault, vault.notes_sorted_by(alphabetically)));
-
-                if let Some((vault, notes)) = vault_with_notes {
-                    AppState {
+                {
+                    Some(vault) => AppState {
                         screen: Screen::Main(Main::new(
                             &vault.name,
-                            notes,
+                            vault.notes_sorted_by(alphabetically).await,
                             state.size,
                             inner.start_state.items(),
                         )),
                         ..state
-                    }
-                } else {
-                    state
+                    },
+                    None => state,
                 }
             }
             Some(Action::Next) => AppState {
@@ -526,7 +518,7 @@ impl<'a> App<'a> {
         }
     }
 
-    fn update(&self, state: &AppState<'a>, action: Option<Action>) -> AppState<'a> {
+    async fn update(&self, state: &AppState<'a>, action: Option<Action>) -> AppState<'a> {
         let state = state.clone();
         let screen = state.screen.clone();
         match action {
@@ -546,14 +538,17 @@ impl<'a> App<'a> {
             _ if state.help_modal.is_some() => {
                 self.update_help_modal(state.clone(), state.help_modal.unwrap().clone(), action)
             }
-            _ if state.vault_selector_modal.is_some() => self.update_vault_selector_modal(
-                state.clone(),
-                state.vault_selector_modal.unwrap().clone(),
-                action,
-            ),
+            _ if state.vault_selector_modal.is_some() => {
+                self.update_vault_selector_modal(
+                    state.clone(),
+                    state.vault_selector_modal.unwrap().clone(),
+                    action,
+                )
+                .await
+            }
             _ => match screen {
-                Screen::Start(inner) => self.update_start_state(state, inner, action),
-                Screen::Main(inner) => self.update_main_state(state, inner, action),
+                Screen::Start(inner) => self.update_start_state(state, inner, action).await,
+                Screen::Main(inner) => self.update_main_state(state, inner, action).await,
             },
         }
     }

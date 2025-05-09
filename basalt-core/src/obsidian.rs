@@ -37,7 +37,7 @@ pub use vault::Vault;
 /// use basalt_core::obsidian::{ObsidianConfig, Error};
 ///
 ///
-/// let config_result = ObsidianConfig::load_from(Path::new("./nonexistent"));
+/// let config_result = ObsidianConfig::load_from(Path::new("./nonexistent")).await;
 /// assert_eq!(config_result.is_err(), true);
 /// ```
 pub type Result<T> = result::Result<T, Error>;

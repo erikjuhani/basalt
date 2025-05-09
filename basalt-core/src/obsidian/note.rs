@@ -1,4 +1,6 @@
-use std::{fs, path::PathBuf, time::SystemTime};
+use std::{path::PathBuf, time::SystemTime};
+
+use tokio::fs;
 
 use crate::obsidian::{Error, Result};
 
@@ -41,10 +43,10 @@ impl Note {
     ///     ..Default::default()
     /// };
     ///
-    /// _ = Note::read_to_string(&note);
+    /// _ = Note::read_to_string(&note).await;
     /// ```
-    pub fn read_to_string(note: &Note) -> Result<String> {
-        fs::read_to_string(&note.path).map_err(Error::Io)
+    pub async fn read_to_string(note: &Note) -> Result<String> {
+        fs::read_to_string(&note.path).await.map_err(Error::from)
     }
 
     /// Writes given content to notes path.
@@ -60,9 +62,9 @@ impl Note {
     ///     ..Default::default()
     /// };
     ///
-    /// _ = Note::write(&note, String::from("# Heading"));
+    /// _ = Note::write(&note, String::from("# Heading")).await;
     /// ```
-    pub fn write(note: &Note, contents: String) -> Result<()> {
-        fs::write(&note.path, contents).map_err(Error::Io)
+    pub async fn write(note: &Note, contents: String) -> Result<()> {
+        fs::write(&note.path, contents).await.map_err(Error::from)
     }
 }
