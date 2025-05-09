@@ -15,6 +15,7 @@ pub struct HelpModalState {
     pub scrollbar_position: usize,
     pub viewport_height: usize,
     pub text: String,
+    pub hidden: bool,
 }
 
 impl HelpModalState {
