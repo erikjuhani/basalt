@@ -71,7 +71,7 @@ jobs:
         shell: bash
         run: |
           ref_name="${{ github.ref_name }}"
-          version="${ref_name##*/}"
+          version="${ref_name##*/v}"
 
           target="${{ matrix.target }}"
           bin_path="target/${target}/release"
