@@ -14,6 +14,9 @@ basalt-core = { workspace = true }
 basalt-widgets = { workspace = true }
 ratatui = { version = "0.29.0", features = ["unstable-widget-ref"] }
 crossterm = "0.28.1"
+serde = { version = "1.0.219", features = ["derive"] }
+toml = "0.8.22"
+dirs = "6.0.0"
 
 [dev-dependencies]
 indoc = "2"

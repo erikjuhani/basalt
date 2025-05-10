@@ -4,6 +4,7 @@ use app::App;
 use basalt_core::obsidian::ObsidianConfig;
 
 pub mod app;
+pub mod config;
 pub mod help_modal;
 pub mod sidepanel;
 pub mod start;
