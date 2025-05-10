@@ -1,4 +1,5 @@
 pub mod app;
+pub mod config;
 pub mod explorer;
 pub mod help_modal;
 pub mod markdown;

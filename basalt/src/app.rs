@@ -10,6 +10,7 @@ use ratatui::{
 use std::{cell::RefCell, fmt::Debug, io::Result};
 
 use crate::{
+    config::{Config, KeyBinding},
     explorer::{Explorer, ExplorerState},
     help_modal::{HelpModal, HelpModalState},
     markdown::{MarkdownView, MarkdownViewState},
@@ -57,6 +58,7 @@ impl<'a> MainState<'a> {
 
 #[derive(Default, Clone)]
 pub struct AppState<'a> {
+    config: Config,
     screen: ScreenState<'a>,
     screen_size: Size,
     is_running: bool,
@@ -411,6 +413,7 @@ impl<'a> App<'a> {
         let size = terminal.size()?;
 
         let state = AppState {
+            config: Config::build(),
             screen_size: size,
             help_modal: HelpModalState::new(&help_text()),
             vault_selector_modal: VaultSelectorModalState::new(vaults.clone()),
