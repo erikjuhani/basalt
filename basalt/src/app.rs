@@ -1,6 +1,6 @@
 use basalt_core::obsidian::{Note, Vault};
 use basalt_widgets::markdown::{MarkdownView, MarkdownViewState};
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::event::{self, Event, KeyEvent, KeyEventKind};
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Rect, Size},
@@ -11,6 +11,7 @@ use ratatui::{
 use std::{cell::RefCell, io::Result, marker::PhantomData};
 
 use crate::{
+    config::{Config, KeyBinding},
     help_modal::{HelpModal, HelpModalState},
     sidepanel::{SidePanel, SidePanelState},
     start::{StartScreen, StartState},
@@ -55,7 +56,7 @@ fn calc_scroll_amount(scroll_amount: ScrollAmount, size: Size) -> usize {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Action {
     Select,
     Next,
@@ -112,6 +113,7 @@ impl Default for Screen<'_> {
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct AppState<'a> {
+    pub config: Config,
     pub help_modal: Option<HelpModalState>,
     pub vault_selector_modal: Option<VaultSelectorModalState<'a>>,
     pub size: Size,
@@ -220,6 +222,7 @@ impl<'a> App<'a> {
         let size = terminal.size()?;
 
         let state = AppState {
+            config: Config::build(),
             screen: Screen::Start(Start {
                 start_state: StartState::new(&version, size, vaults),
             }),
@@ -569,27 +572,14 @@ impl<'a> App<'a> {
     }
 
     fn handle_press_key_event(&self, key_event: &KeyEvent) -> Option<Action> {
-        match key_event.code {
-            KeyCode::Char('q') => Some(Action::Quit),
-            KeyCode::Char('?') => Some(Action::ToggleHelp),
-            KeyCode::Char(' ') => Some(Action::ToggleVaultSelector),
-            KeyCode::Up => Some(Action::ScrollUp(ScrollAmount::One)),
-            KeyCode::Down => Some(Action::ScrollDown(ScrollAmount::One)),
-            KeyCode::Char('u') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(Action::ScrollUp(ScrollAmount::HalfPage))
-            }
-            KeyCode::Char('c') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(Action::Quit)
-            }
-            KeyCode::Char('d') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(Action::ScrollDown(ScrollAmount::HalfPage))
-            }
-            KeyCode::Char('t') => Some(Action::ToggleMode),
-            KeyCode::Char('k') => Some(Action::Prev),
-            KeyCode::Char('j') => Some(Action::Next),
-            KeyCode::Enter => Some(Action::Select),
-            _ => None,
-        }
+        let key_binding: KeyBinding = key_event.into();
+
+        self.state
+            .config
+            .keymap
+            .get(&key_binding)
+            .cloned()
+            .or_else(|| key_binding.eq(&KeyBinding::CTRLC).then_some(Action::Quit))
     }
 
     fn draw(&self, state: &AppState<'a>) -> Result<()> {
