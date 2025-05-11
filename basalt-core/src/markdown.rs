@@ -343,14 +343,14 @@ pub enum MarkdownNode {
 
 /// Returns `true` if the [`MarkdownNode`] should be closed upon encountering the given [`TagEnd`].
 fn matches_tag_end(node: &Node, tag_end: &TagEnd) -> bool {
-    match (&node.markdown_node, tag_end) {
+    matches!(
+        (&node.markdown_node, tag_end),
         (MarkdownNode::Paragraph { .. }, TagEnd::Paragraph)
-        | (MarkdownNode::Heading { .. }, TagEnd::Heading(..))
-        | (MarkdownNode::BlockQuote { .. }, TagEnd::BlockQuote(..))
-        | (MarkdownNode::CodeBlock { .. }, TagEnd::CodeBlock)
-        | (MarkdownNode::Item { .. }, TagEnd::Item) => true,
-        _ => false,
-    }
+            | (MarkdownNode::Heading { .. }, TagEnd::Heading(..))
+            | (MarkdownNode::BlockQuote { .. }, TagEnd::BlockQuote(..))
+            | (MarkdownNode::CodeBlock { .. }, TagEnd::CodeBlock)
+            | (MarkdownNode::Item { .. }, TagEnd::Item)
+    )
 }
 
 /// Parses the given Markdown input into a list of [`Node`]s.
