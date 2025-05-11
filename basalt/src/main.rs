@@ -1,16 +1,15 @@
-use std::io;
-
 use app::App;
 use basalt_core::obsidian::ObsidianConfig;
+use std::io;
 
+pub mod actions;
 pub mod app;
-pub mod help_modal;
-pub mod sidepanel;
-pub mod start;
-pub mod statusbar;
+pub mod events;
+pub mod main_view;
+pub mod mode;
+pub mod screen;
+pub mod start_view;
 pub mod text_counts;
-pub mod vault_selector;
-pub mod vault_selector_modal;
 
 fn main() -> io::Result<()> {
     let terminal = ratatui::init();

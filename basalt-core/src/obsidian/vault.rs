@@ -1,10 +1,11 @@
 use std::{
-    cmp::Ordering,
-    fs::{self, read_dir},
+    collections::BTreeSet,
+    fs,
     path::{Path, PathBuf},
     result,
 };
 
+use ki::fs::SortablePath;
 use serde::{Deserialize, Deserializer};
 
 use crate::obsidian::Note;
@@ -18,7 +19,7 @@ pub struct Vault {
     pub name: String,
 
     /// Filesystem path to the vault's directory.
-    pub path: PathBuf,
+    pub path: SortablePath,
 
     /// Whether the vault is marked 'open' by Obsidian.
     pub open: bool,
@@ -28,51 +29,42 @@ pub struct Vault {
 }
 
 impl Vault {
-    /// Returns an iterator over Markdown (`.md`) files in this vault as [`Note`] structs.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use basalt_core::obsidian::{Vault, Note};
-    ///
-    /// let vault = Vault {
-    ///     name: "MyVault".into(),
-    ///     path: "path/to/my_vault".into(),
-    ///     ..Default::default()
-    /// };
-    ///
-    /// assert_eq!(vault.notes().collect::<Vec<_>>(), vec![]);
-    /// ```
-    pub fn notes(&self) -> impl Iterator<Item = Note> {
-        read_dir(&self.path)
-            .into_iter()
-            .flatten()
-            .filter_map(|entry| Option::<Note>::from(DirEntry::from(entry.ok()?)))
+    /// Returns a `BTreeSet<SortablePath>` containing all the filesystem entries inside the vault,
+    /// sorted in alphabetical order, directories first.
+    /// TODO: Example snippet
+    pub fn load(&self) -> std::io::Result<BTreeSet<SortablePath>> {
+        fn load_recursive(path: &SortablePath) -> std::io::Result<BTreeSet<SortablePath>> {
+            let mut entries = BTreeSet::new();
+            let sub_entries: Vec<_> = fs::read_dir(path)?.collect();
+
+            for entry in sub_entries {
+                let entry = entry?;
+                let path = entry.path();
+                entries.insert(SortablePath(path.clone()));
+
+                if entry.metadata()?.is_dir() {
+                    entries.extend(load_recursive(&SortablePath(path))?);
+                }
+            }
+
+            Ok(entries)
+        }
+
+        load_recursive(&self.path)
     }
 
-    /// Returns a sorted vector [`Vec<Note>`] of all notes in the vault, sorted according to the
-    /// provided comparison function.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::cmp::Ordering;
-    /// use basalt_core::obsidian::{Vault, Note};
-    ///
-    /// let vault = Vault {
-    ///     name: "MyVault".to_string(),
-    ///     path: "path/to/my_vault".into(),
-    ///     ..Default::default()
-    /// };
-    ///
-    /// let alphabetically = |a: &Note, b: &Note| a.name.to_lowercase().cmp(&b.name.to_lowercase());
-    ///
-    /// _ = vault.notes_sorted_by(alphabetically);
-    /// ```
-    pub fn notes_sorted_by(&self, compare: impl Fn(&Note, &Note) -> Ordering) -> Vec<Note> {
-        let mut notes: Vec<Note> = self.notes().collect();
-        notes.sort_by(compare);
-        notes
+    /// Returns a `BTreeSet<SortablePath>` containing the first-level filesystem entries in the vault,
+    /// sorted in alphabetical order, directories first.|
+    /// TODO: Example snippet
+    pub fn load_first_level(&self) -> std::io::Result<BTreeSet<SortablePath>> {
+        let mut entries = BTreeSet::new();
+
+        for entry in std::fs::read_dir(&self.path)? {
+            let entry = entry?;
+            entries.insert(SortablePath(entry.path()));
+        }
+
+        Ok(entries)
     }
 }
 
@@ -99,7 +91,7 @@ impl<'de> Deserialize<'de> for Vault {
                     .to_string();
                 Ok(Vault {
                     name,
-                    path: value.path,
+                    path: SortablePath(value.path),
                     open: value.open.unwrap_or_default(),
                     ts: value.ts,
                 })
