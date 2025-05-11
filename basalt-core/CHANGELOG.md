@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- [Fix clippy error with matches! expression](https://github.com/erikjuhani/basalt/commit/725eac3c0b5103a6de34cd155611d22091a245ab)
+
 ## 0.4.2 (2025-05-01)
 
 ### Fixed
