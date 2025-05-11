@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- [Refactor markdown event parsing](https://github.com/erikjuhani/basalt/commit/7115dfa48368f55a12e3a359c1941026ab203933)
+
 ## 0.3.1
 
 ### Fixed
