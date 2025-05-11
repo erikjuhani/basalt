@@ -184,7 +184,9 @@ impl<'a> StatefulWidgetRef for App<'a> {
         }
 
         if let Some(mut help_modal_state) = state.help_modal.clone() {
-            HelpModal.render(area, buf, &mut help_modal_state)
+            if !help_modal_state.hidden {
+                HelpModal.render(area, buf, &mut help_modal_state)
+            }
         }
     }
 }
@@ -535,11 +537,14 @@ impl<'a> App<'a> {
                 ..state
             },
             Some(Action::ToggleHelp) => AppState {
-                help_modal: if state.help_modal.is_some() {
-                    None
-                } else {
-                    Some(HelpModalState::new(&help_text()))
-                },
+                help_modal: state
+                    .help_modal
+                    .map(|mut help_modal| {
+                        help_modal.hidden = !help_modal.hidden;
+
+                        help_modal
+                    })
+                    .or_else(|| Some(HelpModalState::new(&help_text()))),
                 ..state
             },
             Some(Action::Resize(size)) => AppState { size, ..state },
