@@ -27,7 +27,7 @@ jobs:
     - name: Clippy
       # Add the following after fixing clippy warnings: "-- -D warnings"
       # This will ensure that no additional warnings are merged into 'main'
-      run: cargo clippy --profile ci --workspace --all-targets
+      run: cargo clippy --profile ci --workspace --all-targets -- -D warnings
 
     - name: Test
       run: cargo test --profile ci --workspace --all-targets
