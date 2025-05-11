@@ -1,5 +1,5 @@
 #!/bin/sh
 
 cargo check --profile ci
-cargo clippy --profile ci --workspace --all-targets
+cargo clippy --profile ci --workspace --all-targets -- -D warnings
 cargo test --profile ci --workspace --all-targets

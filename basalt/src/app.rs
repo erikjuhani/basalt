@@ -1,5 +1,5 @@
+use crate::markdown::{MarkdownView, MarkdownViewState};
 use basalt_core::obsidian::{Note, Vault};
-use basalt_widgets::markdown::{MarkdownView, MarkdownViewState};
 use crossterm::event::{self, Event, KeyEvent, KeyEventKind};
 use ratatui::{
     buffer::Buffer,

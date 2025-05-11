@@ -50,7 +50,7 @@
 //!
 //! - Handling of inline HTML, math blocks, etc.
 //! - Tracking code block language (`lang`) properly (currently set to [`None`]).
-use std::vec::IntoIter;
+use std::{iter::Peekable, vec::IntoIter};
 
 use pulldown_cmark::{Event, Options, Tag, TagEnd};
 
@@ -59,29 +59,39 @@ use pulldown_cmark::{Event, Options, Tag, TagEnd};
 pub enum Style {
     /// Inline code style (e.g. `code`).
     Code,
-    /// Italic/emphasis style (e.g. `*emphasis*`).
-    Emphasis,
-    /// Strikethrough style (e.g. `~~strikethrough~~`).
-    Strikethrough,
-    /// Bold/strong style (e.g. `**strong**`).
-    Strong,
+    // TODO: Additional style variants
+    //
+    // Italic/emphasis style (e.g. `*emphasis*` or `_emphasis_`).
+    // Emphasis,
+    // Strikethrough style (e.g. `~~strikethrough~~`).
+    // Strikethrough,
+    // Bold/strong style (e.g. `**strong**`).
+    // Strong,
 }
 
 /// Represents the variant of a list or task item (checked, unchecked, etc.).
 #[derive(Clone, Debug, PartialEq)]
 pub enum ItemKind {
+    // TODO: Ordered list
+    //
+    // An ordered list item (e.g., `1. item`), storing the numeric index.
+    // Ordered(u64),
+    /// An unordered list item (e.g., `- item`).
+    Unordered,
+}
+
+/// Represents the variant of a list or task item (checked, unchecked, etc.).
+#[derive(Clone, Debug, PartialEq)]
+pub enum TaskListItemKind {
     /// A checkbox item that is marked as done using `- [x]`.
-    HardChecked,
-    /// A checkbox item that is checked, but not explicitly recognized as
-    /// `HardChecked` (e.g., `- [?]`).
     Checked,
     /// A checkbox item that is unchecked using `- [ ]`.
     Unchecked,
-    // TODO: Remove in favor of using List node that has children of nodes
-    /// An ordered list item (e.g., `1. item`), storing the numeric index.
-    Ordered(u64),
-    /// An unordered list item (e.g., `- item`).
-    Unordered,
+    // TODO: Loose check
+    //
+    // A checkbox item that is checked, but not explicitly recognized as
+    // `Checked` (e.g., `- [?]`).
+    // LooselyChecked,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -293,8 +303,9 @@ impl Node {
             MarkdownNode::Paragraph { text, .. }
             | MarkdownNode::Heading { text, .. }
             | MarkdownNode::CodeBlock { text, .. }
+            | MarkdownNode::TaskListItem { text, .. }
             | MarkdownNode::Item { text, .. } => text.push(node),
-            MarkdownNode::BlockQuote { nodes, .. } => {
+            MarkdownNode::List { nodes, .. } | MarkdownNode::BlockQuote { nodes, .. } => {
                 if let Some(last_node) = nodes.last_mut() {
                     last_node.push_text_node(node);
                 }
@@ -314,9 +325,12 @@ pub enum MarkdownNode {
         level: HeadingLevel,
         text: Text,
     },
+
+    /// A paragraph
     Paragraph {
         text: Text,
     },
+
     /// A block quote node that represents different quote block variants including callout blocks.
     ///
     /// The variant is controlled with the [`BlockQuoteKind`] definition. When [`BlockQuoteKind`]
@@ -326,30 +340,45 @@ pub enum MarkdownNode {
         kind: Option<BlockQuoteKind>,
         nodes: Vec<Node>,
     },
+
     /// A fenced code block, optionally with a language identifier.
     CodeBlock {
         lang: Option<String>,
         text: Text,
     },
+
+    /// A block for list items.
+    ///
+    /// The list variant is controlled with the [`ListKind`] definition.
+    List {
+        kind: ListKind,
+        nodes: Vec<Node>,
+    },
+
     /// A list item node that represents different list item variants including task items.
     ///
     /// The variant is controlled with the [`ItemKind`] definition. When [`ItemKind`] is [`None`]
     /// the item should be interpreted as unordered list item: `"- Item"`.
     Item {
-        kind: Option<ItemKind>,
+        text: Text,
+    },
+
+    TaskListItem {
+        kind: TaskListItemKind,
         text: Text,
     },
 }
 
-/// Returns `true` if the [`MarkdownNode`] should be closed upon encountering the given [`TagEnd`].
-fn matches_tag_end(node: &Node, tag_end: &TagEnd) -> bool {
+/// Returns `true` if the [`Tag`] should be closed upon encountering the given [`TagEnd`].
+fn matches_tag_end(tag: &Tag, tag_end: &TagEnd) -> bool {
     matches!(
-        (&node.markdown_node, tag_end),
-        (MarkdownNode::Paragraph { .. }, TagEnd::Paragraph)
-            | (MarkdownNode::Heading { .. }, TagEnd::Heading(..))
-            | (MarkdownNode::BlockQuote { .. }, TagEnd::BlockQuote(..))
-            | (MarkdownNode::CodeBlock { .. }, TagEnd::CodeBlock)
-            | (MarkdownNode::Item { .. }, TagEnd::Item)
+        (tag, tag_end),
+        (Tag::Paragraph { .. }, TagEnd::Paragraph)
+            | (Tag::Heading { .. }, TagEnd::Heading(..))
+            | (Tag::BlockQuote { .. }, TagEnd::BlockQuote(..))
+            | (Tag::CodeBlock { .. }, TagEnd::CodeBlock)
+            | (Tag::List { .. }, TagEnd::List(..))
+            | (Tag::Item { .. }, TagEnd::Item)
     )
 }
 
@@ -412,17 +441,12 @@ pub fn from_str(text: &str) -> Vec<Node> {
 ///   },
 /// ])
 /// ```
-pub struct Parser<'a> {
-    /// Contains the completed AST [`Node`]s.
-    pub output: Vec<Node>,
-    inner: pulldown_cmark::TextMergeWithOffset<'a, pulldown_cmark::OffsetIter<'a>>,
-    current_node: Option<Node>,
-}
+pub struct Parser<'a>(pulldown_cmark::TextMergeWithOffset<'a, pulldown_cmark::OffsetIter<'a>>);
 
 impl<'a> Iterator for Parser<'a> {
     type Item = (Event<'a>, Range<usize>);
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next()
+        self.0.next()
     }
 }
 
@@ -438,151 +462,146 @@ impl<'a> Parser<'a> {
             pulldown_cmark::Parser::new_ext(text, Options::all()).into_offset_iter(),
         );
 
-        Self {
-            inner: parser,
-            output: vec![],
-            current_node: None,
-        }
+        Self(parser)
     }
 
-    /// Pushes a [`Node`] as a child if the current node is a [`BlockQuote`], otherwise sets it as
-    /// the `current_node`.
-    fn push_node(&mut self, node: Node) {
-        if let Some(Node {
-            markdown_node: MarkdownNode::BlockQuote { nodes, .. },
-            ..
-        }) = &mut self.current_node
-        {
-            nodes.push(node);
-        } else {
-            self.set_node(&node);
-        }
-    }
-
-    /// Pushes a [`TextNode`] into the `current_node` if it exists.
-    fn push_text_node(&mut self, node: TextNode) {
-        if let Some(ref mut current) = self.current_node {
-            current.push_text_node(node);
-        }
-    }
-
-    /// Sets (or replaces) the `current_node` with a new one, discarding any old node.
-    fn set_node(&mut self, block: &Node) {
-        self.current_node.replace(block.clone());
-    }
-
-    /// Handles the start of a [`Tag`]. Pushes the matching semantic node to be processed.
-    fn tag(&mut self, tag: Tag<'a>, range: Range<usize>) {
+    fn parse_tag(
+        tag: Tag,
+        events: &mut Peekable<Parser<'a>>,
+        source_range: Range<usize>,
+    ) -> Option<Node> {
         match tag {
-            Tag::Paragraph => self.push_node(Node::new(
-                MarkdownNode::Paragraph {
-                    text: Text::default(),
+            Tag::BlockQuote(kind) => Some(Node::new(
+                MarkdownNode::BlockQuote {
+                    kind: kind.map(|kind| kind.into()),
+                    nodes: Parser::parse_events(events, Some(tag)),
                 },
-                range,
+                source_range,
             )),
-            Tag::Heading { level, .. } => self.push_node(Node::new(
+            Tag::List(start) => Some(Node::new(
+                MarkdownNode::List {
+                    kind: start.map(ListKind::Ordered).unwrap_or(ListKind::Unordered),
+                    nodes: Parser::parse_events(events, Some(tag)),
+                },
+                source_range,
+            )),
+            Tag::Heading { level, .. } => Some(Node::new(
                 MarkdownNode::Heading {
                     level: level.into(),
                     text: Text::default(),
                 },
-                range,
+                source_range,
             )),
-            Tag::BlockQuote(kind) => self.push_node(Node::new(
-                MarkdownNode::BlockQuote {
-                    kind: kind.map(|kind| kind.into()),
-                    nodes: vec![],
-                },
-                range,
-            )),
-            Tag::CodeBlock(_) => self.push_node(Node::new(
+            Tag::CodeBlock(_) => Some(Node::new(
                 MarkdownNode::CodeBlock {
                     lang: None,
                     text: Text::default(),
                 },
-                range,
+                source_range,
             )),
-            Tag::Item => self.push_node(Node::new(
-                MarkdownNode::Item {
-                    kind: None,
+            Tag::Paragraph => Some(Node::new(
+                MarkdownNode::Paragraph {
                     text: Text::default(),
                 },
-                range,
+                source_range,
             )),
-            // For now everything below this comment are defined as paragraph nodes
-            Tag::HtmlBlock
-            | Tag::List(_)
-            | Tag::FootnoteDefinition(_)
-            | Tag::Table(_)
-            | Tag::TableHead
-            | Tag::TableRow
-            | Tag::TableCell
-            | Tag::Emphasis
-            | Tag::Strong
-            | Tag::Strikethrough
-            | Tag::Link { .. }
-            | Tag::Image { .. }
-            | Tag::MetadataBlock(_)
-            | Tag::DefinitionList
-            | Tag::DefinitionListTitle
-            | Tag::DefinitionListDefinition => {}
+            Tag::Item => Some(Node::new(
+                MarkdownNode::Item {
+                    text: Text::default(),
+                },
+                source_range,
+            )),
+            // NOTE: After all tags have been implemented the Option wrapper can be removed.
+            //
+            // Missing tags:
+            //
+            // | Tag::HtmlBlock
+            // | Tag::FootnoteDefinition(_)
+            // | Tag::Table(_)
+            // | Tag::TableHead
+            // | Tag::TableRow
+            // | Tag::TableCell
+            // | Tag::Emphasis
+            // | Tag::Strong
+            // | Tag::Strikethrough
+            // | Tag::Link { .. }
+            // | Tag::Image { .. }
+            // | Tag::MetadataBlock(_)
+            // | Tag::DefinitionList
+            // | Tag::DefinitionListTitle
+            // | Tag::Subscript
+            // | Tag::Superscript
+            // | Tag::DefinitionListDefinition
+            _ => None,
         }
     }
 
-    /// Handles the end of a [`Tag`], finalizing a node if matching.
-    fn tag_end(&mut self, tag_end: TagEnd) {
-        let Some(node) = self.current_node.take() else {
-            return;
-        };
+    fn parse_events(events: &mut Peekable<Parser<'a>>, current_tag: Option<Tag>) -> Vec<Node> {
+        let mut nodes = Vec::new();
 
-        if matches_tag_end(&node, &tag_end) {
-            self.output.push(node);
-        } else {
-            self.set_node(&node);
-        }
-    }
-
-    /// Processes a single [`Event`] from the underlying [`pulldown_cmark::Parser`] iterator.
-    fn handle_event(&mut self, event: Event<'a>, range: Range<usize>) {
-        match event {
-            Event::Start(tag) => self.tag(tag, range),
-            Event::End(tag_end) => self.tag_end(tag_end),
-            Event::Text(text) => self.push_text_node(TextNode::new(text.to_string(), None)),
-            Event::Code(text) => {
-                self.push_text_node(TextNode::new(text.to_string(), Some(Style::Code)))
-            }
-            Event::TaskListMarker(checked) => {
-                // The range for these markdown items only applies to the `[ ]` portion.
-                // TODO: Add implementation for ListBlock, which will retain the complete source
-                // range.
-                if checked {
-                    self.set_node(&Node::new(
-                        MarkdownNode::Item {
-                            kind: Some(ItemKind::HardChecked),
-                            text: Text::default(),
-                        },
-                        range,
-                    ));
-                } else {
-                    self.set_node(&Node::new(
-                        MarkdownNode::Item {
-                            kind: Some(ItemKind::Unchecked),
-                            text: Text::default(),
-                        },
-                        range,
-                    ));
+        while let Some((event, range)) = events.peek().cloned() {
+            events.next();
+            match event {
+                Event::Start(tag) => {
+                    if let Some(node) = Parser::parse_tag(tag, events, range) {
+                        nodes.push(node);
+                    }
                 }
-            }
-            Event::InlineMath(_)
-            | Event::DisplayMath(_)
-            | Event::Html(_)
-            | Event::InlineHtml(_)
-            | Event::SoftBreak
-            | Event::HardBreak
-            | Event::Rule
-            | Event::FootnoteReference(_) => {
-                // TODO: Not yet implemented
+                Event::End(tag_end) => {
+                    if let Some(ref tag) = current_tag {
+                        if matches_tag_end(tag, &tag_end) {
+                            return nodes;
+                        }
+                    }
+                }
+                Event::Text(text) => {
+                    if let Some(node) = nodes.last_mut() {
+                        node.push_text_node(text.to_string().into())
+                    }
+                }
+                Event::Code(text) => {
+                    if let Some(node) = nodes.last_mut() {
+                        node.push_text_node(TextNode::new(text.to_string(), Some(Style::Code)))
+                    }
+                }
+                Event::TaskListMarker(checked) => {
+                    if let Some(node) = nodes.last_mut() {
+                        let source_range = node.clone().source_range;
+
+                        if checked {
+                            *node = Node::new(
+                                MarkdownNode::TaskListItem {
+                                    kind: TaskListItemKind::Checked,
+                                    text: Text::default(),
+                                },
+                                source_range,
+                            );
+                        } else {
+                            *node = Node::new(
+                                MarkdownNode::TaskListItem {
+                                    kind: TaskListItemKind::Unchecked,
+                                    text: Text::default(),
+                                },
+                                source_range,
+                            );
+                        }
+                    }
+                }
+                // Missing events:
+                //
+                // | Event::InlineMath(_)
+                // | Event::DisplayMath(_)
+                // | Event::Html(_)
+                // | Event::InlineHtml(_)
+                // | Event::SoftBreak
+                // | Event::HardBreak
+                // | Event::Rule
+                // | Event::FootnoteReference(_)
+                _ => {}
             }
         }
+
+        nodes
     }
 
     /// Consumes the parser, processing all remaining events from the stream into a list of
@@ -605,16 +624,8 @@ impl<'a> Parser<'a> {
     ///   },
     /// ]);
     /// ```
-    pub fn parse(mut self) -> Vec<Node> {
-        while let Some((event, range)) = self.next() {
-            self.handle_event(event, range);
-        }
-
-        if let Some(node) = self.current_node.take() {
-            self.output.push(node);
-        }
-
-        self.output
+    pub fn parse(self) -> Vec<Node> {
+        Parser::parse_events(&mut self.peekable(), None)
     }
 }
 
@@ -630,30 +641,28 @@ mod tests {
         Node::new(MarkdownNode::BlockQuote { kind: None, nodes }, range)
     }
 
+    fn list(kind: ListKind, nodes: Vec<Node>, range: Range<usize>) -> Node {
+        Node::new(MarkdownNode::List { kind, nodes }, range)
+    }
+
     fn item(str: &str, range: Range<usize>) -> Node {
+        Node::new(MarkdownNode::Item { text: str.into() }, range)
+    }
+
+    fn unchecked_task(str: &str, range: Range<usize>) -> Node {
         Node::new(
-            MarkdownNode::Item {
-                kind: None,
+            MarkdownNode::TaskListItem {
+                kind: TaskListItemKind::Unchecked,
                 text: str.into(),
             },
             range,
         )
     }
 
-    fn task(str: &str, range: Range<usize>) -> Node {
+    fn checked_task(str: &str, range: Range<usize>) -> Node {
         Node::new(
-            MarkdownNode::Item {
-                kind: Some(ItemKind::Unchecked),
-                text: str.into(),
-            },
-            range,
-        )
-    }
-
-    fn completed_task(str: &str, range: Range<usize>) -> Node {
-        Node::new(
-            MarkdownNode::Item {
-                kind: Some(ItemKind::HardChecked),
+            MarkdownNode::TaskListItem {
+                kind: TaskListItemKind::Checked,
                 text: str.into(),
             },
             range,
@@ -721,49 +730,56 @@ mod tests {
                     h6("Heading 6", 75..92),
                 ],
             ),
-            // TODO: Implement correct test case when `- [?] ` task item syntax is supported
-            // Now we interpret it as a regular paragraph
+            // // TODO: Implement correct test case when `- [?] ` task item syntax is supported
+            // // Now we interpret it as a regular item
             (
-                indoc! { r#"## Tasks
-
-                - [ ] Task
-
+                indoc! { r#"- [ ] Task
                 - [x] Completed task
-
                 - [?] Completed task
                 "#},
-                vec![
-                    h2("Tasks", 0..9),
-                    task("Task", 12..15),
-                    completed_task("Completed task", 24..27),
-                    p("[?] Completed task", 46..65),
-                ],
+                vec![list(
+                    ListKind::Unordered,
+                    vec![
+                        unchecked_task("Task", 0..11),
+                        checked_task("Completed task", 11..32),
+                        item("[?] Completed task", 32..53),
+                    ],
+                    0..53,
+                )],
             ),
             (
-                indoc! {r#"## Quotes
-
-                You _can_ quote text by adding a `>` symbols before the text.
-
+                indoc! {r#"You _can_ quote text by adding a `>` symbols before the text.
                 > Human beings face ever more complex and urgent problems, and their effectiveness in dealing with these problems is a matter that is critical to the stability and continued progress of society.
+                > > > Deep Quote
                 >
-                >- Doug Engelbart, 1961
+                > - Doug Engelbart, 1961
                 "#},
                 vec![
-                    h2("Quotes", 0..10),
                     Node::new(MarkdownNode::Paragraph {
                         text: vec![
                             TextNode::new("You ".into(), None),
-                            TextNode::new("can".into(),None),
+                            TextNode::new("can".into(), None),
                             TextNode::new(" quote text by adding a ".into(), None),
                             TextNode::new(">".into(), Some(Style::Code)),
                             TextNode::new(" symbols before the text.".into(), None),
                         ]
                         .into(),
-                    }, 11..73),
-                    blockquote(vec![
-                        p("Human beings face ever more complex and urgent problems, and their effectiveness in dealing with these problems is a matter that is critical to the stability and continued progress of society.", 76..269),
-                        item("Doug Engelbart, 1961", 272..295)
-                    ], 74..295),
+                    }, 0..62),
+                    blockquote(
+                        vec![
+                            p("Human beings face ever more complex and urgent problems, and their effectiveness in dealing with these problems is a matter that is critical to the stability and continued progress of society.", 64..257),
+                            blockquote(
+                                vec![blockquote(vec![p("Deep Quote", 263..274)], 261..274)],
+                                259..274,
+                            ),
+                            list(
+                                ListKind::Unordered,
+                                vec![item("Doug Engelbart, 1961", 278..301)],
+                                278..301,
+                            ),
+                        ],
+                        62..301,
+                    ),
                 ],
             ),
         ];

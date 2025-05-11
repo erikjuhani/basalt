@@ -17,6 +17,7 @@ crossterm = "0.28.1"
 serde = { version = "1.0.219", features = ["derive"] }
 toml = "0.8.22"
 etcetera = "0.10.0"
+pulldown-cmark = "0.13.0"
 
 [dev-dependencies]
 indoc = "2"
