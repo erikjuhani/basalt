@@ -123,12 +123,12 @@ impl MarkdownView {
             )
             .black()
             .add_modifier(Modifier::CROSSED_OUT),
-            // parser::TaskListItemKind::LooselyChecked => Line::from(
-            //     [prefix, "󰄲 ".magenta()]
-            //         .into_iter()
-            //         .chain(content)
-            //         .collect::<Vec<_>>(),
-            // ),
+            parser::TaskListItemKind::LooselyChecked => Line::from(
+                [prefix, "󰄲 ".magenta()]
+                    .into_iter()
+                    .chain(content)
+                    .collect::<Vec<_>>(),
+            ),
         }
     }
 
