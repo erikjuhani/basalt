@@ -89,9 +89,9 @@ pub enum TaskListItemKind {
     Unchecked,
     // TODO: Loose check
     //
-    // A checkbox item that is checked, but not explicitly recognized as
-    // `Checked` (e.g., `- [?]`).
-    // LooselyChecked,
+    /// A checkbox item that is checked, but not explicitly recognized as
+    /// `Checked` (e.g., `- [?]`).
+    LooselyChecked,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -556,7 +556,32 @@ impl<'a> Parser<'a> {
                 }
                 Event::Text(text) => {
                     if let Some(node) = nodes.last_mut() {
-                        node.push_text_node(text.to_string().into())
+                        // Matches any character in place of x. `- [x]` to match for loosely
+                        // checked task items.
+                        //
+                        // There is no support in pulldown-cmark for this feature so this needs
+                        // to be manually parsed from the text event.
+                        //
+                        // We read the first 4 character bytes that needs to match `[x] `
+                        // exactly, x being any character.
+                        let is_loosely_checked_task = text
+                            .get(0..4)
+                            .map(|str| str.as_bytes())
+                            .map(|chars| matches!(chars, &[b'[', _, b']', b' ']))
+                            .unwrap_or_default();
+
+                        if is_loosely_checked_task {
+                            let source_range = node.clone().source_range;
+                            *node = Node::new(
+                                MarkdownNode::TaskListItem {
+                                    kind: TaskListItemKind::LooselyChecked,
+                                    text: Text::from(text.get(4..).unwrap_or_default()),
+                                },
+                                source_range,
+                            );
+                        } else {
+                            node.push_text_node(text.to_string().into())
+                        }
                     }
                 }
                 Event::Code(text) => {
@@ -669,6 +694,16 @@ mod tests {
         )
     }
 
+    fn loosely_checked_task(str: &str, range: Range<usize>) -> Node {
+        Node::new(
+            MarkdownNode::TaskListItem {
+                kind: TaskListItemKind::LooselyChecked,
+                text: str.into(),
+            },
+            range,
+        )
+    }
+
     fn heading(level: HeadingLevel, str: &str, range: Range<usize>) -> Node {
         Node::new(
             MarkdownNode::Heading {
@@ -736,15 +771,17 @@ mod tests {
                 indoc! { r#"- [ ] Task
                 - [x] Completed task
                 - [?] Completed task
+                - [-] Completed task
                 "#},
                 vec![list(
                     ListKind::Unordered,
                     vec![
                         unchecked_task("Task", 0..11),
                         checked_task("Completed task", 11..32),
-                        item("[?] Completed task", 32..53),
+                        loosely_checked_task("Completed task", 32..53),
+                        loosely_checked_task("Completed task", 53..74),
                     ],
-                    0..53,
+                    0..74,
                 )],
             ),
             (
