@@ -4,13 +4,15 @@
 
 ### Added
 
-- [Refactor markdown event parsing](https://github.com/erikjuhani/basalt/commit/7115dfa48368f55a12e3a359c1941026ab203933)
-- [Support loosely checked task items](https://github.com/erikjuhani/basalt/commit/7e14b39fc2b14942ea873377e591adf06cf261bf)
+- [Refactor Markdown event parser (#28)](https://github.com/erikjuhani/basalt/commit/4e82e7523a72064afe98c6c6de6ba8e84a334b71)
+- [Add support for `LooselyChecked` task kind (#29)](https://github.com/erikjuhani/basalt/commit/1b9df5b0e167442f039fc02f8221a6a390e44acc)
 - [Add support for ordered lists](https://github.com/erikjuhani/basalt/commit/7f715bb04c66066959588abfca5f29a3b3df22a7)
+- [Add text wrapping for paragraphs](https://github.com/erikjuhani/basalt/commit/4a57d9a91e22c511bdbe23ae90fb6a3244d2dc32)
 
 ### Changed
 
 - [Change checkbox symbol (#30)](https://github.com/erikjuhani/basalt/commit/11b944cbca19a020d984fbb272724ec80d1119e0)
+- [Render code block as a full-width block](https://github.com/erikjuhani/basalt/commit/67905b4bacbff266c5579ac78be9ee65d9c23c85)
 
 ## 0.3.1
 
