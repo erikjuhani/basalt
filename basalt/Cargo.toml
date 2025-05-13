@@ -6,7 +6,7 @@ Basalt TUI application for Obsidian notes.
 readme = "../README.md"
 repository = "https://github.com/erikjuhani/basalt"
 license = "MIT"
-version = "0.3.1"
+version = "0.3.4"
 edition = "2021"
 
 [dependencies]
