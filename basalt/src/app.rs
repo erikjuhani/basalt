@@ -249,22 +249,22 @@ impl<'a> App<'a> {
         &self,
         state: AppState<'a>,
         inner: HelpModalState,
-        action: Option<Action>,
+        action: Action,
     ) -> AppState<'a> {
         match action {
-            Some(Action::ScrollUp(amount)) => AppState {
+            Action::ScrollUp(amount) => AppState {
                 help_modal: Some(inner.scroll_up(calc_scroll_amount(amount, state.size))),
                 ..state
             },
-            Some(Action::ScrollDown(amount)) => AppState {
+            Action::ScrollDown(amount) => AppState {
                 help_modal: Some(inner.scroll_down(calc_scroll_amount(amount, state.size))),
                 ..state
             },
-            Some(Action::Next) => AppState {
+            Action::Next => AppState {
                 help_modal: Some(inner.scroll_down(1)),
                 ..state
             },
-            Some(Action::Prev) => AppState {
+            Action::Prev => AppState {
                 help_modal: Some(inner.scroll_up(1)),
                 ..state
             },
@@ -276,14 +276,14 @@ impl<'a> App<'a> {
         &self,
         state: AppState<'a>,
         inner: VaultSelectorModalState<'a>,
-        action: Option<Action>,
+        action: Action,
     ) -> AppState<'a> {
         match action {
-            Some(Action::ToggleVaultSelector) => AppState {
+            Action::ToggleVaultSelector => AppState {
                 vault_selector_modal: None,
                 ..state
             },
-            Some(Action::Select) => {
+            Action::Select => {
                 // TODO: Add logic to not load the vault again if the same vault was picked in the
                 // selector.
                 let alphabetically =
@@ -311,13 +311,13 @@ impl<'a> App<'a> {
                     state
                 }
             }
-            Some(Action::Next) => AppState {
+            Action::Next => AppState {
                 vault_selector_modal: Some(VaultSelectorModalState {
                     vault_selector_state: inner.vault_selector_state.next(),
                 }),
                 ..state
             },
-            Some(Action::Prev) => AppState {
+            Action::Prev => AppState {
                 vault_selector_modal: Some(VaultSelectorModalState {
                     vault_selector_state: inner.vault_selector_state.previous(),
                 }),
@@ -331,10 +331,10 @@ impl<'a> App<'a> {
         &self,
         state: AppState<'a>,
         inner: Main<'a>,
-        action: Option<Action>,
+        action: Action,
     ) -> AppState<'a> {
         match action {
-            Some(Action::ToggleMode) => AppState {
+            Action::ToggleMode => AppState {
                 screen: Screen::Main(Main {
                     mode: Mode::Normal,
                     sidepanel_state: inner.sidepanel_state.close(),
@@ -342,7 +342,7 @@ impl<'a> App<'a> {
                 }),
                 ..state
             },
-            Some(Action::ScrollUp(amount)) => AppState {
+            Action::ScrollUp(amount) => AppState {
                 screen: Screen::Main(Main {
                     markdown_view_state: inner
                         .markdown_view_state
@@ -351,7 +351,7 @@ impl<'a> App<'a> {
                 }),
                 ..state
             },
-            Some(Action::ScrollDown(amount)) => AppState {
+            Action::ScrollDown(amount) => AppState {
                 screen: Screen::Main(Main {
                     markdown_view_state: inner
                         .markdown_view_state
@@ -360,7 +360,7 @@ impl<'a> App<'a> {
                 }),
                 ..state
             },
-            Some(Action::Select) => {
+            Action::Select => {
                 let sidepanel_state = inner.sidepanel_state.select();
 
                 let selected_note = inner
@@ -381,14 +381,14 @@ impl<'a> App<'a> {
                     ..state
                 }
             }
-            Some(Action::Next) => AppState {
+            Action::Next => AppState {
                 screen: Screen::Main(Main {
                     sidepanel_state: inner.sidepanel_state.next(),
                     ..inner
                 }),
                 ..state
             },
-            Some(Action::Prev) => AppState {
+            Action::Prev => AppState {
                 screen: Screen::Main(Main {
                     sidepanel_state: inner.sidepanel_state.previous(),
                     ..inner
@@ -403,12 +403,8 @@ impl<'a> App<'a> {
         &self,
         state: AppState<'a>,
         inner: Main<'a>,
-        action: Option<Action>,
+        action: Action,
     ) -> AppState<'a> {
-        let Some(action) = action else {
-            return state;
-        };
-
         match action {
             Action::ToggleMode => AppState {
                 screen: Screen::Main(Main {
@@ -458,9 +454,9 @@ impl<'a> App<'a> {
         &self,
         state: AppState<'a>,
         inner: Main<'a>,
-        action: Option<Action>,
+        action: Action,
     ) -> AppState<'a> {
-        if let Some(Action::ToggleVaultSelector) = action {
+        if let Action::ToggleVaultSelector = action {
             return AppState {
                 vault_selector_modal: if state.vault_selector_modal.is_some() {
                     None
@@ -482,10 +478,10 @@ impl<'a> App<'a> {
         &self,
         state: AppState<'a>,
         inner: Start<'a>,
-        action: Option<Action>,
+        action: Action,
     ) -> AppState<'a> {
         match action {
-            Some(Action::Select) => {
+            Action::Select => {
                 let alphabetically =
                     |a: &Note, b: &Note| a.name.to_lowercase().cmp(&b.name.to_lowercase());
 
@@ -510,13 +506,13 @@ impl<'a> App<'a> {
                     state
                 }
             }
-            Some(Action::Next) => AppState {
+            Action::Next => AppState {
                 screen: Screen::Start(Start {
                     start_state: inner.start_state.next(),
                 }),
                 ..state
             },
-            Some(Action::Prev) => AppState {
+            Action::Prev => AppState {
                 screen: Screen::Start(Start {
                     start_state: inner.start_state.previous(),
                 }),
@@ -529,12 +525,17 @@ impl<'a> App<'a> {
     fn update(&self, state: &AppState<'a>, action: Option<Action>) -> AppState<'a> {
         let state = state.clone();
         let screen = state.screen.clone();
+
+        let Some(action) = action else {
+            return state;
+        };
+
         match action {
-            Some(Action::Quit) => AppState {
+            Action::Quit => AppState {
                 is_running: false,
                 ..state
             },
-            Some(Action::ToggleHelp) => AppState {
+            Action::ToggleHelp => AppState {
                 help_modal: if state.help_modal.is_some() {
                     None
                 } else {
@@ -542,7 +543,7 @@ impl<'a> App<'a> {
                 },
                 ..state
             },
-            Some(Action::Resize(size)) => AppState { size, ..state },
+            Action::Resize(size) => AppState { size, ..state },
             _ if state.help_modal.is_some() => {
                 self.update_help_modal(state.clone(), state.help_modal.unwrap().clone(), action)
             }
