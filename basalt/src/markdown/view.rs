@@ -155,16 +155,22 @@ impl MarkdownView {
             .collect()
     }
 
-    fn code_block<'a>(text: parser::Text) -> Vec<Line<'a>> {
+    fn code_block<'a>(text: parser::Text, width: usize) -> Vec<Line<'a>> {
         text.into_iter()
             .flat_map(|text| {
                 text.content
                     .clone()
                     .split("\n")
-                    .map(String::from)
+                    .map(|line| {
+                        format!(
+                            " {} {}",
+                            line,
+                            (line.len()..width).map(|_| " ").collect::<String>()
+                        )
+                    })
                     .collect::<Vec<String>>()
             })
-            .map(|text| Line::from(text).red().bg(Color::Rgb(10, 10, 10)))
+            .map(|text| Line::from(text).bold().bg(Color::Black))
             .collect()
     }
 
@@ -207,8 +213,11 @@ impl MarkdownView {
             .to_vec(),
             // TODO: Add lang support and syntax highlighting
             parser::MarkdownNode::CodeBlock { text, .. } => {
-                let lines = MarkdownView::code_block(text);
-                lines
+                [Line::from((0..area.width).map(|_| " ").collect::<String>()).bg(Color::Black)]
+                    .into_iter()
+                    .chain(MarkdownView::code_block(text, area.width.into()))
+                    .chain([Line::default()])
+                    .collect::<Vec<_>>()
             }
             parser::MarkdownNode::List { nodes, kind } => nodes
                 .into_iter()
