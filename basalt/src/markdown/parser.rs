@@ -189,6 +189,15 @@ impl TextNode {
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct Text(Vec<TextNode>);
 
+impl From<Text> for String {
+    fn from(value: Text) -> Self {
+        value
+            .into_iter()
+            .map(|node| node.content)
+            .collect::<String>()
+    }
+}
+
 impl From<&str> for Text {
     fn from(value: &str) -> Self {
         TextNode::from(value).into()
