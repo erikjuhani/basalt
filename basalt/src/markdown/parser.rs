@@ -72,10 +72,8 @@ pub enum Style {
 /// Represents the variant of a list or task item (checked, unchecked, etc.).
 #[derive(Clone, Debug, PartialEq)]
 pub enum ItemKind {
-    // TODO: Ordered list
-    //
     // An ordered list item (e.g., `1. item`), storing the numeric index.
-    // Ordered(u64),
+    Ordered(u64),
     /// An unordered list item (e.g., `- item`).
     Unordered,
 }
@@ -87,8 +85,6 @@ pub enum TaskListItemKind {
     Checked,
     /// A checkbox item that is unchecked using `- [ ]`.
     Unchecked,
-    // TODO: Loose check
-    //
     /// A checkbox item that is checked, but not explicitly recognized as
     /// `Checked` (e.g., `- [?]`).
     LooselyChecked,

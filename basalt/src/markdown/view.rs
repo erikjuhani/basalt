@@ -134,12 +134,12 @@ impl MarkdownView {
 
     fn item<'a>(kind: parser::ItemKind, content: Vec<Span<'a>>, prefix: Span<'a>) -> Line<'a> {
         match kind {
-            // parser::ItemKind::Ordered(num) => Line::from(
-            //     [prefix, num.to_string().black(), ". ".into()]
-            //         .into_iter()
-            //         .chain(content)
-            //         .collect::<Vec<_>>(),
-            // ),
+            parser::ItemKind::Ordered(num) => Line::from(
+                [prefix, num.to_string().black(), ". ".into()]
+                    .into_iter()
+                    .chain(content)
+                    .collect::<Vec<_>>(),
+            ),
             parser::ItemKind::Unordered => Line::from(
                 [prefix, "- ".black()]
                     .into_iter()
@@ -197,31 +197,43 @@ impl MarkdownView {
                 let lines = MarkdownView::code_block(text);
                 lines
             }
-            parser::MarkdownNode::List { nodes, .. } => {
-                let mut lines = nodes
-                    .into_iter()
-                    .flat_map(|child| MarkdownView::render_markdown(child, prefix.clone()))
-                    .collect::<Vec<Line<'a>>>();
+            parser::MarkdownNode::List { nodes, kind } => nodes
+                .into_iter()
+                .enumerate()
+                .flat_map(|(i, child)| {
+                    let parser::MarkdownNode::Item { text } = child.markdown_node else {
+                        return MarkdownView::render_markdown(child, prefix.clone());
+                    };
 
-                lines.push(Line::default());
+                    let item = match kind {
+                        parser::ListKind::Ordered(start) => MarkdownView::item(
+                            parser::ItemKind::Ordered(start + i as u64),
+                            MarkdownView::text_to_spans(text),
+                            prefix.clone(),
+                        ),
+                        _ => MarkdownView::item(
+                            parser::ItemKind::Unordered,
+                            MarkdownView::text_to_spans(text),
+                            prefix.clone(),
+                        ),
+                    };
 
-                lines
-            }
+                    [item].to_vec()
+                })
+                .chain([Line::default()])
+                .collect::<Vec<Line<'a>>>(),
+
             // TODO: Support callout block quote types
-            parser::MarkdownNode::BlockQuote { nodes, .. } => {
-                let lines = nodes
-                    .into_iter()
-                    .flat_map(|child| {
-                        MarkdownView::render_markdown(child, Span::from("┃ ").magenta())
-                            .into_iter()
-                            .chain(vec![Line::from(prefix.clone())])
-                            .collect::<Vec<_>>()
-                    })
-                    .map(|line| line.dark_gray())
-                    .collect::<Vec<Line<'a>>>();
-
-                lines
-            }
+            parser::MarkdownNode::BlockQuote { nodes, .. } => nodes
+                .into_iter()
+                .flat_map(|child| {
+                    MarkdownView::render_markdown(child, Span::from("┃ ").magenta())
+                        .into_iter()
+                        .collect::<Vec<_>>()
+                })
+                .map(|line| line.dark_gray())
+                .chain([Line::default()])
+                .collect::<Vec<Line<'a>>>(),
         }
     }
 }
