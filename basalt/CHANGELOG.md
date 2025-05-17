@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- [Add `stylized_text` module](https://github.com/erikjuhani/basalt/commit/47db925ef858831672be69fb11bcf272522e1b3a)
+- [Add `lib.rs` which allows basalt to be used as a library](https://github.com/erikjuhani/basalt/commit/ce094ed8aab1945aad36955bce83eeea09085177)
+
 ## 0.3.4
 
 ### Added
