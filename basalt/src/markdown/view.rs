@@ -165,12 +165,16 @@ impl MarkdownView {
                         format!(
                             " {} {}",
                             line,
-                            (line.len()..width).map(|_| " ").collect::<String>()
+                            // We subtract two to take the white space into account, which are
+                            // added in the format string.
+                            (line.chars().count()..width - 2)
+                                .map(|_| " ")
+                                .collect::<String>()
                         )
                     })
                     .collect::<Vec<String>>()
             })
-            .map(|text| Line::from(text).bold().bg(Color::Black))
+            .map(|text| Line::from(text).bg(Color::Black))
             .collect()
     }
 

@@ -68,10 +68,10 @@ For now these are not configurable, but this will change when the configuration 
 - [ ] Add `mdbook` and `gh` pages
 - [ ] Persistent scroll state in help modal
 - [ ] Fuzzy search in panes (note, side panel, modals)
-- [ ] Markdown rendering
+- [-] Markdown rendering
     - [ ] Add support to all markdown nodes
-    - [ ] Improve and fix code block rendering, so it appears as a 'block'
     - [x] Add text formatting to different styles like `Fraktur` and `DoubleStruck` for heading purposes
+    - [x] Improve and fix code block rendering, so it appears as a 'block'
     - [ ] Support complete Obsidian Flavor
     - [ ] Add image rendering support
 - [ ] Note tree
