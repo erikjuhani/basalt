@@ -10,7 +10,7 @@ use ratatui::{
 use std::{cell::RefCell, fmt::Debug, io::Result};
 
 use crate::{
-    config::{Config, KeyBinding},
+    config::Config,
     explorer::{Explorer, ExplorerState},
     help_modal::{HelpModal, HelpModalState},
     markdown::{MarkdownView, MarkdownViewState},
