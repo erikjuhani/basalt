@@ -11,7 +11,7 @@ use ratatui::{
 use std::{cell::RefCell, io::Result, marker::PhantomData};
 
 use crate::{
-    config::{Config, KeyBinding},
+    config::{Config, Key},
     help_modal::{HelpModal, HelpModalState},
     sidepanel::{SidePanel, SidePanelState},
     start::{StartScreen, StartState},
@@ -56,7 +56,7 @@ fn calc_scroll_amount(scroll_amount: ScrollAmount, size: Size) -> usize {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Action {
     Select,
     Next,
@@ -573,14 +573,14 @@ impl<'a> App<'a> {
     }
 
     fn handle_press_key_event(&self, key_event: &KeyEvent) -> Option<Action> {
-        let key_binding: KeyBinding = key_event.into();
+        let key_binding: Key = key_event.into();
 
         self.state
             .config
             .keymap
             .get(&key_binding)
             .cloned()
-            .or_else(|| key_binding.eq(&KeyBinding::CTRLC).then_some(Action::Quit))
+            .or_else(|| key_binding.eq(&Key::CTRLC).then_some(Action::Quit))
     }
 
     fn draw(&self, state: &AppState<'a>) -> Result<()> {
