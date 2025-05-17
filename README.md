@@ -60,7 +60,7 @@ For now these are not configurable, but this will change when the configuration 
 - [x] Add help modal / popup with `?`
 - [x] Add vault selection screen with basalt logo (Splash screen)
 - [x] Add vault selector modal
-- [ ] GitHub Workflows !
+- [-] GitHub Workflows !
     - [x] Run tests and build
     - [x] Run create release artifacts (cross-platform binaries)
     - [ ] Do not run test when pushing a tag
@@ -70,8 +70,8 @@ For now these are not configurable, but this will change when the configuration 
 - [ ] Fuzzy search in panes (note, side panel, modals)
 - [ ] Markdown rendering
     - [ ] Add support to all markdown nodes
-    - [ ] Add text formatting to different styles like `Fraktur` and `DoubleStruck` for heading purposes
     - [ ] Improve and fix code block rendering, so it appears as a 'block'
+    - [x] Add text formatting to different styles like `Fraktur` and `DoubleStruck` for heading purposes
     - [ ] Support complete Obsidian Flavor
     - [ ] Add image rendering support
 - [ ] Note tree
@@ -92,7 +92,7 @@ For now these are not configurable, but this will change when the configuration 
     - [ ] Switch between scrollbar and paging using a command `:set scroll` or `:set paging`. Paging will only fit the content it can within the height of the `rect` and generate pages accordingly.
 - [ ] Configuration file (`.basalt.toml`)
     - [ ] Add rudimentary configuration file and move key bindings to the file
-- [ ] Wrap lines with prefix (calculate width and add length of prefix)
+- [x] Wrap lines with prefix (calculate width and add length of prefix)
 - [ ] Easy backups with Git (Config, (git2-rs)[https://github.com/rust-lang/git2-rs])
 - [ ] Integration tests using https://core.tcl-lang.org/expect/index
 - [ ] When creating a link show autocomplete tooltip list of potential files to link to
