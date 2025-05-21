@@ -39,6 +39,7 @@ dependencies = [
  "ratatui",
  "serde",
  "textwrap",
+ "thiserror 2.0.12",
  "toml",
 ]
 

@@ -11,7 +11,7 @@ use ratatui::{
 use std::{cell::RefCell, io::Result, marker::PhantomData};
 
 use crate::{
-    config::{Config, Key},
+    config::{read_config, Config},
     help_modal::{HelpModal, HelpModalState},
     sidepanel::{SidePanel, SidePanelState},
     start::{StartScreen, StartState},
@@ -113,7 +113,6 @@ impl Default for Screen<'_> {
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct AppState<'a> {
-    pub config: Config,
     pub help_modal: Option<HelpModalState>,
     pub vault_selector_modal: Option<VaultSelectorModalState<'a>>,
     pub size: Size,
@@ -124,6 +123,7 @@ pub struct AppState<'a> {
 
 pub struct App<'a> {
     pub state: AppState<'a>,
+    pub config: Config,
     terminal: RefCell<DefaultTerminal>,
 }
 
@@ -222,7 +222,6 @@ impl<'a> App<'a> {
         let size = terminal.size()?;
 
         let state = AppState {
-            config: Config::build(),
             screen: Screen::Start(Start {
                 start_state: StartState::new(&version, size, vaults),
             }),
@@ -233,6 +232,7 @@ impl<'a> App<'a> {
         };
 
         App {
+            config: read_config().unwrap(),
             state: state.clone(),
             terminal: RefCell::new(terminal),
         }
@@ -573,14 +573,9 @@ impl<'a> App<'a> {
     }
 
     fn handle_press_key_event(&self, key_event: &KeyEvent) -> Option<Action> {
-        let key_binding: Key = key_event.into();
-
-        self.state
-            .config
-            .keymap
-            .get(&key_binding)
-            .cloned()
-            .or_else(|| key_binding.eq(&Key::CTRLC).then_some(Action::Quit))
+        self.config
+            .get_key_binding(key_event.into())
+            .map(|key_binding| key_binding.into())
     }
 
     fn draw(&self, state: &AppState<'a>) -> Result<()> {
