@@ -1,4 +1,4 @@
-use dirs::config_local_dir;
+use dirs::config_dir;
 
 use serde::{Deserialize, Deserializer};
 use std::path::Path;
@@ -198,5 +198,5 @@ fn obsidian_config_dir() -> Option<PathBuf> {
     #[cfg(target_os = "windows")]
     const OBSIDIAN_CONFIG_DIR_NAME: &str = "Obsidian";
 
-    config_local_dir().map(|config_path| config_path.join(OBSIDIAN_CONFIG_DIR_NAME))
+    config_dir().map(|config_path| config_path.join(OBSIDIAN_CONFIG_DIR_NAME))
 }
