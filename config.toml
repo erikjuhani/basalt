@@ -1,0 +1,43 @@
+[[key_bindings]]
+key = "q"
+command = "quit"
+
+[[key_bindings]]
+key = "?"
+command = "toggle_help"
+
+[[key_bindings]]
+key = " "
+command = "toggle_vault_selector"
+
+[[key_bindings]]
+key = "up"
+command = "scroll_up"
+
+[[key_bindings]]
+key = "down"
+command = "scroll_down"
+
+[[key_bindings]]
+key = "ctrl+u"
+command = "page_up"
+
+[[key_bindings]]
+key = "ctrl+d"
+command = "page_down"
+
+[[key_bindings]]
+key = "t"
+command = "toggle_mode"
+
+[[key_bindings]]
+key = "k"
+command = "previous"
+
+[[key_bindings]]
+key = "j"
+command = "next"
+
+[[key_bindings]]
+key = "enter"
+command = "select"
