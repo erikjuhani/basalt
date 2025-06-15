@@ -40,6 +40,7 @@ dependencies = [
  "ratatui",
  "serde",
  "textwrap",
+ "thiserror",
  "toml",
 ]
 

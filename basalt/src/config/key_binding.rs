@@ -1,4 +1,4 @@
-use std::{error::Error, fmt};
+use std::fmt;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use serde::{
@@ -10,10 +10,20 @@ use crate::app::ScrollAmount;
 
 use super::Action;
 
+use crate::config::ConfigError;
+
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub(crate) struct KeyBinding {
     pub key: Key,
     pub command: Command,
+}
+
+impl KeyBinding {
+    #[expect(dead_code)]
+    pub const CTRLC: KeyBinding = KeyBinding {
+        key: Key::CTRLC,
+        command: Command::Quit,
+    };
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -52,16 +62,25 @@ impl Visitor<'_> for KeyVisitor {
         E: de::Error,
     {
         let value = value.to_lowercase();
-        let (modifiers, code) = value.split_once('+').unwrap_or(("", value.as_str()));
+        let mut parts = value.split('+');
+        // Does not panic if the str is empty
+        let code = parts.by_ref().next_back().unwrap();
+        let modifiers = parts
+            .map(parse_modifiers)
+            .collect::<Result<Vec<KeyModifiers>, ConfigError>>()
+            .map_err(de::Error::custom)?
+            .into_iter()
+            .reduce(|acc, modifiers| acc.union(modifiers))
+            .unwrap_or(KeyModifiers::NONE);
 
         Ok(Key {
-            modifiers: parse_modifiers(modifiers).map_err(de::Error::custom)?,
+            modifiers,
             code: parse_code(code).map_err(de::Error::custom)?,
         })
     }
 }
 
-fn parse_modifiers(modifiers: &str) -> Result<KeyModifiers, KeyParseError> {
+fn parse_modifiers(modifiers: &str) -> Result<KeyModifiers, ConfigError> {
     match modifiers {
         "" => Ok(KeyModifiers::NONE),
         "alt" => Ok(KeyModifiers::ALT),
@@ -70,10 +89,10 @@ fn parse_modifiers(modifiers: &str) -> Result<KeyModifiers, KeyParseError> {
         "meta" => Ok(KeyModifiers::META),
         "shift" => Ok(KeyModifiers::SHIFT),
         "super" => Ok(KeyModifiers::SUPER),
-        _ => Err(KeyParseError::UnknownModifiers(modifiers.to_string())),
+        _ => Err(ConfigError::UnknownKeyModifiers(modifiers.to_string())),
     }
 }
-fn parse_code(code: &str) -> Result<KeyCode, KeyParseError> {
+fn parse_code(code: &str) -> Result<KeyCode, ConfigError> {
     match code.len() {
         0 => Some(KeyCode::Null),
         1 => Some(KeyCode::Char(code.chars().next().unwrap())),
@@ -98,53 +117,23 @@ fn parse_code(code: &str) -> Result<KeyCode, KeyParseError> {
                 _ => None,
             }),
     }
-    .ok_or(KeyParseError::UnknownCode(code.to_string()))
+    .ok_or(ConfigError::UnknownKeyCode(code.to_string()))
 }
 
-#[derive(Debug)]
-enum KeyParseError {
-    InvalidKeybinding(String),
-    UnknownCode(String),
-    UnknownModifiers(String),
-}
-
-impl fmt::Display for KeyParseError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            KeyParseError::InvalidKeybinding(error) => {
-                write!(f, "Invalid keybinding: {error}")
-            }
-            KeyParseError::UnknownModifiers(modifier) => {
-                write!(f, "Unknown modifiers: {}", modifier)
-            }
-            KeyParseError::UnknownCode(code) => write!(f, "Unknown code: {}", code),
-        }
-    }
-}
-
-impl Error for KeyParseError {}
-
-impl de::Error for KeyParseError {
+impl de::Error for ConfigError {
     fn custom<T>(msg: T) -> Self
     where
         T: fmt::Display,
     {
-        KeyParseError::InvalidKeybinding(msg.to_string())
+        ConfigError::InvalidKeybinding(msg.to_string())
     }
 }
 
 impl From<&KeyEvent> for Key {
-    fn from(
-        KeyEvent {
-            code,
-            modifiers,
-            kind: _,
-            state: _,
-        }: &KeyEvent,
-    ) -> Self {
+    fn from(event: &KeyEvent) -> Self {
         Self {
-            code: *code,
-            modifiers: *modifiers,
+            code: event.code,
+            modifiers: event.modifiers,
         }
     }
 }

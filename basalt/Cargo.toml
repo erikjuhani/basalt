@@ -19,6 +19,7 @@ textwrap = "0.16.2"
 serde = { version = "1.0.219", features = ["derive"] }
 toml = "0.8.22"
 etcetera = "0.10.0"
+thiserror = "2.0.12"
 
 [dev-dependencies]
 indoc = "2"
