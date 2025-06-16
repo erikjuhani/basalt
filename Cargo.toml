@@ -10,3 +10,9 @@ basalt-widgets = { path = "basalt-widgets", version = "0.1.1" }
 [profile.ci]
 inherits = "dev"
 opt-level = 0
+
+[profile.dev]
+split-debuginfo = "unpacked"
+
+[profile.dev.build-override]
+opt-level = 3
