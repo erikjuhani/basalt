@@ -62,6 +62,7 @@ impl From<&str> for WordCount {
 mod tests {
     use super::*;
     use indoc::indoc;
+    use similar_asserts::assert_eq;
 
     #[test]
     fn test_text_counts() {

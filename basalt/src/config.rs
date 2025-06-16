@@ -260,6 +260,7 @@ pub fn load<'a>() -> Result<Config<'a>, ConfigError> {
 #[cfg(test)]
 mod tests {
     use ratatui::crossterm::event::KeyModifiers;
+    use similar_asserts::assert_eq;
 
     use super::*;
     // use insta::assert_snapshot;
