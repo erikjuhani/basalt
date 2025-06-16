@@ -130,7 +130,10 @@ impl<'a> ExplorerState<'a> {
     }
 
     pub fn toggle(&self) -> Self {
-        Self { open: !self.open, ..self.clone() }
+        Self {
+            open: !self.open,
+            ..self.clone()
+        }
     }
 
     pub fn open(self) -> Self {
