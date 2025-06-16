@@ -10,7 +10,7 @@ use ratatui::{
 use std::{cell::RefCell, fmt::Debug, io::Result};
 
 use crate::{
-    config::Config,
+    config::{self, Config},
     explorer::{Explorer, ExplorerState},
     help_modal::{HelpModal, HelpModalState},
     markdown::{MarkdownView, MarkdownViewState},
@@ -413,7 +413,8 @@ impl<'a> App<'a> {
         let size = terminal.size()?;
 
         let state = AppState {
-            _config: Config::build(),
+            // Surface toast if read config returns error
+            _config: config::load().unwrap(),
             screen_size: size,
             help_modal: HelpModalState::new(&help_text()),
             vault_selector_modal: VaultSelectorModalState::new(vaults.clone()),

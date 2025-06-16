@@ -6,10 +6,8 @@ use serde::{
     Deserialize, Deserializer,
 };
 
-use crate::app::ScrollAmount;
-
 use super::Action;
-
+use crate::app::ScrollAmount;
 use crate::config::ConfigError;
 
 #[derive(Clone, Debug, PartialEq, Deserialize)]
@@ -30,6 +28,25 @@ impl KeyBinding {
 pub struct Key {
     pub modifiers: KeyModifiers,
     pub code: KeyCode,
+}
+
+impl fmt::Display for Key {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let code = self.code.to_string().to_lowercase().replace(" ", "_");
+
+        if self.modifiers.is_empty() {
+            write!(f, "{}", code)
+        } else {
+            let modifiers = self
+                .modifiers
+                .iter_names()
+                .map(|(name, _)| name.to_lowercase())
+                .collect::<Vec<_>>()
+                .join("+");
+
+            write!(f, "{}+{}", code, modifiers)
+        }
+    }
 }
 
 impl Key {

@@ -1,14 +1,13 @@
 mod key_binding;
 
-use std::{collections::HashMap, fs::read_to_string};
+use std::{collections::BTreeMap, fs::read_to_string};
 
 use etcetera::{choose_base_strategy, home_dir, BaseStrategy};
 use key_binding::KeyBinding;
 use serde::Deserialize;
 
-pub(crate) use key_binding::Key;
-
 use crate::app::ScrollAmount;
+pub(crate) use key_binding::Key;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Action {
@@ -31,7 +30,7 @@ pub enum ConfigError {
     Io(#[from] std::io::Error),
     // Occurs when the home directory cannot be located, from [`etcetera::HomeDirError`].
     #[error(transparent)]
-    Etcetera(#[from] etcetera::HomeDirError),
+    HomeDir(#[from] etcetera::HomeDirError),
     /// TOML (De)serialization error, from [`toml::de::Error`].
     #[error(transparent)]
     Toml(#[from] toml::de::Error),
@@ -41,11 +40,13 @@ pub enum ConfigError {
     UnknownKeyCode(String),
     #[error("Unknown modifiers: {0}")]
     UnknownKeyModifiers(String),
+    #[error("User config not found: {0}")]
+    UserConfigNotFound(String),
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Config {
-    pub keymap: HashMap<Key, Action>,
+    pub key_bindings: BTreeMap<String, Action>,
 }
 
 impl Default for Config {
@@ -57,94 +58,106 @@ impl Default for Config {
 impl From<TomlConfig> for Config {
     fn from(TomlConfig { key_bindings }: TomlConfig) -> Self {
         Self {
-            keymap: key_bindings
+            key_bindings: key_bindings
                 .into_iter()
-                .map(|KeyBinding { key, command }| (key, command.into()))
+                .map(|KeyBinding { key, command }| (key.to_string(), command.into()))
                 .collect(),
         }
     }
 }
 
 impl Config {
-    pub fn build() -> Self {
-        let mut config = Self::default();
-        if let Ok(Some(user_config)) = TomlConfig::read_user_config() {
-            config = config.merge(user_config.into());
-        };
-        config.keymap.insert(Key::CTRLC, Action::Quit);
-
+    /// Takes self and another config and merges the `key_bindings` together overwriting the
+    /// existing entries with the value from another config.
+    pub(crate) fn merge(&self, config: Config) -> Config {
         config
+            .key_bindings
+            .into_iter()
+            .fold(self.key_bindings.clone(), |mut acc, (key, value)| {
+                acc.entry(key)
+                    .and_modify(|v| *v = value.clone())
+                    .or_insert(value);
+                acc
+            })
+            .into()
     }
-    fn merge(self, Self { keymap }: Self) -> Self {
-        self.merge_keymap(keymap)
-    }
-    fn merge_keymap(mut self, key_bindings: HashMap<Key, Action>) -> Self {
-        key_bindings.into_iter().for_each(|(key, action)| {
-            self.keymap
-                .entry(key)
-                .and_modify(|old_action| *old_action = action.clone())
-                .or_insert(action);
-        });
 
-        self
-    }
     pub fn key_to_action(&self, key: Key) -> Option<Action> {
-        self.keymap
-            .get(&key)
+        self.key_bindings
+            .get(&key.to_string())
             .cloned()
             .or_else(|| key.eq(&Key::CTRLC).then_some(Action::Quit))
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+impl From<BTreeMap<String, Action>> for Config {
+    fn from(value: BTreeMap<String, Action>) -> Self {
+        Self {
+            key_bindings: value,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize, Default)]
 struct TomlConfig {
     #[serde(default)]
     key_bindings: Vec<KeyBinding>,
 }
 
-impl Default for TomlConfig {
-    fn default() -> Self {
-        let default_config = include_str!("../../config.toml");
-        toml::from_str(default_config)
-            // I REALLY think this particular Default implementation should panic
-            // in the event the 'config.toml' has been modified and cannot be properly parsed
-            // so Basalt cannot build, should the default configuration be faulty
-            .expect("Could not parse built-in config.toml into valid toml")
-    }
+/// Finds and reads the user configuration file in order of priority.
+///
+/// The function checks two standard locations:
+///
+/// 1. Directly under the user's home directory: `$HOME/.basalt.toml`
+/// 2. Under the user's config directory: `$HOME/.config/basalt/config.toml`
+///
+/// It first attempts to find the config file in the home directory. If not found, it then checks
+/// the config directory.
+fn read_user_config() -> Result<Config, ConfigError> {
+    let home_dir_path = home_dir().map(|home_dir| home_dir.join(".basalt.toml"));
+    let config_dir_path =
+        choose_base_strategy().map(|strategy| strategy.config_dir().join("basalt/config.toml"));
+
+    let config_path = [home_dir_path, config_dir_path]
+        .into_iter()
+        .flatten()
+        .next()
+        .ok_or(ConfigError::UserConfigNotFound(
+            "Could not find user config".to_string(),
+        ));
+
+    config_path.and_then(|path_buf| {
+        read_to_string(path_buf)
+            .map_err(ConfigError::from)
+            .and_then(|content| {
+                toml::from_str::<TomlConfig>(&content)
+                    .map(Config::from)
+                    .map_err(ConfigError::from)
+            })
+    })
 }
 
-impl TomlConfig {
-    /// Finds and reads the user configuration file in order of priority.
-    ///
-    /// The function checks two standard locations:
-    ///
-    /// 1. Directly under the user's home directory: `$HOME/.basalt.toml`
-    /// 2. Under the user's config directory: `$HOME/.config/basalt/config.toml`
-    ///
-    /// It first attempts to find the config file in the home directory. If not found, it then checks
-    /// the config directory.
-    ///
+/// Loads and merges configuration from multiple sources in priority order.
+///
+/// The configuration is built by layering sources with increasing precedence:
+/// 1. Base configuration from embedded config.toml (lowest priority)
+/// 2. User-specific configuration from user's config directory
+/// 3. System overrides (Ctrl+C) that cannot be changed by users (highest priority)
+///
+/// # Configuration Precedence
+/// System overrides > User config > Base config
+pub fn load() -> Result<Config, ConfigError> {
+    // TODO: Use static-toml instead to check the build error during compile time
+    let base_config: Config =
+        toml::from_str::<TomlConfig>(include_str!("../../config.toml"))?.into();
+
+    let system_overrides: Config = BTreeMap::from([(Key::CTRLC.to_string(), Action::Quit)]).into();
+
     // TODO: Parsing errors related to the configuration file should ideally be surfaced as warnings.
     // This is pending a solution for toast notifications and proper warning/error logging.
-    fn read_user_config() -> Result<Option<TomlConfig>, ConfigError> {
-        [
-            home_dir()?.join(".basalt.toml"),
-            choose_base_strategy()?
-                .config_dir()
-                .join("basalt/config.toml"),
-        ]
-        .into_iter()
-        .find_map(|file| {
-            file.exists().then(|| {
-                read_to_string(file)
-                    .map_err(ConfigError::from)
-                    .and_then(|content| {
-                        toml::from_str::<TomlConfig>(content.as_str()).map_err(ConfigError::from)
-                    })
-            })
-        })
-        .transpose()
-    }
+    let user_config = read_user_config().unwrap_or_default();
+
+    Ok(base_config.merge(user_config).merge(system_overrides))
 }
 
 #[test]
@@ -163,6 +176,7 @@ fn test_config() {
         command = "page_up"
     "#;
     let dummy_toml_config: TomlConfig = toml::from_str::<TomlConfig>(dummy_toml).unwrap();
+
     let expected_toml_config = TomlConfig {
         key_bindings: Vec::from([
             KeyBinding {
