@@ -328,7 +328,11 @@ impl StatefulWidgetRef for MarkdownView {
 
     fn render_ref(&self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         let block = Block::bordered()
-            .border_type(if state.active { BorderType::Thick } else { BorderType::Rounded })
+            .border_type(if state.active {
+                BorderType::Thick
+            } else {
+                BorderType::Rounded
+            })
             .padding(Padding::horizontal(1));
 
         let nodes = parser::from_str(&state.text)
