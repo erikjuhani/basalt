@@ -49,10 +49,9 @@
 //! ## Not yet implemented
 //!
 //! - Handling of inline HTML, math blocks, etc.
-//! - Tracking code block language (`lang`) properly (currently set to [`None`]).
 use std::vec::IntoIter;
 
-use pulldown_cmark::{Event, Options, Tag, TagEnd};
+use pulldown_cmark::{CodeBlockKind, Event, Options, Tag, TagEnd};
 
 /// A style that can be applied to [`TextNode`] (code, emphasis, strikethrough, strong).
 #[derive(Clone, Debug, PartialEq)]
@@ -494,9 +493,13 @@ impl<'a> Parser<'a> {
                 },
                 range,
             )),
-            Tag::CodeBlock(_) => self.push_node(Node::new(
+            Tag::CodeBlock(kind) => self.push_node(Node::new(
                 MarkdownNode::CodeBlock {
-                    lang: None,
+                    lang: match kind {
+                        CodeBlockKind::Indented => None,
+                        CodeBlockKind::Fenced(name) if name.is_empty() => None,
+                        CodeBlockKind::Fenced(name) => Some(name.to_string()),
+                    },
                     text: Text::default(),
                 },
                 range,
@@ -640,6 +643,16 @@ mod tests {
         )
     }
 
+    fn codeblock(str: &str, lang: Option<&str>, range: Range<usize>) -> Node {
+        Node::new(
+            MarkdownNode::CodeBlock {
+                lang: lang.map(ToString::to_string),
+                text: str.into(),
+            },
+            range,
+        )
+    }
+
     fn task(str: &str, range: Range<usize>) -> Node {
         Node::new(
             MarkdownNode::Item {
@@ -719,6 +732,23 @@ mod tests {
                     h4("Heading 4", 42..57),
                     h5("Heading 5", 58..74),
                     h6("Heading 6", 75..92),
+                ],
+            ),
+            (
+                indoc! {r#"```
+                fn main() {}
+                ```
+
+                ```rs
+                fn main() {}
+                ```
+
+                    fn main() {}
+                "#},
+                vec![
+                    codeblock("fn main() {}\n", None, 0..20),
+                    codeblock("fn main() {}\n", Some("rs"), 22..44),
+                    codeblock("fn main() {}\n", None, 50..63),
                 ],
             ),
             // TODO: Implement correct test case when `- [?] ` task item syntax is supported
