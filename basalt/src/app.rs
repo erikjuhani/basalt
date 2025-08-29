@@ -10,6 +10,7 @@ use ratatui::{
 use std::{cell::RefCell, fmt::Debug, io::Result};
 
 use crate::{
+    command,
     config::{self, Config},
     explorer::{self, Explorer, ExplorerState},
     help_modal::{self, HelpModal, HelpModalState},
@@ -84,6 +85,8 @@ impl<'a> AppState<'a> {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Message<'a> {
     Quit,
+    Exec(String),
+    Spawn(String),
     Resize(Size),
     SetActivePane(ActivePane),
     OpenVault(&'a Vault),
@@ -185,7 +188,7 @@ impl<'a> App<'a> {
 
             let mut message = App::handle_event(&config, &state, &event);
             while message.is_some() {
-                message = App::update(&config, &mut state, message);
+                message = App::update(self.terminal.get_mut(), &config, &mut state, message);
             }
         }
 
@@ -254,6 +257,7 @@ impl<'a> App<'a> {
     }
 
     fn update(
+        terminal: &mut DefaultTerminal,
         config: &Config,
         state: &mut AppState<'a>,
         message: Option<Message<'a>>,
@@ -288,7 +292,9 @@ impl<'a> App<'a> {
                 state.selected_note = Some(selected_note.clone());
 
                 // TODO: This should be behind an event/message
+                let active = state.note_editor.active();
                 state.note_editor = EditorState::default();
+                state.note_editor.set_active(active);
                 state.note_editor.set_path(selected_note.path.into());
                 state.note_editor.set_content(&selected_note.content);
 
@@ -308,6 +314,25 @@ impl<'a> App<'a> {
                     selected_note.content = updated_content;
                     return nodes.map(|nodes| Message::Outline(outline::Message::SetNodes(nodes)));
                 }
+            }
+            Message::Exec(command) => {
+                let note_path = state
+                    .selected_note
+                    .as_ref()
+                    .map(|note| note.path.clone())
+                    .unwrap_or_default();
+
+                return command::sync_command(terminal, command, state.explorer.title, &note_path);
+            }
+
+            Message::Spawn(command) => {
+                let note_path = state
+                    .selected_note
+                    .as_ref()
+                    .map(|note| note.path.clone())
+                    .unwrap_or_default();
+
+                return command::spawn_command(command, state.explorer.title, &note_path);
             }
 
             Message::HelpModal(message) => {

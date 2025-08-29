@@ -128,7 +128,7 @@ impl Editor<'_> {
                             line,
                             // We subtract two to take the whitespace into account, which are
                             // added in the format string.
-                            (line.chars().count()..width - 2)
+                            (line.chars().count()..width.saturating_sub(2))
                                 .map(|_| " ")
                                 .collect::<String>()
                         )

@@ -4,10 +4,10 @@ use core::fmt;
 use std::{collections::BTreeMap, fs::read_to_string};
 
 use etcetera::{choose_base_strategy, home_dir, BaseStrategy};
-use key_binding::{Command, KeyBinding};
+use key_binding::KeyBinding;
 use serde::Deserialize;
 
-use crate::app::Message;
+use crate::{app::Message, command::Command};
 pub(crate) use key_binding::Key;
 
 #[derive(Debug, thiserror::Error)]
@@ -278,7 +278,7 @@ mod tests {
 
     #[test]
     fn test_config() {
-        use key_binding::{Command, Key};
+        use key_binding::Key;
 
         let dummy_toml = r#"
         [global]
