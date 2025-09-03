@@ -95,7 +95,7 @@ pub fn update<'a>(
             }
             Message::ExitMode => {
                 state.exit_insert();
-                state.set_mode(Mode::View);
+                state.set_mode(Mode::Read);
 
                 return Some(AppMessage::UpdateSelectedNoteContent((
                     state.content().to_string(),
