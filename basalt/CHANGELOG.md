@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.2 (Unreleased)
+
+- [Set editor to READ mode when exiting EDIT mode](https://github.com/erikjuhani/basalt/commit/e063b625157827e5c38660058badf9e48611bb62)
+
 ## 0.10.1 (2025-08-31)
 
 ### Added
