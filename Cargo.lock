@@ -28,7 +28,7 @@ dependencies = [
 
 [[package]]
 name = "basalt-tui"
-version = "0.10.1"
+version = "0.10.2"
 dependencies = [
  "basalt-core",
  "basalt-widgets",
