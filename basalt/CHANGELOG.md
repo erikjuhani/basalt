@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.10.2 (Unreleased)
+
+Deprecated the following config commands:
+
+- "note_editor_experimental_set_edit_mode"
+- "note_editor_experimental_set_read_mode"
+- "note_editor_experimental_exit_mode"
+
+Use these instead:
+
+- "note_editor_experimental_set_edit_view"
+- "note_editor_experimental_set_read_view" and
+- "note_editor_experimental_exit"
+
+- [Change note editor views and modes to follow Obsidian equivalent](https://github.com/erikjuhani/basalt/commit/371df9adf40624762dbf81b36c7395c7a5c34d3b)
+
 ## 0.10.1 (2025-08-31)
 
 ### Added

@@ -1,25 +1,22 @@
-
 > [!WARNING]
 >
 > The current implementation of the Basalt note editor is _experimental_ and _subject to change_.
 >
 > The key change I anticipate for the editor is a custom implementation built from scratch that will enable a better [WYSIWYG](https://en.wikipedia.org/wiki/WYSIWYG) experience.
 
-To enable the experimental editor feature, you must add the following configuration to your Basalt configuration file:
+To enable the experimental editor feature, you must add the following configuration to your [[Basalt]] [[configuration]] file:
 
 ```toml
 experimental_editor = true
 ```
 
-## Modes
+## View
 
-> [!IMPORTANT]
->
-> In the future, the modes will follow the Obsidian modes more strictly: Reading, Live Preview Editing, and Source Mode Editing.
+[[Basalt]] follows loosely the Obsidian views and modes: [[Reading view]], [[Edit view]], and [[Source Mode editing]] when in [[Edit view]]. Live Preview editing is not yet supported.
 
-### Read Mode
+### Reading View (READ)
 
-Renders the note without Markdown syntax, similar in function to Obsidian's Reading view.
+Renders the note without Markdown syntax, similar in function to Obsidian's [[Reading view]].
 
 #### Key Mappings
 
@@ -29,10 +26,7 @@ Renders the note without Markdown syntax, similar in function to Obsidian's Read
 | `↓`      | Move cursor down by one line |
 | `Ctrl+D` | Scroll down by half a page   |
 | `Ctrl+U` | Scroll up by half a page     |
-
-### View Mode
-
-View mode displays the source of the Markdown node directly under the cursor, making editing easier. View is the default display mode.
+| `Ctrl+E` | Toggle mode                  |
 
 #### Key Mappings
 
@@ -44,20 +38,19 @@ View mode displays the source of the Markdown node directly under the cursor, ma
 | `↓`      | Move cursor down by one line          |
 | `Alt+→`  | Move cursor forward by word           |
 | `Alt+←`  | Move cursor backward by word          |
-| `Ctrl+D` | Scroll down by half a page            |
-| `Ctrl+U` | Scroll up by half a page              |
+| `Ctrl+E` | Toggle mode                           |
 
-### Edit Mode
+### Edit View (EDIT)
 
-Edit mode allows you to make changes to your note.
+[[Edit view]] displays the markdown source exactly as written, and allows you to make changes to the notes.
 
 #### Key Mappings
 
 > [!WARNING]
 >
-> Edit mode key mappings cannot be modified.
+> Edit view key mappings cannot be modified at the moment.
 
-Edit mode uses a crate called [tui-textarea](https://github.com/rhysd/tui-textarea) and provides the following default key mappings:
+[[Edit view]] uses a crate called [tui-textarea](https://github.com/rhysd/tui-textarea) and provides the following default key mappings:
 
 |Mapping|Description|
 |---|---|

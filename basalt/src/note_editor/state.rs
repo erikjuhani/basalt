@@ -20,35 +20,34 @@ pub struct Scrollbar {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub enum Mode {
+pub enum EditMode {
     #[default]
-    Read,
-    View,
-    Edit,
+    /// Shows the markdown exactly as written
+    Source,
+    // TODO:
+    // /// Hides most of the markdown syntax
+    // LivePreview
 }
 
-impl fmt::Display for Mode {
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum View {
+    #[default]
+    Read,
+    Edit(EditMode),
+}
+
+impl fmt::Display for View {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Mode::View => write!(f, "VIEW"),
-            Mode::Edit => write!(f, "EDIT"),
-            Mode::Read => write!(f, "READ"),
+            View::Read => write!(f, "READ"),
+            View::Edit(..) => write!(f, "EDIT"),
         }
     }
 }
 
-// TODO: Two editing modes
-// 1. Obsidian (Partial editing)
-// 2. Full editing
-// 3. Command mode
-//
-// TODO:
-// - Better movement
-// - Vim mode
-// - Command mode to open a different text editor like Neovim or helix
 #[derive(Clone, Debug, Default)]
 pub struct EditorState<'text_buffer> {
-    pub mode: Mode,
+    pub view: View,
     text_buffer: TextBuffer<'text_buffer>,
     content: String,
     content_original: String,
@@ -76,11 +75,7 @@ impl<'text_buffer> EditorState<'text_buffer> {
     }
 
     pub fn is_editing(&self) -> bool {
-        self.mode == Mode::Edit
-    }
-
-    pub fn mode(&self) -> Mode {
-        self.mode
+        self.view == View::Edit(EditMode::Source)
     }
 
     pub fn nodes(&self) -> &[markdown_parser::Node] {
@@ -247,14 +242,9 @@ impl<'text_buffer> EditorState<'text_buffer> {
                 return;
             }
 
-            // let nodes = markdown_parser::from_str(self.raw());
-            // let diff = nodes_amount.abs_diff(nodes.len());
-            // self.nodes = nodes;
-
             self.current_row = self
                 .current_row
                 .saturating_add(1)
-                // .saturating_add(diff)
                 .min(self.nodes.len().saturating_sub(1));
 
             self.update_text_buffer();
@@ -307,8 +297,8 @@ impl<'text_buffer> EditorState<'text_buffer> {
         }
     }
 
-    pub fn set_mode(&mut self, mode: Mode) {
-        self.mode = mode;
+    pub fn set_view(&mut self, view: View) {
+        self.view = view;
     }
 
     pub fn text_buffer(&self) -> &TextBuffer<'text_buffer> {
@@ -340,7 +330,7 @@ impl<'text_buffer> EditorState<'text_buffer> {
 
     pub fn reset(self) -> Self {
         Self {
-            mode: self.mode,
+            view: self.view,
             ..EditorState::default()
         }
     }

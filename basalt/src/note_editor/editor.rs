@@ -52,7 +52,7 @@ use ratatui::{
 
 use crate::stylized_text::{stylize, FontStyle};
 
-use super::{markdown_parser, state::Mode};
+use super::{markdown_parser, state::View};
 
 use super::state::EditorState;
 
@@ -300,10 +300,9 @@ impl<'text_buffer> StatefulWidget for Editor<'text_buffer> {
     type State = EditorState<'text_buffer>;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        let mode_color = match state.mode {
-            Mode::View => Color::Blue,
-            Mode::Edit => Color::Green,
-            Mode::Read => Color::Red,
+        let mode_color = match state.view {
+            View::Edit(..) => Color::Green,
+            View::Read => Color::Red,
         };
         let block = Block::bordered()
             .border_type(if state.active() {
@@ -313,7 +312,7 @@ impl<'text_buffer> StatefulWidget for Editor<'text_buffer> {
             })
             .title_bottom(
                 [
-                    format!(" {}", state.mode).fg(mode_color).bold().italic(),
+                    format!(" {}", state.view).fg(mode_color).bold().italic(),
                     if state.modified {
                         "* ".bold().italic()
                     } else {
@@ -355,8 +354,8 @@ impl<'text_buffer> StatefulWidget for Editor<'text_buffer> {
                 //     },
                 // ));
 
-                match (i == state.current_row, &state.mode) {
-                    (true, Mode::Read) => {
+                match (i == state.current_row, &state.view) {
+                    (true, View::Read) => {
                         let (row, _) = state.text_buffer().cursor();
                         Editor::render_markdown(node, inner_area, Span::default())
                             .into_iter()
@@ -449,9 +448,9 @@ impl<'text_buffer> StatefulWidget for Editor<'text_buffer> {
         Widget::render(root_node, area, buf);
 
         // TODO: Investigate why crash happens when complete node is rendered
-        if rect.top() < max_height && state.mode != Mode::Read {
+        if rect.top() < max_height && state.view != View::Read {
             // Nothing is visible, so we exit early
-            if (vertical_offset < 0 && clipped_rows == 0) || state.mode == Mode::Read {
+            if (vertical_offset < 0 && clipped_rows == 0) || state.view == View::Read {
                 return;
             }
 
@@ -502,6 +501,8 @@ impl<'text_buffer> StatefulWidget for Editor<'text_buffer> {
 
 #[cfg(test)]
 mod tests {
+    use crate::note_editor::state::EditMode;
+
     use super::*;
     use indoc::indoc;
     use insta::assert_snapshot;
@@ -660,29 +661,29 @@ mod tests {
             ("read_mode_with_content", {
                 let mut state = EditorState::default();
                 state.set_content(content);
-                state.set_mode(Mode::Read);
+                state.set_view(View::Read);
                 state
             }),
             ("edit_mode_with_content", {
                 let mut state = EditorState::default();
                 state.set_content(content);
-                state.set_mode(Mode::Edit);
+                state.set_view(View::Edit(EditMode::Source));
                 state
             }),
             ("edit_mode_with_content_and_simple_change", {
                 let mut state = EditorState::default();
                 state.set_content(content);
-                state.set_mode(Mode::Edit);
+                state.set_view(View::Edit(EditMode::Source));
                 state.edit(KeyEvent::new(KeyCode::Char('#'), KeyModifiers::empty()).into());
                 state.exit_insert();
-                state.set_mode(Mode::Read);
+                state.set_view(View::Read);
                 state
             }),
             ("edit_mode_with_arbitrary_cursor_move", {
                 let mut state = EditorState::default();
                 state.set_content(content);
                 state.cursor_move_col(7);
-                state.set_mode(Mode::Edit);
+                state.set_view(View::Edit(EditMode::Source));
                 state.edit(KeyEvent::new(KeyCode::Char(' '), KeyModifiers::empty()).into());
                 state.edit(KeyEvent::new(KeyCode::Char('B'), KeyModifiers::empty()).into());
                 state.edit(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::empty()).into());
@@ -691,14 +692,14 @@ mod tests {
                 state.edit(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::empty()).into());
                 state.edit(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::empty()).into());
                 state.exit_insert();
-                state.set_mode(Mode::Read);
+                state.set_view(View::Read);
                 state
             }),
             ("edit_mode_with_content_with_complete_word_input_change", {
                 let mut state = EditorState::default();
                 state.set_content(content);
                 state.cursor_down();
-                state.set_mode(Mode::Edit);
+                state.set_view(View::Edit(EditMode::Source));
                 state.edit(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()).into());
                 state.edit(KeyEvent::new(KeyCode::Char('B'), KeyModifiers::empty()).into());
                 state.edit(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::empty()).into());
@@ -709,7 +710,7 @@ mod tests {
                 state.edit(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()).into());
                 state.edit(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()).into());
                 state.exit_insert();
-                state.set_mode(Mode::Read);
+                state.set_view(View::Read);
                 state
             }),
         ];

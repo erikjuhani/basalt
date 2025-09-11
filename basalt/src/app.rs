@@ -14,7 +14,7 @@ use crate::{
     config::{self, Config},
     explorer::{self, Explorer, ExplorerState},
     help_modal::{self, HelpModal, HelpModalState},
-    note_editor::{self, markdown_parser::Node, Editor, EditorState, Mode},
+    note_editor::{self, markdown_parser::Node, Editor, EditorState, View},
     outline::{self, Outline, OutlineState},
     splash_modal::{self, SplashModal, SplashModalState},
     statusbar::{StatusBar, StatusBarState},
@@ -299,7 +299,7 @@ impl<'a> App<'a> {
                 state.note_editor.set_content(&selected_note.content);
 
                 if !config.experimental_editor {
-                    state.note_editor.mode = Mode::Read;
+                    state.note_editor.view = View::Read;
                 }
 
                 // TODO: This should be behind an event/message

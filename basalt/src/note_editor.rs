@@ -19,15 +19,17 @@ pub mod markdown_parser;
 
 pub use editor::Editor;
 use ratatui::{
-    crossterm::event::{KeyCode, KeyEvent},
+    crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
     layout::Size,
 };
-pub use state::{EditorState, Mode};
+pub use state::{EditorState, View};
 pub use text_buffer::TextBuffer;
 
 use crate::{
     app::{calc_scroll_amount, ActivePane, Message as AppMessage, ScrollAmount},
-    explorer, outline,
+    explorer,
+    note_editor::state::EditMode,
+    outline,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -37,9 +39,10 @@ pub enum Message {
     SwitchPanePrevious,
     ToggleExplorer,
     ToggleOutline,
-    EditMode,
-    ExitMode,
-    ReadMode,
+    ToggleView,
+    EditView,
+    ReadView,
+    Exit,
     KeyEvent(KeyEvent),
     CursorUp,
     CursorLeft,
@@ -81,8 +84,9 @@ pub fn update<'a>(
         _ => {}
     };
 
-    match state.mode {
-        Mode::Edit => match message {
+    match state.view {
+        View::Edit(..) => match message {
+            Message::ToggleView => state.set_view(View::Read),
             Message::ScrollUp(_) => state.cursor_up(),
             Message::ScrollDown(_) => state.cursor_down(),
             Message::KeyEvent(key) => {
@@ -93,9 +97,9 @@ pub fn update<'a>(
                     None,
                 )));
             }
-            Message::ExitMode => {
+            Message::Exit => {
                 state.exit_insert();
-                state.set_mode(Mode::View);
+                state.set_view(View::Read);
 
                 return Some(AppMessage::UpdateSelectedNoteContent((
                     state.content().to_string(),
@@ -104,12 +108,13 @@ pub fn update<'a>(
             }
             _ => {}
         },
-        Mode::View | Mode::Read => match message {
-            Message::EditMode => state.set_mode(Mode::Edit),
-            Message::ReadMode => state.set_mode(Mode::Read),
-            Message::ExitMode => state.set_mode(Mode::View),
-            Message::SetRow(row) => state.set_row(*row),
+        View::Read => match message {
+            Message::ToggleView => state.set_view(View::Edit(EditMode::Source)),
+            Message::EditView => state.set_view(View::Edit(EditMode::Source)),
+            Message::ReadView => state.set_view(View::Read),
+            Message::Exit => state.set_view(View::Read),
 
+            Message::SetRow(row) => state.set_row(*row),
             Message::ScrollUp(scroll_amount) => {
                 state.scroll_up(calc_scroll_amount(scroll_amount, screen_size.height.into()));
             }
@@ -148,8 +153,11 @@ pub fn handle_editing_event(key: &KeyEvent) -> Option<Message> {
     match key.code {
         KeyCode::Up => Some(Message::CursorUp),
         KeyCode::Down => Some(Message::CursorDown),
-        KeyCode::Esc => Some(Message::ExitMode),
+        KeyCode::Esc => Some(Message::Exit),
         KeyCode::Backspace => Some(Message::Delete),
+        KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            Some(Message::ToggleView)
+        }
         _ => Some(Message::KeyEvent(*key)),
     }
 }

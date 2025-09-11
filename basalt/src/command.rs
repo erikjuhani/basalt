@@ -71,13 +71,13 @@ pub(crate) enum Command {
     NoteEditorCursorUp,
     NoteEditorCursorDown,
 
-    // # Experimental editor
     NoteEditorExperimentalCursorWordForward,
     NoteEditorExperimentalCursorWordBackward,
-    NoteEditorExperimentalSetEditMode,
-    NoteEditorExperimentalSetReadMode,
+    NoteEditorExperimentalToggleView,
+    NoteEditorExperimentalSetEditView,
+    NoteEditorExperimentalSetReadView,
     NoteEditorExperimentalSave,
-    NoteEditorExperimentalExitMode,
+    NoteEditorExperimentalExit,
     NoteEditorExperimentalCursorLeft,
     NoteEditorExperimentalCursorRight,
 
@@ -145,14 +145,15 @@ fn str_to_command(s: &str) -> Option<Command> {
         "note_editor_experimental_cursor_word_backward" => {
             Some(Command::NoteEditorExperimentalCursorWordBackward)
         }
-        "note_editor_experimental_set_edit_mode" => {
-            Some(Command::NoteEditorExperimentalSetEditMode)
+        "note_editor_experimental_set_edit_view" => {
+            Some(Command::NoteEditorExperimentalSetEditView)
         }
-        "note_editor_experimental_set_read_mode" => {
-            Some(Command::NoteEditorExperimentalSetReadMode)
+        "note_editor_experimental_toggle_view" => Some(Command::NoteEditorExperimentalToggleView),
+        "note_editor_experimental_set_read_view" => {
+            Some(Command::NoteEditorExperimentalSetReadView)
         }
         "note_editor_experimental_save" => Some(Command::NoteEditorExperimentalSave),
-        "note_editor_experimental_exit_mode" => Some(Command::NoteEditorExperimentalExitMode),
+        "note_editor_experimental_exit" => Some(Command::NoteEditorExperimentalExit),
         "note_editor_experimental_cursor_left" => Some(Command::NoteEditorExperimentalCursorLeft),
         "note_editor_experimental_cursor_right" => Some(Command::NoteEditorExperimentalCursorRight),
 
@@ -162,6 +163,17 @@ fn str_to_command(s: &str) -> Option<Command> {
         "vault_selector_modal_open" => Some(Command::VaultSelectorModalOpen),
         "vault_selector_modal_toggle" => Some(Command::VaultSelectorModalToggle),
 
+        // TODO: Remove deprecations in the next major version
+        // Deprecated
+        "note_editor_experimental_set_edit_mode" => {
+            Some(Command::NoteEditorExperimentalSetEditView)
+        }
+        // Deprecated
+        "note_editor_experimental_set_read_mode" => {
+            Some(Command::NoteEditorExperimentalSetReadView)
+        }
+        // Deprecated
+        "note_editor_experimental_exit_mode" => Some(Command::NoteEditorExperimentalExit),
         _ => None,
     }
 }
@@ -274,16 +286,17 @@ impl From<Command> for Message<'_> {
                 Message::NoteEditor(note_editor::Message::ToggleOutline)
             }
             // Experimental
-            Command::NoteEditorExperimentalSetEditMode => {
-                Message::NoteEditor(note_editor::Message::EditMode)
+            Command::NoteEditorExperimentalToggleView => {
+                Message::NoteEditor(note_editor::Message::ToggleView)
             }
-            Command::NoteEditorExperimentalSetReadMode => {
-                Message::NoteEditor(note_editor::Message::ReadMode)
+            Command::NoteEditorExperimentalSetEditView => {
+                Message::NoteEditor(note_editor::Message::EditView)
+            }
+            Command::NoteEditorExperimentalSetReadView => {
+                Message::NoteEditor(note_editor::Message::ReadView)
             }
             Command::NoteEditorExperimentalSave => Message::NoteEditor(note_editor::Message::Save),
-            Command::NoteEditorExperimentalExitMode => {
-                Message::NoteEditor(note_editor::Message::ExitMode)
-            }
+            Command::NoteEditorExperimentalExit => Message::NoteEditor(note_editor::Message::Exit),
             Command::NoteEditorExperimentalCursorWordForward => {
                 Message::NoteEditor(note_editor::Message::CursorWordForward)
             }
