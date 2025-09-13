@@ -226,6 +226,17 @@ key_bindings = [
 # note_editor_switch_pane_next: switches focus to next pane
 # note_editor_switch_pane_previous: switches focus to previous pane
 #
+# Experimental note editor commands:
+# note_editor_experimental_set_edit_view: changes to edit view
+# note_editor_experimental_toggle_view: toggles between edit and read views
+# note_editor_experimental_set_read_view: changes to read view
+# note_editor_experimental_save: saves note changes to file
+# note_editor_experimental_exit: cancels editing and changes to read
+# note_editor_experimental_cursor_left: moves cursor left
+# note_editor_experimental_cursor_right: moves cursor right
+# note_editor_experimental_cursor_word_forward: moves cursor forward by a word
+# note_editor_experimental_cursor_word_backward: moves cursor backwards by a word
+#
 # Help modal commands:
 #
 # help_modal_toggle: toggles help modal
@@ -311,10 +322,11 @@ key_bindings = [
  { key = "ctrl+o", command = "note_editor_toggle_outline" },
 
  # Experimental editor 
- { key = "i", command = "note_editor_experimental_set_edit_mode" },
- { key = "shift+r", command = "note_editor_experimental_set_read_mode" },
+ { key = "i", command = "note_editor_experimental_set_edit_view" },
+ { key = "ctrl+e", command = "note_editor_experimental_toggle_view" },
+ { key = "shift+r", command = "note_editor_experimental_set_read_view" },
  { key = "ctrl+x", command = "note_editor_experimental_save" },
- { key = "esc", command = "note_editor_experimental_exit_mode" },
+ { key = "esc", command = "note_editor_experimental_exit" },
  { key = "h", command = "note_editor_experimental_cursor_left" },
  { key = "l", command = "note_editor_experimental_cursor_right" },
  { key = "left", command = "note_editor_experimental_cursor_left" },
