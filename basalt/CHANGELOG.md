@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.10.2 (Unreleased)
+## 0.10.2 (Sep, 13 2025)
 
 Deprecated the following config commands:
 
