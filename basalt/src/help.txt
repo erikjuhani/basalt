@@ -61,6 +61,9 @@ INTERFACE
     and down through the list, and press Enter to select and view a note. The
     explorer panel can be toggled on/off to give more space to the note editor.
 
+    Explorer panel can be expanded and hidden. The Explorer panel has a ⟹
+    symbol indicator when it is expanded.
+
     DEFAULT KEY BINDINGS
 
       ‹q›,        Quit the application
@@ -71,6 +74,8 @@ INTERFACE
       ‹↑ / ↓›     Move selection up / down
       ‹s›         Toggle note sorting
       ‹t›         Toggle explorer panel visibility
+      ‹← / h›     Hide explorer panel
+      ‹→ / l›     Expand explorer panel
       ‹↩ Enter›   Select and view the highlighted note
 
       ‹Tab›       Switch to next pane
