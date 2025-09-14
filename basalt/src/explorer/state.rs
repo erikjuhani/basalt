@@ -15,6 +15,14 @@ pub enum Sort {
     Desc,
 }
 
+#[derive(Debug, Default, Copy, Clone, PartialEq)]
+pub enum Visibility {
+    Hidden,
+    #[default]
+    Visible,
+    FullWidth,
+}
+
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct ExplorerState<'a> {
     pub(crate) title: &'a str,
@@ -23,10 +31,10 @@ pub struct ExplorerState<'a> {
     pub(crate) selected_item_path: Option<PathBuf>,
     pub(crate) items: Vec<Item>,
     pub(crate) flat_items: Vec<(Item, usize)>,
-    pub(crate) open: bool,
+    pub(crate) visibility: Visibility,
+    pub(crate) active: bool,
     pub(crate) sort: Sort,
     pub(crate) list_state: ListState,
-    pub(crate) active: bool,
 }
 
 /// Calculates the vertical offset of list items in rows.
@@ -113,7 +121,7 @@ impl<'a> ExplorerState<'a> {
             title,
             sort,
             active: true,
-            open: true,
+            visibility: Visibility::Visible,
             selected_item_index: None,
             selected_item_path: None,
             selected_note: None,
@@ -129,8 +137,28 @@ impl<'a> ExplorerState<'a> {
         self.active = active;
     }
 
+    pub fn hide_pane(&mut self) {
+        match self.visibility {
+            Visibility::FullWidth => self.visibility = Visibility::Visible,
+            Visibility::Visible => self.visibility = Visibility::Hidden,
+            _ => {}
+        }
+    }
+
+    pub fn expand_pane(&mut self) {
+        match self.visibility {
+            Visibility::Hidden => self.visibility = Visibility::Visible,
+            Visibility::Visible => self.visibility = Visibility::FullWidth,
+            _ => {}
+        }
+    }
+
     pub fn toggle(&mut self) {
-        self.open = !self.open;
+        if self.is_open() {
+            self.visibility = Visibility::Hidden;
+        } else {
+            self.visibility = Visibility::Visible;
+        }
     }
 
     pub fn flatten_with_sort(&mut self, sort: Sort) {
@@ -236,7 +264,7 @@ impl<'a> ExplorerState<'a> {
     }
 
     pub fn is_open(&self) -> bool {
-        self.open
+        matches!(self.visibility, Visibility::Visible | Visibility::FullWidth)
     }
 
     pub fn next(&mut self, amount: usize) {
