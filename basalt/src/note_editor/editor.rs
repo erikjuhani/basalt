@@ -488,7 +488,7 @@ impl<'text_buffer> StatefulWidget for Editor<'text_buffer> {
             textarea.render(rect, buf);
         }
 
-        if r_len as u16 > inner_area.height {
+        if r_len as u16 > inner_area.height && inner_area.width > 0 {
             StatefulWidget::render(
                 widgets::Scrollbar::new(ScrollbarOrientation::VerticalRight),
                 area,
