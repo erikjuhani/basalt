@@ -39,6 +39,8 @@ pub(crate) enum Command {
     ExplorerToggleOutline,
     ExplorerSwitchPaneNext,
     ExplorerSwitchPanePrevious,
+    ExplorerHidePane,
+    ExplorerExpandPane,
     ExplorerScrollUpOne,
     ExplorerScrollDownOne,
     ExplorerScrollUpHalfPage,
@@ -106,6 +108,8 @@ fn str_to_command(s: &str) -> Option<Command> {
         "explorer_toggle" => Some(Command::ExplorerToggle),
         "explorer_toggle_outline" => Some(Command::ExplorerToggleOutline),
         "explorer_switch_pane_next" => Some(Command::ExplorerSwitchPaneNext),
+        "explorer_hide_pane" => Some(Command::ExplorerHidePane),
+        "explorer_expand_pane" => Some(Command::ExplorerExpandPane),
         "explorer_switch_pane_previous" => Some(Command::ExplorerSwitchPanePrevious),
         "explorer_scroll_up_one" => Some(Command::ExplorerScrollUpOne),
         "explorer_scroll_down_one" => Some(Command::ExplorerScrollDownOne),
@@ -216,6 +220,8 @@ impl From<Command> for Message<'_> {
             Command::ExplorerSort => Message::Explorer(explorer::Message::Sort),
             Command::ExplorerToggle => Message::Explorer(explorer::Message::Toggle),
             Command::ExplorerToggleOutline => Message::Explorer(explorer::Message::ToggleOutline),
+            Command::ExplorerHidePane => Message::Explorer(explorer::Message::HidePane),
+            Command::ExplorerExpandPane => Message::Explorer(explorer::Message::ExpandPane),
             Command::ExplorerSwitchPaneNext => Message::Explorer(explorer::Message::SwitchPaneNext),
             Command::ExplorerSwitchPanePrevious => {
                 Message::Explorer(explorer::Message::SwitchPanePrevious)

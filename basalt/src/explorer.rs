@@ -6,6 +6,7 @@ use ratatui::layout::Size;
 use ratatui::widgets::Borders;
 pub use state::ExplorerState;
 pub use state::Sort;
+pub use state::Visibility;
 
 use std::{marker::PhantomData, path::PathBuf};
 
@@ -34,6 +35,8 @@ pub enum Message {
     Sort,
     Toggle,
     ToggleOutline,
+    HidePane,
+    ExpandPane,
     SwitchPaneNext,
     SwitchPanePrevious,
     ScrollUp(ScrollAmount),
@@ -49,13 +52,9 @@ pub fn update<'a>(
         Message::Up => state.previous(1),
         Message::Down => state.next(1),
         Message::Sort => state.sort(),
-        Message::Toggle => {
-            state.toggle();
-            if !state.is_open() {
-                state.set_active(false);
-                return Some(AppMessage::SetActivePane(ActivePane::NoteEditor));
-            }
-        }
+        Message::Toggle => state.toggle(),
+        Message::HidePane => state.hide_pane(),
+        Message::ExpandPane => state.expand_pane(),
         Message::SwitchPaneNext => {
             state.set_active(false);
             return Some(AppMessage::SetActivePane(ActivePane::NoteEditor));
@@ -156,13 +155,23 @@ impl<'a> StatefulWidget for Explorer<'a> {
             .map(Explorer::list_item(state.selected_path(), state.is_open()))
             .collect();
 
-        if state.open {
+        if state.is_open() {
             List::new(items)
                 .block(
-                    block.title(format!(" {} ", state.title)).title(
-                        Line::from([" ".into(), sort_symbol.into(), " ◀ ".into()].to_vec())
-                            .alignment(Alignment::Right),
-                    ),
+                    block
+                        .title(format!(
+                            "{} {} ",
+                            if state.visibility == Visibility::FullWidth {
+                                " ⟹ "
+                            } else {
+                                ""
+                            },
+                            state.title
+                        ))
+                        .title(
+                            Line::from(vec![" ".into(), sort_symbol.into(), " ◀ ".into()])
+                                .alignment(Alignment::Right),
+                        ),
                 )
                 .highlight_style(Style::new().reversed().dark_gray())
                 .highlight_symbol(" ")

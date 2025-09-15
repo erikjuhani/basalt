@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.10.3 (Sep, 15 2025)
+
+This release adds the support to easily hide and expand the explorer pane (file tree). Expanding and hiding is done with h, l and arrow left, and arrow right.
+
+When explorer is expanded a ⟹  symbol is shown for clarity of the current state.
+
+### Added
+
+- [Support expandable explorer commands in Explorer widget](https://github.com/erikjuhani/basalt/commit/4e815790a30f4ee949fbc25648e2c676dd19ab59)
+- [Add hide_pane and expand_pane explorer commands](https://github.com/erikjuhani/basalt/commit/18f2f0b06c6b73eaa120852a845e4d33796980b1)
+
+### Fixed
+
+- [Fix crash when note editor has no width available](https://github.com/erikjuhani/basalt/commit/f52d084cdbec9c7e49d82a7f0c89a0b6d5d950a7)
+
 ## 0.10.2 (Sep, 13 2025)
 
 Deprecated the following config commands:
@@ -13,6 +28,8 @@ Use these instead:
 - "note_editor_experimental_set_edit_view"
 - "note_editor_experimental_set_read_view" and
 - "note_editor_experimental_exit"
+
+### Changed
 
 - [Change note editor views and modes to follow Obsidian equivalent](https://github.com/erikjuhani/basalt/commit/371df9adf40624762dbf81b36c7395c7a5c34d3b)
 

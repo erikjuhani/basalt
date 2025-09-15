@@ -197,6 +197,8 @@ key_bindings = [
 # explorer_sort: toggles note and folder sorting between A-z and Z-a 
 # explorer_toggle: toggles explorer pane
 # explorer_toggle_outline: toggles outline pane
+# explorer_hide_pane: hides pane by steps, from full-width to regular width, to hidden
+# explorer_expand_pane: explands pane by steps, from hiddent to regular width, to full-width
 # explorer_switch_pane_next: switches focus to next pane
 # explorer_switch_pane_previous: switches focus to previous pane
 # explorer_scroll_up_one: scrolls the selector up by one
@@ -282,6 +284,10 @@ key_bindings = [
  { key = "up", command = "explorer_up" },
  { key = "down", command = "explorer_down" },
  { key = "t", command = "explorer_toggle" },
+ { key = "h", command = "explorer_hide_pane" },
+ { key = "l", command = "explorer_expand_pane" },
+ { key = "left", command = "explorer_hide_pane" },
+ { key = "right", command = "explorer_expand_pane" },
  { key = "s", command = "explorer_sort" },
  { key = "tab", command = "explorer_switch_pane_next" },
  { key = "shift+backtab", command = "explorer_switch_pane_previous" },

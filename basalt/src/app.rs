@@ -12,7 +12,7 @@ use std::{cell::RefCell, fmt::Debug, io::Result};
 use crate::{
     command,
     config::{self, Config},
-    explorer::{self, Explorer, ExplorerState},
+    explorer::{self, Explorer, ExplorerState, Visibility},
     help_modal::{self, HelpModal, HelpModalState},
     note_editor::{self, markdown_parser::Node, Editor, EditorState, View},
     outline::{self, Outline, OutlineState},
@@ -275,6 +275,9 @@ impl<'a> App<'a> {
                     state.active_pane = active_pane;
                     // TODO: use event/message
                     state.note_editor.set_active(true);
+                    if state.explorer.visibility == Visibility::FullWidth {
+                        return Some(Message::Explorer(explorer::Message::HidePane));
+                    }
                 }
                 ActivePane::Outline => {
                     state.active_pane = active_pane;
@@ -289,6 +292,10 @@ impl<'a> App<'a> {
                 return Some(Message::SetActivePane(ActivePane::Explorer));
             }
             Message::SelectNote(selected_note) => {
+                let is_different = state
+                    .selected_note
+                    .as_ref()
+                    .is_some_and(|note| note.content != selected_note.content);
                 state.selected_note = Some(selected_note.clone());
 
                 // TODO: This should be behind an event/message
@@ -308,6 +315,10 @@ impl<'a> App<'a> {
                     state.note_editor.current_row,
                     state.outline.is_open(),
                 );
+
+                if state.explorer.visibility == Visibility::FullWidth && is_different {
+                    return Some(Message::Explorer(explorer::Message::HidePane));
+                }
             }
             Message::UpdateSelectedNoteContent((updated_content, nodes)) => {
                 if let Some(selected_note) = state.selected_note.as_mut() {
@@ -373,10 +384,10 @@ impl<'a> App<'a> {
             .horizontal_margin(1)
             .areas(area);
 
-        let (left, right) = if state.explorer.open {
-            (Constraint::Length(35), Constraint::Fill(1))
-        } else {
-            (Constraint::Length(4), Constraint::Fill(1))
+        let (left, right) = match state.explorer.visibility {
+            Visibility::Hidden => (Constraint::Length(4), Constraint::Fill(1)),
+            Visibility::Visible => (Constraint::Length(35), Constraint::Fill(1)),
+            Visibility::FullWidth => (Constraint::Fill(1), Constraint::Length(0)),
         };
 
         let [explorer_pane, note, outline] = Layout::horizontal([

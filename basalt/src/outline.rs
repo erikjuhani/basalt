@@ -48,13 +48,7 @@ pub fn update<'a>(message: &Message, state: &mut OutlineState) -> Option<AppMess
             state.set_active(false);
             return Some(AppMessage::SetActivePane(ActivePane::NoteEditor));
         }
-        Message::Toggle => {
-            state.toggle();
-            if !state.is_open() {
-                state.set_active(false);
-                return Some(AppMessage::SetActivePane(ActivePane::NoteEditor));
-            }
-        }
+        Message::Toggle => state.toggle(),
         Message::Select => {
             if let Some(item) = state.selected() {
                 return Some(AppMessage::NoteEditor(note_editor::Message::SetRow(
