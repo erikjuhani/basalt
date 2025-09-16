@@ -65,23 +65,30 @@ impl Editor<'_> {
         content: Vec<Span<'a>>,
         prefix: Span<'a>,
     ) -> Line<'a> {
+        // TODO: Create an utility to insert n amount of spans with a symbol
+        let space = Span::from(" ");
+
         match kind {
             markdown_parser::TaskListItemKind::Unchecked => Line::from(
-                [prefix, "□ ".dark_gray()]
+                [prefix, "□".dark_gray(), space]
                     .into_iter()
                     .chain(content)
                     .collect::<Vec<_>>(),
             ),
-            markdown_parser::TaskListItemKind::Checked => Line::from(
-                [prefix, "■ ".magenta()]
+            markdown_parser::TaskListItemKind::Checked => {
+                let crossed_out_content = content
                     .into_iter()
-                    .chain(content)
-                    .collect::<Vec<_>>(),
-            )
-            .dark_gray()
-            .add_modifier(Modifier::CROSSED_OUT),
+                    .map(|span| span.dark_gray().add_modifier(Modifier::CROSSED_OUT));
+
+                Line::from(
+                    [prefix, "■".magenta(), space]
+                        .into_iter()
+                        .chain(crossed_out_content)
+                        .collect::<Vec<_>>(),
+                )
+            }
             markdown_parser::TaskListItemKind::LooselyChecked => Line::from(
-                [prefix, "■ ".magenta()]
+                [prefix, "■".magenta(), space]
                     .into_iter()
                     .chain(content)
                     .collect::<Vec<_>>(),
@@ -501,6 +508,8 @@ impl<'text_buffer> StatefulWidget for Editor<'text_buffer> {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use crate::note_editor::state::EditMode;
 
     use super::*;
@@ -718,6 +727,173 @@ mod tests {
         let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
 
         tests.into_iter().for_each(|(name, mut state)| {
+            _ = terminal.clear();
+            terminal
+                .draw(|frame| {
+                    Editor::default().render(frame.area(), frame.buffer_mut(), &mut state)
+                })
+                .unwrap();
+            assert_snapshot!(name, terminal.backend());
+        });
+    }
+
+    #[test]
+    fn test_basic_formatting() {
+        let tests = [
+            (
+                "paragraphs",
+                indoc! { r#"## Paragraphs
+                To create paragraphs in Markdown, use a **blank line** to separate blocks of text. Each block of text separated by a blank line is treated as a distinct paragraph.
+
+                This is a paragraph.
+
+                This is another paragraph.
+
+                A blank line between lines of text creates separate paragraphs. This is the default behavior in Markdown.
+                "#},
+            ),
+            (
+                "headings",
+                indoc! { r#"## Headings
+                To create a heading, add up to six `#` symbols before your heading text. The number of `#` symbols determines the size of the heading.
+
+                # This is a heading 1
+                ## This is a heading 2
+                ### This is a heading 3
+                #### This is a heading 4
+                ##### This is a heading 5
+                ###### This is a heading 6
+                "#},
+            ),
+            (
+                "lists",
+                indoc! { r#"## Lists
+                You can create an unordered list by adding a `-`, `*`, or `+` before the text.
+
+                - First list item
+                - Second list item
+                - Third list item
+
+                To create an ordered list, start each line with a number followed by a `.` or `)` symbol.
+
+                1. First list item
+                2. Second list item
+                3. Third list item
+
+                1) First list item
+                2) Second list item
+                3) Third list item
+                "#},
+            ),
+            (
+                "lists_line_breaks",
+                indoc! { r#"## Lists with line breaks
+                You can use line breaks within an ordered list without altering the numbering.
+
+                1. First list item
+
+                2. Second list item
+                3. Third list item
+
+                4. Fourth list item
+                5. Fifth list item
+                6. Sixth list item
+                "#},
+            ),
+            (
+                "task_lists",
+                indoc! { r#"## Task lists
+                To create a task list, start each list item with a hyphen and space followed by `[ ]`.
+
+                - [x] This is a completed task.
+                - [ ] This is an incomplete task.
+
+                You can toggle a task in Reading view by selecting the checkbox.
+
+                > [!tip]
+                > You can use any character inside the brackets to mark it as complete.
+                >
+                > - [x] Milk
+                > - [?] Eggs
+                > - [-] Eggs
+                "#},
+            ),
+            (
+                "nesting_lists",
+                indoc! { r#"## Nesting lists
+                You can nest any type of list—ordered, unordered, or task lists—under any other type of list.
+
+                To create a nested list, indent one or more list items. You can mix list types within a nested structure:
+
+                1. First list item
+                   1. Ordered nested list item
+                2. Second list item
+                   - Unordered nested list item
+                "#},
+            ),
+            (
+                "nesting_task_lists",
+                indoc! { r#"## Nesting task lists
+                Similarly, you can create a nested task list by indenting one or more list items:
+
+                - [ ] Task item 1
+                 - [ ] Subtask 1
+                - [ ] Task item 2
+                 - [ ] Subtask 1
+                "#},
+            ),
+            // TODO: Implement horizontal rule
+            // (
+            //     "horizontal_rule",
+            //     indoc! { r#"## Horizontal rule
+            //     You can use three or more stars `***`, hyphens `---`, or underscore `___` on its own line to add a horizontal bar. You can also separate symbols using spaces.
+            //
+            //     ***
+            //     ****
+            //     * * *
+            //     ---
+            //     ----
+            //     - - -
+            //     ___
+            //     ____
+            //     _ _ _
+            //     "#},
+            // ),
+            (
+                "code_blocks",
+                indoc! { r#"## Code blocks
+                To format code as a block, enclose it with three backticks or three tildes.
+
+                ```md
+                cd ~/Desktop
+                ```
+
+                You can also create a code block by indenting the text using `Tab` or 4 blank spaces.
+
+                    cd ~/Desktop
+
+                "#},
+            ),
+            (
+                "code_syntax_highlighting_in_blocks",
+                indoc! { r#"## Code syntax highlighting in blocks
+                You can add syntax highlighting to a code block, by adding a language code after the first set of backticks.
+
+                ```js
+                function fancyAlert(arg) {
+                  if(arg) {
+                    $.facebox({div:'#foo'})
+                  }
+                }
+                ```
+                "#},
+            ),
+        ];
+
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+
+        tests.into_iter().for_each(|(name, content)| {
+            let mut state = EditorState::new(content, PathBuf::default());
             _ = terminal.clear();
             terminal
                 .draw(|frame| {
