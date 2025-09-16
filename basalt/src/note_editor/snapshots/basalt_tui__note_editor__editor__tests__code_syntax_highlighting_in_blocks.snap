@@ -1,0 +1,24 @@
+---
+source: basalt/src/note_editor/editor.rs
+expression: terminal.backend()
+---
+"╭──────────────────────────────────────────────────────────────────────────────╮"
+"│ Code syntax highlighting in blocks                                           │"
+"│ ════════════════════════════════════════════════════════════════════════════ │"
+"│ You can add syntax highlighting to a code block, by adding a language code   │"
+"│ after the first set of backticks.                                            │"
+"│                                                                              │"
+"│                                                                              │"
+"│  function fancyAlert(arg) {                                                  │"
+"│    if(arg) {                                                                 │"
+"│      $.facebox({div:'#foo'})                                                 │"
+"│    }                                                                         │"
+"│  }                                                                           │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"╰ READ ────────────────────────────────────────────────────────────────────────╯"

@@ -1,0 +1,24 @@
+---
+source: basalt/src/note_editor/editor.rs
+expression: terminal.backend()
+---
+"╭──────────────────────────────────────────────────────────────────────────────╮"
+"│ Lists with line breaks                                                       │"
+"│ ════════════════════════════════════════════════════════════════════════════ │"
+"│ You can use line breaks within an ordered list without altering the          │"
+"│ numbering.                                                                   │"
+"│                                                                              │"
+"│ 1.                                                                           │"
+"│   First list item                                                            │"
+"│ 3.                                                                           │"
+"│   Second list item                                                           │"
+"│ 5.                                                                           │"
+"│   Third list item                                                            │"
+"│ 7.                                                                           │"
+"│   Fourth list item                                                           │"
+"│ 9.                                                                           │"
+"│   Fifth list item                                                            │"
+"│ 11.                                                                          │"
+"│   Sixth list item                                                            │"
+"│                                                                              │"
+"╰ READ ────────────────────────────────────────────────────────────────────────╯"
