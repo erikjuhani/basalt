@@ -1,0 +1,24 @@
+---
+source: basalt/src/note_editor/editor.rs
+expression: terminal.backend()
+---
+"╭──────────────────────────────────────────────────────────────────────────────╮"
+"│ Task lists                                                                   │"
+"│ ════════════════════════════════════════════════════════════════════════════ │"
+"│ To create a task list, start each list item with a hyphen and space followed │"
+"│ by [ ].                                                                      │"
+"│                                                                              │"
+"│ ■ This is a completed task.                                                  │"
+"│ □ This is an incomplete task.                                                │"
+"│                                                                              │"
+"│ You can toggle a task in Reading view by selecting the checkbox.             │"
+"│                                                                              │"
+"│ ┃ You can use any character inside the brackets to mark it as complete.      │"
+"│ ┃                                                                            │"
+"│ ┃ ■ Milk                                                                     │"
+"│ ┃ ■ Eggs                                                                     │"
+"│ ┃ ■ Eggs                                                                     │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"╰ READ ────────────────────────────────────────────────────────────────────────╯"

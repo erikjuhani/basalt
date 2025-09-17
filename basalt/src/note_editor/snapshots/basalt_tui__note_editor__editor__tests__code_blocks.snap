@@ -1,0 +1,24 @@
+---
+source: basalt/src/note_editor/editor.rs
+expression: terminal.backend()
+---
+"╭──────────────────────────────────────────────────────────────────────────────╮"
+"│ Code blocks                                                                  │"
+"│ ════════════════════════════════════════════════════════════════════════════ │"
+"│ To format code as a block, enclose it with three backticks or three tildes.  │"
+"│                                                                              │"
+"│                                                                              │"
+"│  cd ~/Desktop                                                                │"
+"│                                                                              │"
+"│                                                                              │"
+"│ You can also create a code block by indenting the text using Tab or 4 blank  │"
+"│ spaces.                                                                      │"
+"│                                                                              │"
+"│                                                                              │"
+"│  cd ~/Desktop                                                                │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"╰ READ ────────────────────────────────────────────────────────────────────────╯"

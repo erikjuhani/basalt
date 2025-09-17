@@ -1,0 +1,24 @@
+---
+source: basalt/src/note_editor/editor.rs
+expression: terminal.backend()
+---
+"╭──────────────────────────────────────────────────────────────────────────────╮"
+"│ Nesting lists                                                                │"
+"│ ════════════════════════════════════════════════════════════════════════════ │"
+"│ You can nest any type of list—ordered, unordered, or task lists—under any    │"
+"│ other type of list.                                                          │"
+"│                                                                              │"
+"│ To create a nested list, indent one or more list items. You can mix list     │"
+"│ types within a nested structure:                                             │"
+"│                                                                              │"
+"│ 1. First list item                                                           │"
+"│   1. Ordered nested list item                                                │"
+"│ 3. Second list item                                                          │"
+"│   - Unordered nested list item                                               │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"╰ READ ────────────────────────────────────────────────────────────────────────╯"
