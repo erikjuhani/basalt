@@ -3,26 +3,27 @@
   "extends": ["config:recommended"],
   "rebaseWhen": "behind-base-branch",
   "schedule": ["on Monday and Thursday"],
-  "regexManagers": [
+  "platform": "github",
+  "onboarding": false,
+  "repositories": ["erikjuhani/basalt"],
+  "customManagers": [
     {
-      "fileMatch": ["(^|/)rust-toolchain\\.toml?$"],
+      "customType": "regex",
+      "managerFilePatterns": ["/(^|/)rust-toolchain\\.toml?$/"],
       "matchStrings": [
         "channel\\s*=\\s*\"(?<currentValue>\\d+\\.\\d+(\\.\\d+)?)\""
       ],
       "depNameTemplate": "rust",
-      "lookupNameTemplate": "rust-lang/rust",
+      "packageNameTemplate": "rust-lang/rust",
       "datasourceTemplate": "github-tags"
     }
   ],
   "packageRules": [
     {
-      "matchManagers": ["regex"],
+      "matchManagers": ["custom.regex"],
       "matchDepNames": ["rust"],
       "commitMessageTopic": "Rust"
     },
-    {
-      "matchDatasources": ["crate"],
-      "minimumReleaseAge": "3 days"
-    }
+    { "matchDatasources": ["crate"], "minimumReleaseAge": "3 days" }
   ]
 }
