@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.4 (Unreleased)
+
+### Changed
+
+- [Only text is crossed over for "hard checked" tasks](https://github.com/erikjuhani/basalt/commit/13a8a26a69ad84f29c6edc7cf76e52a905b2996f)
+
 ## 0.10.3 (Sep, 15 2025)
 
 This release adds the support to easily hide and expand the explorer pane (file tree). Expanding and hiding is done with h, l and arrow left, and arrow right.
