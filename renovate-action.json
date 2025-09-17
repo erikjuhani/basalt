@@ -1,0 +1,28 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "rebaseWhen": "behind-base-branch",
+  "schedule": ["on Monday and Thursday"],
+  "regexManagers": [
+    {
+      "fileMatch": ["(^|/)rust-toolchain\\.toml?$"],
+      "matchStrings": [
+        "channel\\s*=\\s*\"(?<currentValue>\\d+\\.\\d+(\\.\\d+)?)\""
+      ],
+      "depNameTemplate": "rust",
+      "lookupNameTemplate": "rust-lang/rust",
+      "datasourceTemplate": "github-tags"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchManagers": ["regex"],
+      "matchDepNames": ["rust"],
+      "commitMessageTopic": "Rust"
+    },
+    {
+      "matchDatasources": ["crate"],
+      "minimumReleaseAge": "3 days"
+    }
+  ]
+}
