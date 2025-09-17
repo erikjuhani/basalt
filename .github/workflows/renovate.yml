@@ -19,5 +19,5 @@ jobs:
       - name: Run renovate
         uses: renovatebot/github-action@v43.0.12
         with:
-          configurationFile: renovate-action.json
+          configurationFile: renovate-config.json
           token: ${{ secrets.RENOVATE_TOKEN }}
