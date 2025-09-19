@@ -5,9 +5,18 @@ on:
     branches: 
       - main
   schedule:
-    # Run every Monday and Thursday
-    - cron: '0 0 * * 1,4'
+    - cron: '0 0 * * *'
   workflow_dispatch:
+    inputs:
+      log_level:
+        description: 'Log level'
+        required: false
+        default: 'info'
+        type: choice
+        options:
+          - info
+          - debug
+          - warn
 
 jobs:
   renovate:
@@ -21,7 +30,9 @@ jobs:
         env:
           RENOVATE_ONBOARDING: "false"
           RENOVATE_REQUIRE_CONFIG: "optional"
-          LOG_LEVEL: "debug"
+          RENOVATE_GIT_AUTHOR: "renovate[bot] <renovate[bot]@users.noreply.github.com>"
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          LOG_LEVEL: ${{ github.event.inputs.log_level || 'info' }}
         with:
           configurationFile: renovate-config.json
           token: ${{ secrets.RENOVATE_TOKEN }}
