@@ -36,7 +36,6 @@ jobs:
         env:
           RENOVATE_ONBOARDING: "false"
           RENOVATE_REQUIRE_CONFIG: "optional"
-          RENOVATE_GIT_AUTHOR: "renovate[bot] <renovate[bot]@users.noreply.github.com>"
           RENOVATE_REPOSITORIES: ${{ github.repository }}
           LOG_LEVEL: ${{ github.event.inputs.log_level || 'info' }}
         with:
