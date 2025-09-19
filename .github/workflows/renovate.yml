@@ -25,6 +25,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ vars.RENOVATE_APP_ID }}
+          private-key: ${{ secrets.RENOVATE_APP_PRIVATE_KEY }}
+
       - name: Run renovate
         uses: renovatebot/github-action@v43.0.12
         env:
@@ -35,4 +41,4 @@ jobs:
           LOG_LEVEL: ${{ github.event.inputs.log_level || 'info' }}
         with:
           configurationFile: renovate-config.json
-          token: ${{ secrets.RENOVATE_TOKEN }}
+          token: '${{ steps.app-token.outputs.token }}'
