@@ -1,13 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended", ":disableDependencyDashboard"],
-  "username": "renovate",
-  "gitAuthor": "Renovate Bot <bot@renovateapp.com>",
+  "extends": ["config:recommended", ":disableDependencyDashboard", "schedule:daily"],
   "rebaseWhen": "behind-base-branch",
-  "schedule": ["on Monday and Thursday"],
-  "platform": "github",
-  "repositories": ["erikjuhani/basalt"],
-  "onboarding": false,
   "customManagers": [
     {
       "customType": "regex",
