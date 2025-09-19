@@ -1,11 +1,13 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended"],
+  "extends": ["config:recommended", ":disableDependencyDashboard"],
+  "username": "renovate",
+  "gitAuthor": "Renovate Bot <bot@renovateapp.com>",
   "rebaseWhen": "behind-base-branch",
   "schedule": ["on Monday and Thursday"],
   "platform": "github",
-  "onboarding": false,
   "repositories": ["erikjuhani/basalt"],
+  "onboarding": false,
   "customManagers": [
     {
       "customType": "regex",
@@ -22,8 +24,12 @@
     {
       "matchManagers": ["custom.regex"],
       "matchDepNames": ["rust"],
-      "commitMessageTopic": "Rust"
+      "commitMessageTopic": "Rust",
+      "minimumReleaseAge": "3 days"
     },
-    { "matchDatasources": ["crate"], "minimumReleaseAge": "3 days" }
+    {
+      "matchDatasources": ["crate"],
+      "minimumReleaseAge": "3 days"
+    }
   ]
 }
