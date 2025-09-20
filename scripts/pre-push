@@ -2,7 +2,7 @@
 
 set -e
 
-cargo check --profile ci --workspace --all-targets
+cargo check --locked --profile ci --workspace --all-targets
 cargo clippy --profile ci --workspace --all-targets -- -D warnings
 cargo test --profile ci --workspace --all-targets
 cargo build --profile ci --workspace --all-targets
