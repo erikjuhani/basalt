@@ -2,6 +2,10 @@
 
 ## 0.10.4 (Unreleased)
 
+### Fixed
+
+- [Fix Outline state allowing to move past visible items](https://github.com/erikjuhani/basalt/commit/3339182706790d0865abb2f2bd1ceee129183397)
+
 ### Changed
 
 - [Only text is crossed over for "hard checked" tasks](https://github.com/erikjuhani/basalt/commit/13a8a26a69ad84f29c6edc7cf76e52a905b2996f)

@@ -9,7 +9,6 @@ use super::item::{FindItem, Flatten, Item};
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct OutlineState {
     pub(crate) selected_item_index: Option<usize>,
-    pub(crate) max_heading_count: usize,
     pub(crate) items: Vec<Item>,
     pub(crate) open: bool,
     pub(crate) list_state: ListState,
@@ -130,11 +129,9 @@ impl HeadingsAsItems for Vec<Heading> {
 impl OutlineState {
     pub fn new(nodes: &[Node], index: usize, open: bool) -> Self {
         let headings = nodes.to_headings();
-        let max_heading_count = headings.len();
 
         let mut state = OutlineState {
             open,
-            max_heading_count,
             selected_item_index: None,
             items: headings.to_items(nodes.len()),
             list_state: ListState::default(),
@@ -147,8 +144,6 @@ impl OutlineState {
 
     pub fn set_nodes(&mut self, nodes: &[Node]) {
         let headings = nodes.to_headings();
-        let max_heading_count = headings.len();
-        self.max_heading_count = max_heading_count;
         self.items = headings.to_items(nodes.len());
         self.expand_all();
     }
@@ -250,6 +245,24 @@ impl OutlineState {
             .collect()
     }
 
+    fn get_visible_item_count(&self) -> usize {
+        fn item_count(items: &[Item]) -> usize {
+            items.iter().fold(0, |acc, item| {
+                let next = acc + 1;
+                match item {
+                    Item::HeadingEntry {
+                        expanded: true,
+                        children,
+                        ..
+                    } => next + item_count(children),
+                    _ => next,
+                }
+            })
+        }
+
+        item_count(&self.items)
+    }
+
     pub fn expand_all(&mut self) {
         self.items = Self::expanded_to_all_items(self.items.as_slice(), true);
     }
@@ -266,7 +279,7 @@ impl OutlineState {
         let index = self
             .list_state
             .selected()
-            .map(|i| (i + amount).min(self.max_heading_count.saturating_sub(1)))
+            .map(|i| (i + amount).min(self.get_visible_item_count().saturating_sub(1)))
             .unwrap_or_default();
         self.list_state.select(Some(index));
     }
