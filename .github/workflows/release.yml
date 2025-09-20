@@ -70,7 +70,7 @@ jobs:
                                   musl-tools
 
       - name: Build binary
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --locked --release --target ${{ matrix.target }}
 
       - name: Prepare artifact
         shell: bash
