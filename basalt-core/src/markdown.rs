@@ -524,6 +524,8 @@ impl<'a> Parser<'a> {
             | Tag::MetadataBlock(_)
             | Tag::DefinitionList
             | Tag::DefinitionListTitle
+            | Tag::Subscript
+            | Tag::Superscript
             | Tag::DefinitionListDefinition => {}
         }
     }

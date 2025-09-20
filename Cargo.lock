@@ -20,7 +20,7 @@ version = "0.6.1"
 dependencies = [
  "dirs",
  "indoc",
- "pulldown-cmark 0.12.2",
+ "pulldown-cmark",
  "serde",
  "serde_json",
  "thiserror",
@@ -36,7 +36,7 @@ dependencies = [
  "etcetera",
  "indoc",
  "insta",
- "pulldown-cmark 0.13.0",
+ "pulldown-cmark",
  "ratatui",
  "serde",
  "textwrap",
@@ -527,19 +527,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "02b3e5e68a3a1a02aad3ec490a98007cbc13c37cbe84a3cd7b8e406d76e7f778"
 dependencies = [
  "unicode-ident",
-]
-
-[[package]]
-name = "pulldown-cmark"
-version = "0.12.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f86ba2052aebccc42cbbb3ed234b8b13ce76f75c3551a303cb2bcffcff12bb14"
-dependencies = [
- "bitflags",
- "getopts",
- "memchr",
- "pulldown-cmark-escape",
- "unicase",
 ]
 
 [[package]]
