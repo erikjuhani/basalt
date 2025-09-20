@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.2 (Unreleased)
+
+### markdown
+
+#### Fixed
+
+- [Exhaust subscript and superscript pulldown-cmark tags](https://github.com/erikjuhani/basalt/commit/1a6e870a6687bb1149105777c7bb936b08a13e1a)
+
 ## 0.6.1 (2025-06-05)
 
 ### obsidian
