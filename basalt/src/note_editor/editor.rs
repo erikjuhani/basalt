@@ -165,15 +165,14 @@ impl Editor<'_> {
     ) -> Vec<Line<'a>> {
         match level {
             markdown_parser::HeadingLevel::H1 => [
-                Line::default(),
-                Line::from(text.to_uppercase()).italic().bold(),
-                (0..width).map(|_| "▀").collect::<String>().into(),
+                Line::from(text.to_uppercase()).bold(),
+                (0..width).map(|_| "═").collect::<String>().into(),
                 Line::default(),
             ]
             .to_vec(),
             markdown_parser::HeadingLevel::H2 => [
                 Line::from(text).bold().yellow(),
-                Line::from((0..width).map(|_| "═").collect::<String>()).yellow(),
+                Line::from((0..width).map(|_| "─").collect::<String>()).yellow(),
             ]
             .to_vec(),
             markdown_parser::HeadingLevel::H3 => [

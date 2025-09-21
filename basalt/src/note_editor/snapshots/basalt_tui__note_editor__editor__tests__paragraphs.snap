@@ -4,7 +4,7 @@ expression: terminal.backend()
 ---
 "╭──────────────────────────────────────────────────────────────────────────────╮"
 "│ Paragraphs                                                                   │"
-"│ ════════════════════════════════════════════════════════════════════════════ │"
+"│ ──────────────────────────────────────────────────────────────────────────── │"
 "│ To create paragraphs in Markdown, use a blank line to separate blocks of     │"
 "│ text. Each block of text separated by a blank line is treated as a distinct  │"
 "│ paragraph.                                                                   │"
