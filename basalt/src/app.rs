@@ -302,6 +302,7 @@ impl<'a> App<'a> {
                 let active = state.note_editor.active();
                 state.note_editor = EditorState::default();
                 state.note_editor.set_active(active);
+                state.note_editor.set_file_name(&selected_note.name);
                 state.note_editor.set_path(selected_note.path.into());
                 state.note_editor.set_content(&selected_note.content);
 

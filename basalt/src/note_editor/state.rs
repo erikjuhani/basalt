@@ -48,6 +48,7 @@ impl fmt::Display for View {
 #[derive(Clone, Debug, Default)]
 pub struct EditorState<'text_buffer> {
     pub view: View,
+    pub file_name: String,
     text_buffer: TextBuffer<'text_buffer>,
     content: String,
     content_original: String,
@@ -94,14 +95,19 @@ impl<'text_buffer> EditorState<'text_buffer> {
         self.active
     }
 
-    pub fn new(content: &str, path: PathBuf) -> Self {
+    pub fn new(file_name: &str, content: &str, path: PathBuf) -> Self {
         Self {
+            file_name: file_name.to_string(),
             nodes: markdown_parser::from_str(content),
             content_original: content.to_string(),
             content: content.to_string(),
             path,
             ..Default::default()
         }
+    }
+
+    pub fn set_file_name(&mut self, file_name: &str) {
+        self.file_name = file_name.to_string();
     }
 
     pub fn set_content(&mut self, content: &str) {
