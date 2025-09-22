@@ -34,8 +34,6 @@ jobs:
       - name: Run renovate
         uses: renovatebot/github-action@v43.0.12
         env:
-          RENOVATE_ONBOARDING: "false"
-          RENOVATE_REQUIRE_CONFIG: "optional"
           RENOVATE_REPOSITORIES: ${{ github.repository }}
           LOG_LEVEL: ${{ github.event.inputs.log_level || 'info' }}
         with:
