@@ -3,6 +3,8 @@
 
 <hr>
 
+Test
+
 TUI Application to manage Obsidian vaults and notes directly from the terminal ✨.
 
 ![Demo](https://raw.githubusercontent.com/erikjuhani/basalt/refs/heads/main/assets/basalt_demo.gif)
