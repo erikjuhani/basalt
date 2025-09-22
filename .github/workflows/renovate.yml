@@ -2,8 +2,8 @@ name: Renovate
 
 on:
   push:
-    branches: 
-      - main
+    # branches: 
+    #   - main
   schedule:
     - cron: '0 0 * * *'
   workflow_dispatch:
@@ -18,12 +18,45 @@ on:
           - debug
           - warn
 
+permissions: 
+  actions: write # Required to delete existing cache
+  contents: read 
+
+# Adding these as env variables makes it easy to re-use them in different steps and in bash.
+env:
+  # This is the dir renovate provides -- if we set our own directory via cacheDir, we can run into permissions issues.
+  # It is also possible to cache a higher level of the directory, but it has minimal benefit. While renovate execution
+  # time gets faster, it also takes longer to upload the cache as it grows bigger.
+  cache_dir: /tmp/renovate/cache/renovate/repository
+  # This can be manually changed to bust the cache if necessary.
+  cache_key: renovate-cache
+
 jobs:
   renovate:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.cache_dir }}
+          key: ${{ env.cache_key }}
+
+      - name: Try fix cache permissions
+        if: ${{ steps.cache-restore.outputs.cache-hit }}
+        continue-on-error: true
+        run: |
+          set -x
+          
+          # Unfortunately, the permissions expected within renovate's docker container
+          # are different than the ones given after the cache is restored. We have to
+          # change ownership to solve this. We also need to have correct permissions in
+          # the entire /tmp/renovate tree, not just the section with the repo cache.
+          sudo chown -R 12021:0 /tmp/renovate/
+          ls -R $cache_dir
 
       - uses: actions/create-github-app-token@v2
         id: app-token
@@ -34,8 +67,22 @@ jobs:
       - name: Run renovate
         uses: renovatebot/github-action@v43.0.12
         env:
+          RENOVATE_REPOSITORY_CACHE: 'enabled'
           RENOVATE_REPOSITORIES: ${{ github.repository }}
           LOG_LEVEL: ${{ github.event.inputs.log_level || 'info' }}
         with:
           configurationFile: renovate-config.json
           token: '${{ steps.app-token.outputs.token }}'
+
+      - name: Delete previous cache
+        if: ${{ steps.cache-restore.outputs.cache-hit }}
+        continue-on-error: true
+        run: gh cache delete "${{ env.cache_key }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Save cache
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.cache_dir }}
+          key: ${{ env.cache_key }}
