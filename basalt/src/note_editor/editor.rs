@@ -8,35 +8,6 @@
 //! The module uses markdown parser [`basalt_core::markdown`] to produce
 //! [`basalt_core::markdown::Node`] values. Each node is converted to one or more
 //! [`ratatui::text::Line`] objects.
-//!
-//! # Example of rendered output
-//!
-//! Headings
-//! ════════════════════════════════════════════════════════════════
-//!
-//! THIS IS A HEADING 1
-//! ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
-//!
-//! This is a heading 2
-//! ════════════════════════════════════════════════════════════════
-//! ⬤  This is a heading 3
-//!
-//! ● This is a heading 4
-//!
-//! ◆ 𝓣𝓱𝓲𝓼 𝓲𝓼 𝓪 𝓱𝓮𝓪𝓭𝓲𝓷𝓰 𝟓
-//!
-//! ✺ 𝓣𝓱𝓲𝓼 𝓲𝓼 𝓪 𝓱𝓮𝓪𝓭𝓲𝓷𝓰 𝟔
-//!
-//! Quotes
-//! ════════════════════════════════════════════════════════════════
-//! You can quote text by adding a > symbols before the text.
-//!
-//! ┃ Human beings face ever more complex and urgent problems, and
-//! ┃ their effectiveness in dealing with these problems is a matter
-//! ┃ that is critical to the stability and continued progress of
-//! ┃ society.
-//! ┃
-//! ┃ - Doug Engelbart, 1961
 use std::marker::PhantomData;
 
 use ratatui::{
@@ -165,15 +136,14 @@ impl Editor<'_> {
     ) -> Vec<Line<'a>> {
         match level {
             markdown_parser::HeadingLevel::H1 => [
-                Line::default(),
-                Line::from(text.to_uppercase()).italic().bold(),
-                (0..width).map(|_| "▀").collect::<String>().into(),
+                Line::from(text.to_uppercase()).bold(),
+                (0..width).map(|_| "═").collect::<String>().into(),
                 Line::default(),
             ]
             .to_vec(),
             markdown_parser::HeadingLevel::H2 => [
                 Line::from(text).bold().yellow(),
-                Line::from((0..width).map(|_| "═").collect::<String>()).yellow(),
+                Line::from((0..width).map(|_| "─").collect::<String>()).yellow(),
             ]
             .to_vec(),
             markdown_parser::HeadingLevel::H3 => [
@@ -311,6 +281,7 @@ impl<'text_buffer> StatefulWidget for Editor<'text_buffer> {
             View::Edit(..) => Color::Green,
             View::Read => Color::Red,
         };
+
         let block = Block::bordered()
             .border_type(if state.active() {
                 BorderType::Thick
@@ -413,12 +384,25 @@ impl<'text_buffer> StatefulWidget for Editor<'text_buffer> {
             }
         }
 
+        let get_heading_lines = || match !state.file_name.is_empty() {
+            true => vec![
+                Line::from(stylize(&state.file_name, FontStyle::BlackBoardBold)),
+                Line::from((0..inner_area.width).map(|_| "═").collect::<String>()),
+                Line::default(),
+            ],
+            false => vec![],
+        };
+
+        let heading_lines = get_heading_lines();
+        let heading_lines_len = heading_lines.len();
+
         let scrollbar = state.scrollbar();
 
         // We take the borders into consideration, thus we add 1, otherwise the calculated
         // rect would be rendered over the block border.
-        let unsigned_clamped_vertical_offset =
-            (offset_row + 1).saturating_sub(scrollbar.position).max(1) as u16;
+        let unsigned_clamped_vertical_offset = (offset_row + heading_lines_len + 1)
+            .saturating_sub(scrollbar.position)
+            .max(1) as u16;
 
         let vertical_offset = offset_row as i16 - scrollbar.position as i16;
 
@@ -444,11 +428,14 @@ impl<'text_buffer> StatefulWidget for Editor<'text_buffer> {
         })
         .clamp(inner_area);
 
-        let r = rendered_nodes.into_iter().flatten().collect::<Vec<_>>();
-        let r_len = r.len();
-        let mut scroll_state = scrollbar.state.content_length(r.len());
+        let content_lines = rendered_nodes.into_iter().flatten().collect::<Vec<_>>();
+        let content_lines_len = content_lines.len();
+        let mut scroll_state = scrollbar.state.content_length(content_lines_len);
 
-        let root_node = Paragraph::new(r)
+        let lines = [heading_lines, content_lines].concat();
+        let lines_len = lines.len();
+
+        let root_node = Paragraph::new(lines)
             .block(block)
             .scroll((scrollbar.position as u16, 0));
 
@@ -495,7 +482,7 @@ impl<'text_buffer> StatefulWidget for Editor<'text_buffer> {
             textarea.render(rect, buf);
         }
 
-        if r_len as u16 > inner_area.height && inner_area.width > 0 {
+        if lines_len as u16 > inner_area.height && inner_area.width > 0 {
             StatefulWidget::render(
                 widgets::Scrollbar::new(ScrollbarOrientation::VerticalRight),
                 area,
@@ -893,7 +880,7 @@ mod tests {
         let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
 
         tests.into_iter().for_each(|(name, content)| {
-            let mut state = EditorState::new(content, PathBuf::default());
+            let mut state = EditorState::new("Note name", content, PathBuf::default());
             _ = terminal.clear();
             terminal
                 .draw(|frame| {

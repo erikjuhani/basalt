@@ -4,7 +4,7 @@ expression: terminal.backend()
 ---
 "╭──────────────────────────────────────────────────────────────────────────────╮"
 "│ Quotes                                                                       │"
-"│ ════════════════════════════════════════════════════════════════════════════ │"
+"│ ──────────────────────────────────────────────────────────────────────────── │"
 "│ You can quote text by adding a > symbols before the text.                    │"
 "│                                                                              │"
 "│ ┃ Human beings face ever more complex and urgent problems, and their         │"
