@@ -2,12 +2,21 @@
 
 ## 0.10.4 (Unreleased)
 
+This release adds note name support in the editor pane. Follows a similar approach as in the Obsidian app itself. The note name can not be changed yet in basalt.
+
+Additionally contains some fixes and slight changes to headings to make them work better with the new note name implementation.
+
+### Added
+
+- [Add support to render filename in the editor pane](https://github.com/erikjuhani/basalt/commit/f23e1c40c04cad62aa23e99983adf9dc9bc4474c)
+
 ### Fixed
 
 - [Fix Outline state allowing to move past visible items](https://github.com/erikjuhani/basalt/commit/3339182706790d0865abb2f2bd1ceee129183397)
 
 ### Changed
 
+- [Change markdown heading level 1 and 2 to more subtle](https://github.com/erikjuhani/basalt/commit/e3db134e45621215e66991a88edf5d9388db23eb)
 - [Only text is crossed over for "hard checked" tasks](https://github.com/erikjuhani/basalt/commit/13a8a26a69ad84f29c6edc7cf76e52a905b2996f)
 
 ## 0.10.3 (Sep, 15 2025)
