@@ -1,6 +1,10 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended", ":disableDependencyDashboard", "schedule:daily"],
+  "extends": [
+    "config:recommended",
+    ":disableDependencyDashboard",
+    "schedule:daily"
+  ],
   "rebaseWhen": "behind-base-branch",
   "onboarding": false,
   "requireConfig": "optional",
@@ -8,7 +12,9 @@
   "customManagers": [
     {
       "customType": "regex",
-      "managerFilePatterns": ["/(^|/)rust-toolchain\\.toml?$/"],
+      "managerFilePatterns": [
+        "/(^|/)rust-toolchain\\.toml?$/"
+      ],
       "matchStrings": [
         "channel\\s*=\\s*\"(?<currentValue>\\d+\\.\\d+(\\.\\d+)?)\""
       ],
@@ -19,13 +25,19 @@
   ],
   "packageRules": [
     {
-      "matchManagers": ["custom.regex"],
-      "matchDepNames": ["rust"],
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchDepNames": [
+        "rust"
+      ],
       "commitMessageTopic": "Rust",
       "minimumReleaseAge": "3 days"
     },
     {
-      "matchDatasources": ["crate"],
+      "matchDatasources": [
+        "crate"
+      ],
       "minimumReleaseAge": "3 days"
     }
   ]
