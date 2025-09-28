@@ -8,6 +8,7 @@
   "rebaseWhen": "behind-base-branch",
   "onboarding": false,
   "minimumReleaseAge": "3 days",
+  "osvVulnerabilityAlerts": true,
   "requireConfig": "optional",
   "prBodyTemplate": "{{{table}}}{{{warnings}}}{{{notes}}}{{{changelogs}}}",
   "customManagers": [
