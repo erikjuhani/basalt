@@ -7,6 +7,7 @@
   ],
   "rebaseWhen": "behind-base-branch",
   "onboarding": false,
+  "minimumReleaseAge": "3 days",
   "requireConfig": "optional",
   "prBodyTemplate": "{{{table}}}{{{warnings}}}{{{notes}}}{{{changelogs}}}",
   "customManagers": [
@@ -31,14 +32,12 @@
       "matchDepNames": [
         "rust"
       ],
-      "commitMessageTopic": "Rust",
-      "minimumReleaseAge": "3 days"
+      "commitMessageTopic": "Rust"
     },
     {
       "matchDatasources": [
         "crate"
-      ],
-      "minimumReleaseAge": "3 days"
+      ]
     }
   ]
 }
