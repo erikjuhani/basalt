@@ -35,6 +35,9 @@ jobs:
           target
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
+    - name: Format check
+      run: make fmt-check
+
     - name: Check
       run: cargo check --locked --profile ci --workspace --all-targets
 
