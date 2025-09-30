@@ -2,7 +2,7 @@ use std::{iter::Peekable, ops::Range, slice::Iter};
 
 use ratatui::widgets::ListState;
 
-use crate::note_editor::markdown_parser::{HeadingLevel, MarkdownNode, Node};
+use crate::note_editor::ast::{HeadingLevel, Node};
 
 use super::item::{FindItem, Flatten, Item};
 
@@ -99,11 +99,11 @@ impl NodesAsHeadings for &[Node] {
         self.iter()
             .enumerate()
             .filter_map(|(index, node)| {
-                if let MarkdownNode::Heading { level, text } = &node.markdown_node {
+                if let Node::Heading { level, text, .. } = &node {
                     Some(Heading {
                         index,
                         level: *level,
-                        content: text.into(),
+                        content: text.to_string(),
                     })
                 } else {
                     None

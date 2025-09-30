@@ -14,7 +14,7 @@ use crate::{
     config::{self, Config},
     explorer::{self, Explorer, ExplorerState, Visibility},
     help_modal::{self, HelpModal, HelpModalState},
-    note_editor::{self, markdown_parser::Node, Editor, EditorState, View},
+    note_editor::{self, ast, Editor, EditorState, View},
     outline::{self, Outline, OutlineState},
     splash_modal::{self, SplashModal, SplashModalState},
     statusbar::{StatusBar, StatusBarState},
@@ -91,7 +91,7 @@ pub enum Message<'a> {
     SetActivePane(ActivePane),
     OpenVault(&'a Vault),
     SelectNote(SelectedNote),
-    UpdateSelectedNoteContent((String, Option<Vec<Node>>)),
+    UpdateSelectedNoteContent((String, Option<Vec<ast::Node>>)),
 
     Splash(splash_modal::Message),
     Explorer(explorer::Message),

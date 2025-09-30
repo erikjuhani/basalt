@@ -1,13 +1,3 @@
-//! # Markdown View Widget
-//!
-//! This module provides a widget called `MarkdownView` that can render Markdown content into
-//! terminal user interface (TUI) structures using the [`ratatui`](https://docs.rs/ratatui) crate.
-//! It integrates with a [`super::state::MarkdownViewState`] to manage scrolling and additional
-//! metadata.
-//!
-//! The module uses markdown parser [`basalt_core::markdown`] to produce
-//! [`basalt_core::markdown::Node`] values. Each node is converted to one or more
-//! [`ratatui::text::Line`] objects.
 use std::marker::PhantomData;
 
 use ratatui::{
@@ -21,9 +11,12 @@ use ratatui::{
     },
 };
 
-use crate::stylized_text::{stylize, FontStyle};
+use crate::{
+    note_editor::{ast, rich_text::RichText},
+    stylized_text::{stylize, FontStyle},
+};
 
-use super::{markdown_parser, state::View};
+use super::state::View;
 
 use super::state::EditorState;
 
@@ -31,22 +24,18 @@ use super::state::EditorState;
 pub struct Editor<'text_buffer>(PhantomData<&'text_buffer ()>);
 
 impl Editor<'_> {
-    fn task<'a>(
-        kind: markdown_parser::TaskListItemKind,
-        content: Vec<Span<'a>>,
-        prefix: Span<'a>,
-    ) -> Line<'a> {
+    fn task<'a>(kind: ast::TaskKind, content: Vec<Span<'a>>, prefix: Span<'a>) -> Line<'a> {
         // TODO: Create an utility to insert n amount of spans with a symbol
         let space = Span::from(" ");
 
         match kind {
-            markdown_parser::TaskListItemKind::Unchecked => Line::from(
+            ast::TaskKind::Unchecked => Line::from(
                 [prefix, "□".dark_gray(), space]
                     .into_iter()
                     .chain(content)
                     .collect::<Vec<_>>(),
             ),
-            markdown_parser::TaskListItemKind::Checked => {
+            ast::TaskKind::Checked => {
                 let crossed_out_content = content
                     .into_iter()
                     .map(|span| span.dark_gray().add_modifier(Modifier::CROSSED_OUT));
@@ -58,7 +47,7 @@ impl Editor<'_> {
                         .collect::<Vec<_>>(),
                 )
             }
-            markdown_parser::TaskListItemKind::LooselyChecked => Line::from(
+            ast::TaskKind::LooselyChecked => Line::from(
                 [prefix, "■".magenta(), space]
                     .into_iter()
                     .chain(content)
@@ -67,19 +56,15 @@ impl Editor<'_> {
         }
     }
 
-    fn item<'a>(
-        kind: markdown_parser::ItemKind,
-        content: Vec<Span<'a>>,
-        prefix: Span<'a>,
-    ) -> Line<'a> {
+    fn item<'a>(kind: ast::ListKind, content: Vec<Span<'a>>, prefix: Span<'a>) -> Line<'a> {
         match kind {
-            markdown_parser::ItemKind::Ordered(num) => Line::from(
+            ast::ListKind::Ordered(num) => Line::from(
                 [prefix, num.to_string().dark_gray(), ". ".into()]
                     .into_iter()
                     .chain(content)
                     .collect::<Vec<_>>(),
             ),
-            markdown_parser::ItemKind::Unordered => Line::from(
+            ast::ListKind::Unordered => Line::from(
                 [prefix, "- ".dark_gray()]
                     .into_iter()
                     .chain(content)
@@ -88,14 +73,15 @@ impl Editor<'_> {
         }
     }
 
-    fn text_to_spans<'a>(text: markdown_parser::Text) -> Vec<Span<'a>> {
+    fn text_to_spans<'a>(text: RichText) -> Vec<Span<'a>> {
         text.into_iter()
+            // TODO: Styling
             .map(|text| Span::from(text.content))
             .collect()
     }
 
-    fn code_block<'a>(text: markdown_parser::Text, width: usize) -> Vec<Line<'a>> {
-        text.into_iter()
+    fn code_block<'a>(text: &RichText, width: usize) -> Vec<Line<'a>> {
+        text.iter()
             .flat_map(|text| {
                 text.content
                     .clone()
@@ -129,39 +115,35 @@ impl Editor<'_> {
             .collect()
     }
 
-    fn heading<'a>(
-        level: markdown_parser::HeadingLevel,
-        text: String,
-        width: usize,
-    ) -> Vec<Line<'a>> {
+    fn heading<'a>(level: ast::HeadingLevel, text: String, width: usize) -> Vec<Line<'a>> {
         match level {
-            markdown_parser::HeadingLevel::H1 => [
+            ast::HeadingLevel::H1 => [
                 Line::from(text.to_uppercase()).bold(),
                 (0..width).map(|_| "═").collect::<String>().into(),
                 Line::default(),
             ]
             .to_vec(),
-            markdown_parser::HeadingLevel::H2 => [
+            ast::HeadingLevel::H2 => [
                 Line::from(text).bold().yellow(),
                 Line::from((0..width).map(|_| "─").collect::<String>()).yellow(),
             ]
             .to_vec(),
-            markdown_parser::HeadingLevel::H3 => [
+            ast::HeadingLevel::H3 => [
                 Line::from(["⬤  ".into(), text.bold()].to_vec()).cyan(),
                 Line::default(),
             ]
             .to_vec(),
-            markdown_parser::HeadingLevel::H4 => [
+            ast::HeadingLevel::H4 => [
                 Line::from(["● ".into(), text.bold()].to_vec()).magenta(),
                 Line::default(),
             ]
             .to_vec(),
-            markdown_parser::HeadingLevel::H5 => [
+            ast::HeadingLevel::H5 => [
                 Line::from(["◆ ".into(), stylize(&text, FontStyle::Script).into()].to_vec()),
                 Line::default(),
             ]
             .to_vec(),
-            markdown_parser::HeadingLevel::H6 => [
+            ast::HeadingLevel::H6 => [
                 Line::from(["✺ ".into(), stylize(&text, FontStyle::Script).into()].to_vec()),
                 Line::default(),
             ]
@@ -169,14 +151,10 @@ impl Editor<'_> {
         }
     }
 
-    fn render_markdown<'a>(
-        node: &markdown_parser::Node,
-        area: Rect,
-        prefix: Span<'a>,
-    ) -> Vec<Line<'a>> {
-        match node.markdown_node.clone() {
-            markdown_parser::MarkdownNode::Paragraph { text } => {
-                Editor::wrap_with_prefix(text.into(), area.width.into(), prefix.clone())
+    fn render_markdown<'a>(node: &ast::Node, area: Rect, prefix: Span<'a>) -> Vec<Line<'a>> {
+        match node {
+            ast::Node::Paragraph { text, .. } => {
+                Editor::wrap_with_prefix(text.to_string(), area.width.into(), prefix.clone())
                     .into_iter()
                     .chain(if prefix.to_string().is_empty() {
                         [Line::default()].to_vec()
@@ -185,53 +163,96 @@ impl Editor<'_> {
                     })
                     .collect::<Vec<_>>()
             }
-            markdown_parser::MarkdownNode::Heading { level, text } => {
-                Editor::heading(level, text.into(), area.width.into())
+            ast::Node::Heading { level, text, .. } => {
+                Editor::heading(*level, text.to_string(), area.width.into())
             }
-            markdown_parser::MarkdownNode::Item { text } => [Editor::item(
-                markdown_parser::ItemKind::Unordered,
-                Editor::text_to_spans(text),
+            ast::Node::Item { nodes, .. } => [Editor::item(
+                ast::ListKind::Unordered,
+                Editor::text_to_spans(
+                    nodes
+                        .first()
+                        .map(|node| match node {
+                            ast::Node::Paragraph { text, .. } => text.clone(),
+                            _ => RichText::empty(),
+                        })
+                        .unwrap_or(RichText::empty()),
+                ),
                 prefix,
             )]
             .to_vec(),
-            markdown_parser::MarkdownNode::TaskListItem { kind, text } => {
-                [Editor::task(kind, Editor::text_to_spans(text), prefix)].to_vec()
-            }
+            ast::Node::Task { kind, nodes, .. } => [Editor::task(
+                kind.clone(),
+                Editor::text_to_spans(
+                    nodes
+                        .first()
+                        .map(|node| match node {
+                            ast::Node::Paragraph { text, .. } => text.clone(),
+                            _ => RichText::empty(),
+                        })
+                        .unwrap_or(RichText::empty()),
+                ),
+                prefix,
+            )]
+            .to_vec(),
             // TODO: Add lang support and syntax highlighting
-            markdown_parser::MarkdownNode::CodeBlock { text, .. } => {
+            ast::Node::CodeBlock { text, .. } => {
                 [Line::from((0..area.width).map(|_| " ").collect::<String>()).bg(Color::Black)]
                     .into_iter()
                     .chain(Editor::code_block(text, area.width.into()))
                     .chain([Line::default()])
                     .collect::<Vec<_>>()
             }
-            markdown_parser::MarkdownNode::List { nodes, kind } => nodes
-                .into_iter()
+            ast::Node::List { nodes, kind, .. } => nodes
+                .iter()
                 .enumerate()
-                .flat_map(|(i, child)| match child.markdown_node {
-                    markdown_parser::MarkdownNode::TaskListItem { kind, text } => [Editor::task(
-                        kind,
-                        Editor::text_to_spans(text),
+                .flat_map(|(i, child)| match child {
+                    ast::Node::Task { kind, nodes, .. } => [Editor::task(
+                        kind.clone(),
+                        Editor::text_to_spans(
+                            nodes
+                                .first()
+                                .map(|node| match node {
+                                    ast::Node::Paragraph { text, .. } => text.clone(),
+                                    _ => RichText::empty(),
+                                })
+                                .unwrap_or(RichText::empty()),
+                        ),
                         prefix.clone(),
                     )]
                     .to_vec(),
-                    markdown_parser::MarkdownNode::Item { text } => {
+                    ast::Node::Item { nodes, .. } => {
                         let item = match kind {
-                            markdown_parser::ListKind::Ordered(start) => Editor::item(
-                                markdown_parser::ItemKind::Ordered(start + i as u64),
-                                Editor::text_to_spans(text),
+                            ast::ListKind::Ordered(start) => Editor::item(
+                                ast::ListKind::Ordered(start + i as u64),
+                                Editor::text_to_spans(
+                                    nodes
+                                        .first()
+                                        .map(|node| match node {
+                                            ast::Node::Paragraph { text, .. } => text.clone(),
+                                            _ => RichText::empty(),
+                                        })
+                                        .unwrap_or(RichText::empty()),
+                                ),
                                 prefix.clone(),
                             ),
                             _ => Editor::item(
-                                markdown_parser::ItemKind::Unordered,
-                                Editor::text_to_spans(text),
+                                ast::ListKind::Unordered,
+                                Editor::text_to_spans(
+                                    nodes
+                                        .first()
+                                        .map(|node| match node {
+                                            ast::Node::Paragraph { text, .. } => text.clone(),
+                                            _ => RichText::empty(),
+                                        })
+                                        .unwrap_or(RichText::empty()),
+                                ),
                                 prefix.clone(),
                             ),
                         };
 
                         [item].to_vec()
                     }
-                    _ => Editor::render_markdown(&child, area, Span::from(format!("  {prefix}"))),
+                    _ => Editor::render_markdown(child, area, Span::from(format!("  {prefix}"))),
                 })
                 .chain(if prefix.to_string().is_empty() {
                     [Line::default()].to_vec()
@@ -241,7 +262,7 @@ impl Editor<'_> {
                 .collect::<Vec<Line<'a>>>(),
 
             // TODO: Support callout block quote types
-            markdown_parser::MarkdownNode::BlockQuote { nodes, .. } => nodes
+            ast::Node::BlockQuote { nodes, .. } => nodes
                 .iter()
                 .map(|child| {
                     // We need this to be a block of lines to make sure we enumarate and add

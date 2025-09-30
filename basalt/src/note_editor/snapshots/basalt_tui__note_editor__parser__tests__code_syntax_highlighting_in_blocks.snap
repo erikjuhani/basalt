@@ -1,0 +1,28 @@
+---
+source: basalt/src/note_editor/parser.rs
+expression: "format!(\"{}\\n ---\\n\\n{}\", text, ast::nodes_to_sexp(&from_str(text)))"
+---
+## Code syntax highlighting in blocks
+You can add syntax highlighting to a code block, by adding a language code after the first set of backticks.
+
+```js
+function fancyAlert(arg) {
+  if(arg) {
+    $.facebox({div:'#foo'})
+  }
+}
+```
+
+ ---
+
+(heading H2 @0..38
+  "Code syntax highlighting in blocks")
+(paragraph @38..147
+  "You can add syntax highlighting to a code block, by adding a language code after the first set of backticks.")
+(codeblock js @148..230
+  "function fancyAlert(arg) {
+  if(arg) {
+    $.facebox({div:'#foo'})
+  }
+}
+")

@@ -1,0 +1,37 @@
+---
+source: basalt/src/note_editor/parser.rs
+expression: "format!(\"{}\\n ---\\n\\n{}\", text, ast::nodes_to_sexp(&from_str(text)))"
+---
+## Nesting lists
+You can nest any type of list—ordered, unordered, or task lists—under any other type of list.
+
+To create a nested list, indent one or more list items. You can mix list types within a nested structure:
+
+1. First list item
+   1. Ordered nested list item
+2. Second list item
+   - Unordered nested list item
+
+ ---
+
+(heading H2 @0..17
+  "Nesting lists")
+(paragraph @17..115
+  "You can nest any type of list—ordered, unordered, or task lists—under any other type of list.")
+(paragraph @116..222
+  "To create a nested list, indent one or more list items. You can mix list types within a nested structure:")
+(list Ordered(1) @223..325
+  (item @223..273
+  (list Ordered(1) @245..273
+  (item @245..273
+  (paragraph @245..273
+  "Ordered nested list item")))
+(paragraph @223..273
+  "First list item"))
+(item @273..325
+  (list Unordered @296..325
+  (item @296..325
+  (paragraph @296..325
+  "Unordered nested list item")))
+(paragraph @273..325
+  "Second list item")))
