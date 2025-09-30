@@ -2,8 +2,7 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended",
-    ":disableDependencyDashboard",
-    "schedule:daily"
+    ":disableDependencyDashboard"
   ],
   "rebaseWhen": "behind-base-branch",
   "onboarding": false,
@@ -34,11 +33,6 @@
         "rust"
       ],
       "commitMessageTopic": "Rust"
-    },
-    {
-      "matchDatasources": [
-        "crate"
-      ]
     }
   ]
 }
