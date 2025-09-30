@@ -1,0 +1,27 @@
+---
+source: basalt/src/note_editor/parser.rs
+expression: "format!(\"{}\\n ---\\n\\n{}\", text, ast::nodes_to_sexp(&from_str(text)))"
+---
+## Paragraphs
+To create paragraphs in Markdown, use a **blank line** to separate blocks of text. Each block of text separated by a blank line is treated as a distinct paragraph.
+
+This is a paragraph.
+
+This is another paragraph.
+
+A blank line between lines of text creates separate paragraphs. This is the default behavior in Markdown.
+
+ ---
+
+(heading H2 @0..14
+  "Paragraphs")
+(paragraph @14..178
+  "To create paragraphs in Markdown, use a "
+  (Strong "blank line")
+  (Strong " to separate blocks of text. Each block of text separated by a blank line is treated as a distinct paragraph."))
+(paragraph @179..200
+  "This is a paragraph.")
+(paragraph @201..228
+  "This is another paragraph.")
+(paragraph @229..335
+  "A blank line between lines of text creates separate paragraphs. This is the default behavior in Markdown.")

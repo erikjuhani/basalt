@@ -1,0 +1,69 @@
+---
+source: basalt/src/note_editor/parser.rs
+expression: "format!(\"{}\\n ---\\n\\n{}\", text, ast::nodes_to_sexp(&from_str(text)))"
+---
+## Lists
+You can create an unordered list by adding a `-`, `*`, or `+` before the text.
+
+- First list item
+- Second list item
+- Third list item
+
+To create an ordered list, start each line with a number followed by a `.` or `)` symbol.
+
+1. First list item
+2. Second list item
+3. Third list item
+
+1) First list item
+2) Second list item
+3) Third list item
+
+ ---
+
+(heading H2 @0..9
+  "Lists")
+(paragraph @9..88
+  "You can create an unordered list by adding a "
+  (Code "-")
+  ", "
+  (Code "*")
+  ", or "
+  (Code "+")
+  " before the text.")
+(list Unordered @89..145
+  (item @89..107
+  (paragraph @89..107
+  "First list item"))
+(item @107..126
+  (paragraph @107..126
+  "Second list item"))
+(item @126..145
+  (paragraph @126..145
+  "Third list item")))
+(paragraph @145..235
+  "To create an ordered list, start each line with a number followed by a "
+  (Code ".")
+  " or "
+  (Code ")")
+  " symbol.")
+(list Ordered(1) @236..295
+  (item @236..255
+  (paragraph @236..255
+  "First list item"))
+(item @255..275
+  (paragraph @255..275
+  "Second list item"))
+(item @275..295
+  (paragraph @275..295
+  "Third list item")))
+(list Ordered(1) @295..353
+  (item @295..314
+  (paragraph @295..314
+  "First list item"))
+(item @314..334
+  (paragraph @314..334
+  "Second list item"))
+(item @334..353
+  (paragraph @334..353
+  "Third list item")))

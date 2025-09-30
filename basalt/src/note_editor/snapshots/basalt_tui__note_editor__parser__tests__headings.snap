@@ -1,0 +1,36 @@
+---
+source: basalt/src/note_editor/parser.rs
+expression: "format!(\"{}\\n ---\\n\\n{}\", text, ast::nodes_to_sexp(&from_str(text)))"
+---
+## Headings
+To create a heading, add up to six `#` symbols before your heading text. The number of `#` symbols determines the size of the heading.
+
+# This is a heading 1
+## This is a heading 2
+### This is a heading 3
+#### This is a heading 4
+##### This is a heading 5
+###### This is a heading 6
+
+ ---
+
+(heading H2 @0..12
+  "Headings")
+(paragraph @12..147
+  "To create a heading, add up to six "
+  (Code "#")
+  " symbols before your heading text. The number of "
+  (Code "#")
+  " symbols determines the size of the heading.")
+(heading H1 @148..170
+  "This is a heading 1")
+(heading H2 @170..193
+  "This is a heading 2")
+(heading H3 @193..217
+  "This is a heading 3")
+(heading H4 @217..242
+  "This is a heading 4")
+(heading H5 @242..268
+  "This is a heading 5")
+(heading H6 @268..295
+  "This is a heading 6")

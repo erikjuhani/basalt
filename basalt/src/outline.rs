@@ -15,7 +15,7 @@ use ratatui::{
 use crate::{
     app::{ActivePane, Message as AppMessage},
     explorer,
-    note_editor::{self, markdown_parser::Node},
+    note_editor::{self, ast::Node},
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -166,7 +166,7 @@ impl StatefulWidget for Outline {
 
 #[cfg(test)]
 mod tests {
-    use crate::note_editor::markdown_parser;
+    use crate::note_editor::parser;
 
     use super::*;
     use indoc::indoc;
@@ -176,11 +176,11 @@ mod tests {
     #[test]
     fn test_outline_render() {
         let tests = [
-            ("empty", markdown_parser::from_str("")),
-            ("single_level", markdown_parser::from_str("# Heading 1")),
+            ("empty", parser::from_str("")),
+            ("single_level", parser::from_str("# Heading 1")),
             (
                 "only_top_level",
-                markdown_parser::from_str(indoc! {r#"
+                parser::from_str(indoc! {r#"
                 # Heading 1
                 # Heading 2
                 # Heading 3
@@ -191,7 +191,7 @@ mod tests {
             ),
             (
                 "only_deep_level",
-                markdown_parser::from_str(indoc! {r#"
+                parser::from_str(indoc! {r#"
                 ###### Heading 1
                 ##### Heading 2
                 ###### Heading 2.1
@@ -204,7 +204,7 @@ mod tests {
             ),
             (
                 "sequential_all_levels",
-                markdown_parser::from_str(indoc! {r#"
+                parser::from_str(indoc! {r#"
                 # Heading 1
                 ## Heading 2
                 ### Heading 3
@@ -215,7 +215,7 @@ mod tests {
             ),
             (
                 "complex_nested_structure",
-                markdown_parser::from_str(indoc! {r#"
+                parser::from_str(indoc! {r#"
                 ## Heading 1
                 ## Heading 2
                 ### Heading 2.1
@@ -228,7 +228,7 @@ mod tests {
             ),
             (
                 "irregular_nesting_with_skips",
-                markdown_parser::from_str(indoc! {r#"
+                parser::from_str(indoc! {r#"
                 # Heading 1
                 ## Heading 2
                 ## Heading 2.1
@@ -240,7 +240,7 @@ mod tests {
             ),
             (
                 "level_skipping",
-                markdown_parser::from_str(indoc! {r#"
+                parser::from_str(indoc! {r#"
                 # Level 1
                 ### Level 3 (skipped 2)
                 ##### Level 5 (skipped 4)
@@ -250,7 +250,7 @@ mod tests {
             ),
             (
                 "reverse_hierarchy",
-                markdown_parser::from_str(indoc! {r#"
+                parser::from_str(indoc! {r#"
                 ###### Level 6
                 ##### Level 5
                 #### Level 4
@@ -261,7 +261,7 @@ mod tests {
             ),
             (
                 "multiple_root_levels",
-                markdown_parser::from_str(indoc! {r#"
+                parser::from_str(indoc! {r#"
                 # Root 1
                 ## Child 1.1
                 ### Child 1.1.1
@@ -275,7 +275,7 @@ mod tests {
             ),
             (
                 "duplicate_headings",
-                markdown_parser::from_str(indoc! {r#"
+                parser::from_str(indoc! {r#"
                 # Duplicate
                 ## Child
                 # Duplicate
@@ -285,7 +285,7 @@ mod tests {
             ),
             (
                 "mixed_with_content",
-                markdown_parser::from_str(indoc! {r#"
+                parser::from_str(indoc! {r#"
                 # Chapter 1
                 Some paragraph content here.
 
@@ -301,7 +301,7 @@ mod tests {
             ),
             (
                 "boundary_conditions_systematic",
-                markdown_parser::from_str(indoc! {r#"
+                parser::from_str(indoc! {r#"
                 # A
                 ## B
                 ### C

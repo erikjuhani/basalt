@@ -1,0 +1,31 @@
+---
+source: basalt/src/note_editor/parser.rs
+expression: "format!(\"{}\\n ---\\n\\n{}\", text, ast::nodes_to_sexp(&from_str(text)))"
+---
+## Nesting task lists
+Similarly, you can create a nested task list by indenting one or more list items:
+
+- [ ] Task item 1
+ - [ ] Subtask 1
+- [ ] Task item 2
+ - [ ] Subtask 1
+
+ ---
+
+(heading H2 @0..22
+  "Nesting task lists")
+(paragraph @22..104
+  "Similarly, you can create a nested task list by indenting one or more list items:")
+(list Unordered @105..175
+  (item Unchecked @105..123
+  (paragraph @105..123
+  "Task item 1"))
+(item Unchecked @123..140
+  (paragraph @123..140
+  "Subtask 1"))
+(item Unchecked @140..158
+  (paragraph @140..158
+  "Task item 2"))
+(item Unchecked @158..175
+  (paragraph @158..175
+  "Subtask 1")))

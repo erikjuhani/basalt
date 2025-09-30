@@ -1,0 +1,32 @@
+---
+source: basalt/src/note_editor/parser.rs
+expression: "format!(\"{}\\n ---\\n\\n{}\", text, ast::nodes_to_sexp(&from_str(text)))"
+---
+## Code blocks
+To format code as a block, enclose it with three backticks or three tildes.
+
+```md
+cd ~/Desktop
+```
+
+You can also create a code block by indenting the text using `Tab` or 4 blank spaces.
+
+    cd ~/Desktop
+
+
+ ---
+
+(heading H2 @0..15
+  "Code blocks")
+(paragraph @15..91
+  "To format code as a block, enclose it with three backticks or three tildes.")
+(codeblock md @92..114
+  "cd ~/Desktop
+")
+(paragraph @116..202
+  "You can also create a code block by indenting the text using "
+  (Code "Tab")
+  " or 4 blank spaces.")
+(codeblock  @207..220
+  "cd ~/Desktop
+")

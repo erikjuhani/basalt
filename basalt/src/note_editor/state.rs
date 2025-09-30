@@ -11,7 +11,9 @@ use std::{
 use ratatui::widgets::ScrollbarState;
 use tui_textarea::Input;
 
-use super::{markdown_parser, text_buffer::CursorMove, TextBuffer};
+use crate::note_editor::{ast, parser};
+
+use super::{text_buffer::CursorMove, TextBuffer};
 
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct Scrollbar {
@@ -53,7 +55,7 @@ pub struct EditorState<'text_buffer> {
     content: String,
     content_original: String,
     path: PathBuf,
-    nodes: Vec<markdown_parser::Node>,
+    nodes: Vec<ast::Node>,
     scrollbar: Scrollbar,
     pub current_row: usize,
     // TODO: This can be utilized after toast implementation
@@ -79,11 +81,11 @@ impl<'text_buffer> EditorState<'text_buffer> {
         self.view == View::Edit(EditMode::Source)
     }
 
-    pub fn nodes(&self) -> &[markdown_parser::Node] {
+    pub fn nodes(&self) -> &[ast::Node] {
         self.nodes.as_slice()
     }
 
-    pub fn nodes_as_mut(&mut self) -> &mut [markdown_parser::Node] {
+    pub fn nodes_as_mut(&mut self) -> &mut [ast::Node] {
         self.nodes.as_mut_slice()
     }
 
@@ -98,7 +100,7 @@ impl<'text_buffer> EditorState<'text_buffer> {
     pub fn new(file_name: &str, content: &str, path: PathBuf) -> Self {
         Self {
             file_name: file_name.to_string(),
-            nodes: markdown_parser::from_str(content),
+            nodes: parser::from_str(content),
             content_original: content.to_string(),
             content: content.to_string(),
             path,
@@ -111,7 +113,7 @@ impl<'text_buffer> EditorState<'text_buffer> {
     }
 
     pub fn set_content(&mut self, content: &str) {
-        self.nodes = markdown_parser::from_str(content);
+        self.nodes = parser::from_str(content);
         self.content_original = content.to_string();
         self.content = content.to_string();
         self.update_text_buffer();
@@ -127,8 +129,9 @@ impl<'text_buffer> EditorState<'text_buffer> {
 
     fn intermediate_save(&mut self) {
         if let Some(node) = self.nodes().get(self.current_row) {
-            let start = node.source_range.start;
-            let end = node.source_range.end;
+            let source_range = node.source_range();
+            let start = source_range.start;
+            let end = source_range.end;
 
             let str_start = &self.content_slice(..start.saturating_sub(1));
             let str_end = &self.content_slice(end..);
@@ -138,7 +141,7 @@ impl<'text_buffer> EditorState<'text_buffer> {
             let complete_modified_content = [str_start, modified_str.as_str(), str_end].join("\n");
 
             if self.content != complete_modified_content {
-                self.nodes = markdown_parser::from_str(&complete_modified_content);
+                self.nodes = parser::from_str(&complete_modified_content);
                 self.content = complete_modified_content;
                 self.update_text_buffer();
             }
@@ -158,11 +161,12 @@ impl<'text_buffer> EditorState<'text_buffer> {
             let mut nodes = self.nodes_as_mut().to_vec();
 
             if let Some(current_node_range_end) =
-                nodes.get(current_row).map(|node| node.source_range.end)
+                nodes.get(current_row).map(|node| node.source_range().end)
             {
                 if let Some(prev_node) = nodes.get_mut(current_row - 1) {
-                    let content = &content[prev_node.source_range.clone()];
-                    prev_node.source_range = prev_node.source_range.start..current_node_range_end;
+                    let source_range = prev_node.source_range();
+                    let content = &content[source_range.clone()];
+                    prev_node.set_source_range(source_range.start..current_node_range_end);
                     self.update_text_buffer_content(content);
                     nodes.remove(current_row);
                     self.nodes = nodes;
@@ -328,7 +332,7 @@ impl<'text_buffer> EditorState<'text_buffer> {
 
     pub fn update_text_buffer(&mut self) {
         if let Some(node) = self.nodes().get(self.current_row) {
-            let node_content = self.content_slice(node.source_range.clone());
+            let node_content = self.content_slice(node.source_range().clone());
             self.text_buffer =
                 TextBuffer::from(node_content).with_cursor_position(self.text_buffer.cursor());
         }
