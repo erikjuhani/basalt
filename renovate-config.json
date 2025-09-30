@@ -33,11 +33,6 @@
         "rust"
       ],
       "commitMessageTopic": "Rust"
-    },
-    {
-      "matchDatasources": [
-        "crate"
-      ]
     }
   ]
 }
