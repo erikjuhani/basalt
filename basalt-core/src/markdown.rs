@@ -623,6 +623,7 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use indoc::indoc;
+    use similar_asserts::assert_eq;
 
     fn p(str: &str, range: Range<usize>) -> Node {
         Node::new(MarkdownNode::Paragraph { text: str.into() }, range)
