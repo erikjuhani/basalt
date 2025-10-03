@@ -2,8 +2,8 @@ name: Renovate
 
 on:
   push:
-    branches: 
-      - main
+    # branches: 
+    #   - main
   schedule:
     - cron: '0 0 * * *'
   workflow_dispatch:
@@ -35,7 +35,7 @@ jobs:
         uses: renovatebot/github-action@v43.0.13
         env:
           RENOVATE_REPOSITORIES: ${{ github.repository }}
-          LOG_LEVEL: ${{ github.event.inputs.log_level || 'info' }}
+          LOG_LEVEL: ${{ github.event.inputs.log_level || 'debug' }}
         with:
           configurationFile: renovate-config.json
           token: '${{ steps.app-token.outputs.token }}'
