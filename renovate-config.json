@@ -7,6 +7,7 @@
   "constraints": {
     "rust": "1.89.0"
   },
+  "dryRun": "full",
   "rebaseWhen": "behind-base-branch",
   "onboarding": false,
   "minimumReleaseAge": "3 days",
