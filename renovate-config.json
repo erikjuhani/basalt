@@ -4,6 +4,7 @@
     "config:recommended",
     ":disableDependencyDashboard"
   ],
+  "prHourlyLimit": 0,
   "rebaseWhen": "behind-base-branch",
   "onboarding": false,
   "minimumReleaseAge": "3 days",
