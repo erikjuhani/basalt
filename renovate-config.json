@@ -4,6 +4,9 @@
     "config:recommended",
     ":disableDependencyDashboard"
   ],
+  "constraints": {
+    "rust": "1.89.0"
+  },
   "rebaseWhen": "behind-base-branch",
   "onboarding": false,
   "minimumReleaseAge": "3 days",
