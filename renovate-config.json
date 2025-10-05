@@ -2,7 +2,8 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended",
-    ":disableDependencyDashboard"
+    ":disableDependencyDashboard",
+    "schedule:daily"
   ],
   "rebaseWhen": "behind-base-branch",
   "onboarding": false,
