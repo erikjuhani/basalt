@@ -60,6 +60,7 @@ jobs:
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          lookup-only: true
 
       - name: Install linux build tools
         shell: bash
