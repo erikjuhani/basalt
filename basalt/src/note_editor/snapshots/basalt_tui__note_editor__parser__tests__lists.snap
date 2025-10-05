@@ -31,14 +31,14 @@ To create an ordered list, start each line with a number followed by a `.` or `)
   ", or "
   (Code "+")
   " before the text.")
-(list Unordered @89..145
-  (item @89..107
+(list @89..145
+  (item Unordered @89..107
   (paragraph @89..107
   "First list item"))
-(item @107..126
+(item Unordered @107..126
   (paragraph @107..126
   "Second list item"))
-(item @126..145
+(item Unordered @126..145
   (paragraph @126..145
   "Third list item")))
 (paragraph @145..235
@@ -47,23 +47,23 @@ To create an ordered list, start each line with a number followed by a `.` or `)
   " or "
   (Code ")")
   " symbol.")
-(list Ordered(1) @236..295
-  (item @236..255
+(list @236..295
+  (item Ordered(1) @236..255
   (paragraph @236..255
   "First list item"))
-(item @255..275
+(item Ordered(2) @255..275
   (paragraph @255..275
   "Second list item"))
-(item @275..295
+(item Ordered(3) @275..295
   (paragraph @275..295
   "Third list item")))
-(list Ordered(1) @295..353
-  (item @295..314
+(list @295..353
+  (item Ordered(1) @295..314
   (paragraph @295..314
   "First list item"))
-(item @314..334
+(item Ordered(2) @314..334
   (paragraph @314..334
   "Second list item"))
-(item @334..353
+(item Ordered(3) @334..353
   (paragraph @334..353
   "Third list item")))

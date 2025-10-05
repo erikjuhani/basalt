@@ -25,7 +25,7 @@ You can toggle a task in Reading view by selecting the checkbox.
   "To create a task list, start each list item with a hyphen and space followed by "
   (Code "[ ]")
   ".")
-(list Unordered @102..169
+(list @102..169
   (item Checked @102..134
   (paragraph @102..134
   "This is a completed task."))
@@ -37,13 +37,13 @@ You can toggle a task in Reading view by selecting the checkbox.
 (blockquote Some(Tip) @235..357
   (paragraph @246..316
   "You can use any character inside the brackets to mark it as complete.")
-(list Unordered @320..357
+(list @320..357
   (item Checked @320..331
   (paragraph @320..331
   "Milk"))
-(item @333..344
+(item Unordered @333..344
   (paragraph @333..344
   "[?] Eggs"))
-(item @346..357
+(item Unordered @346..357
   (paragraph @346..357
   "[-] Eggs"))))

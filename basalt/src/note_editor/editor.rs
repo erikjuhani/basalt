@@ -56,23 +56,6 @@ impl Editor<'_> {
         }
     }
 
-    fn item<'a>(kind: ast::ListKind, content: Vec<Span<'a>>, prefix: Span<'a>) -> Line<'a> {
-        match kind {
-            ast::ListKind::Ordered(num) => Line::from(
-                [prefix, num.to_string().dark_gray(), ". ".into()]
-                    .into_iter()
-                    .chain(content)
-                    .collect::<Vec<_>>(),
-            ),
-            ast::ListKind::Unordered => Line::from(
-                [prefix, "- ".dark_gray()]
-                    .into_iter()
-                    .chain(content)
-                    .collect::<Vec<_>>(),
-            ),
-        }
-    }
-
     fn text_to_spans<'a>(text: RichText) -> Vec<Span<'a>> {
         text.into_iter()
             // TODO: Styling
@@ -151,6 +134,36 @@ impl Editor<'_> {
         }
     }
 
+    fn render_item<'a>(
+        kind: &ast::ItemKind,
+        nodes: &[ast::Node],
+        area: Rect,
+        prefix: Span<'a>,
+    ) -> Vec<Line<'a>> {
+        if let Some((first, rest)) = nodes.split_first() {
+            let spans = Editor::text_to_spans(first.rich_text().unwrap_or_default());
+            let item = match kind {
+                ast::ItemKind::Ordered(i) => [prefix.clone(), format!("{i}. ").dark_gray()]
+                    .into_iter()
+                    .chain(spans)
+                    .collect::<Vec<_>>(),
+                _ => [prefix.clone(), "- ".dark_gray()]
+                    .into_iter()
+                    .chain(spans)
+                    .collect::<Vec<_>>(),
+            };
+
+            [Line::from(item)]
+                .into_iter()
+                .chain(rest.iter().flat_map(|node| {
+                    Editor::render_markdown(node, area, format!("  {}", prefix.clone()).into())
+                }))
+                .collect()
+        } else {
+            Vec::default()
+        }
+    }
+
     fn render_markdown<'a>(node: &ast::Node, area: Rect, prefix: Span<'a>) -> Vec<Line<'a>> {
         match node {
             ast::Node::Paragraph { text, .. } => {
@@ -166,20 +179,7 @@ impl Editor<'_> {
             ast::Node::Heading { level, text, .. } => {
                 Editor::heading(*level, text.to_string(), area.width.into())
             }
-            ast::Node::Item { nodes, .. } => [Editor::item(
-                ast::ListKind::Unordered,
-                Editor::text_to_spans(
-                    nodes
-                        .first()
-                        .map(|node| match node {
-                            ast::Node::Paragraph { text, .. } => text.clone(),
-                            _ => RichText::empty(),
-                        })
-                        .unwrap_or(RichText::empty()),
-                ),
-                prefix,
-            )]
-            .to_vec(),
+            ast::Node::Item { kind, nodes, .. } => Editor::render_item(kind, nodes, area, prefix),
             ast::Node::Task { kind, nodes, .. } => [Editor::task(
                 kind.clone(),
                 Editor::text_to_spans(
@@ -202,64 +202,15 @@ impl Editor<'_> {
                     .chain([Line::default()])
                     .collect::<Vec<_>>()
             }
-            ast::Node::List { nodes, kind, .. } => nodes
+            ast::Node::List { nodes, .. } => nodes
                 .iter()
-                .enumerate()
-                .flat_map(|(i, child)| match child {
-                    ast::Node::Task { kind, nodes, .. } => [Editor::task(
-                        kind.clone(),
-                        Editor::text_to_spans(
-                            nodes
-                                .first()
-                                .map(|node| match node {
-                                    ast::Node::Paragraph { text, .. } => text.clone(),
-                                    _ => RichText::empty(),
-                                })
-                                .unwrap_or(RichText::empty()),
-                        ),
-                        prefix.clone(),
-                    )]
-                    .to_vec(),
-                    ast::Node::Item { nodes, .. } => {
-                        let item = match kind {
-                            ast::ListKind::Ordered(start) => Editor::item(
-                                ast::ListKind::Ordered(start + i as u64),
-                                Editor::text_to_spans(
-                                    nodes
-                                        .first()
-                                        .map(|node| match node {
-                                            ast::Node::Paragraph { text, .. } => text.clone(),
-                                            _ => RichText::empty(),
-                                        })
-                                        .unwrap_or(RichText::empty()),
-                                ),
-                                prefix.clone(),
-                            ),
-                            _ => Editor::item(
-                                ast::ListKind::Unordered,
-                                Editor::text_to_spans(
-                                    nodes
-                                        .first()
-                                        .map(|node| match node {
-                                            ast::Node::Paragraph { text, .. } => text.clone(),
-                                            _ => RichText::empty(),
-                                        })
-                                        .unwrap_or(RichText::empty()),
-                                ),
-                                prefix.clone(),
-                            ),
-                        };
-
-                        [item].to_vec()
-                    }
-                    _ => Editor::render_markdown(child, area, Span::from(format!("  {prefix}"))),
-                })
+                .flat_map(|child| Editor::render_markdown(child, area, prefix.clone()))
                 .chain(if prefix.to_string().is_empty() {
-                    [Line::default()].to_vec()
+                    vec![Line::default()]
                 } else {
-                    [].to_vec()
+                    vec![]
                 })
-                .collect::<Vec<Line<'a>>>(),
+                .collect(),
 
             // TODO: Support callout block quote types
             ast::Node::BlockQuote { nodes, .. } => nodes
@@ -384,6 +335,10 @@ impl<'text_buffer> StatefulWidget for Editor<'text_buffer> {
             })
             .collect();
 
+        let current_node_height = rendered_nodes
+            .get(state.current_row)
+            .map_or(0, |lines| lines.len() as u16);
+
         let offset_row = if !rendered_nodes.is_empty() {
             rendered_nodes[..state.current_row]
                 .iter()
@@ -392,10 +347,6 @@ impl<'text_buffer> StatefulWidget for Editor<'text_buffer> {
         } else {
             0
         };
-
-        let current_node_height = rendered_nodes
-            .get(state.current_row)
-            .map_or(0, |lines| lines.len() as u16);
 
         fn calculate_clipped_rows(offset: i16, pos_y: u16, height: u16, max: u16) -> u16 {
             if offset < 0 {
