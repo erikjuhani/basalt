@@ -6,16 +6,20 @@ on:
     tags:
       - 'basalt/v*.*.*'
 
+permissions: {}
+
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: 1
 
-permissions:
-  contents: write
-
 jobs:
   build:
+    name: Release
+
+    permissions:
+      contents: write # Needed to create releases and update files
+
     strategy:
       fail-fast: false
       matrix:
@@ -40,24 +44,30 @@ jobs:
             target: aarch64-apple-darwin
 
     runs-on: ${{ matrix.os }}
+    env:
+      MATRIX_OS: ${{ matrix.os }}
+      MATRIX_TARGET: ${{ matrix.target }}
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
 
       - name: Toolchain
         run: rustup toolchain install
 
       - name: Add Rust target
-        run: rustup target add ${{ matrix.target }}
+        run: rustup target add ${MATRIX_TARGET}
 
       - name: Cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          lookup-only: true
 
       - name: Install linux build tools
         shell: bash
@@ -70,19 +80,19 @@ jobs:
                                   musl-tools
 
       - name: Build binary
-        run: cargo build --locked --release --target ${{ matrix.target }}
+        run: cargo build --locked --release --target ${MATRIX_TARGET}
 
       - name: Prepare artifact
         shell: bash
         run: |
-          ref_name="${{ github.ref_name }}"
+          ref_name="${GITHUB_REF_NAME}"
           version="${ref_name##*/v}"
 
-          target="${{ matrix.target }}"
+          target="${MATRIX_TARGET}"
           bin_path="target/${target}/release"
           archive="basalt-${version}-${target}"
 
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+          if [ "${MATRIX_OS}" = "windows-latest" ]; then
             archive="${archive}.zip"
             7z a "${archive}" "${bin_path}/basalt.exe"
           else
@@ -96,7 +106,7 @@ jobs:
         shell: bash
         if: matrix.os == 'windows-latest'
         run: |
-          archive="${{ env.ARCHIVE }}"
+          archive="${ARCHIVE}"
           certutil -hashfile "${archive}" SHA256 > "${archive}.sha256"
           echo "ARTIFACT_SUM=${archive}.sha256" >> $GITHUB_ENV
 
@@ -104,7 +114,7 @@ jobs:
         shell: bash
         if: matrix.os != 'windows-latest'
         run: |
-          archive="${{ env.ARCHIVE }}"
+          archive="${ARCHIVE}"
           shasum -a 256 "${archive}" > "${archive}.sha256"
           echo "ARTIFACT_SUM=${archive}.sha256" >> $GITHUB_ENV
 
@@ -113,9 +123,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
-          ref_name="${{ github.ref_name }}"
+          ref_name="${GITHUB_REF_NAME}"
 
-          artifact="${{ env.ARCHIVE }}"
-          artifact_sum="${{ env.ARTIFACT_SUM }}"
+          artifact="${ARCHIVE}"
+          artifact_sum="${ARTIFACT_SUM}"
           gh release upload "${ref_name}" "${artifact}" "${artifact_sum}"
 

@@ -115,6 +115,16 @@ cp scripts/pre-push .git/hooks/
 
 The script runs the same test commands as in the `test.yml` workflow.
 
+### Pinact
+
+To pin the GitHub Action dependencies easily, you can use [pinact](https://github.com/suzuki-shunsuke/pinact).
+
+You can easily install it using [`shm`](https://github.com/erikjuhani/shm?tab=readme-ov-file#installation) with:
+
+```sh
+shm get --bin suzuki-shunsuke/pinact
+```
+
 ### CI
 
 > [!missing]
