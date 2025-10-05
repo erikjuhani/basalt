@@ -44,6 +44,9 @@ jobs:
             target: aarch64-apple-darwin
 
     runs-on: ${{ matrix.os }}
+    env:
+      MATRIX_OS: ${{ matrix.os }}
+      MATRIX_TARGET: ${{ matrix.target }}
 
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -54,7 +57,7 @@ jobs:
         run: rustup toolchain install
 
       - name: Add Rust target
-        run: rustup target add ${{ matrix.target }}
+        run: rustup target add ${MATRIX_TARGET}
 
       - name: Cache
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
@@ -77,7 +80,7 @@ jobs:
                                   musl-tools
 
       - name: Build binary
-        run: cargo build --locked --release --target ${{ matrix.target }}
+        run: cargo build --locked --release --target ${MATRIX_TARGET}
 
       - name: Prepare artifact
         shell: bash
@@ -85,11 +88,11 @@ jobs:
           ref_name="${GITHUB_REF_NAME}"
           version="${ref_name##*/v}"
 
-          target="${{ matrix.target }}"
+          target="${MATRIX_TARGET}"
           bin_path="target/${target}/release"
           archive="basalt-${version}-${target}"
 
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+          if [ "${MATRIX_OS}" = "windows-latest" ]; then
             archive="${archive}.zip"
             7z a "${archive}" "${bin_path}/basalt.exe"
           else
