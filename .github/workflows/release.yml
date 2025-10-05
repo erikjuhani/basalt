@@ -78,7 +78,7 @@ jobs:
       - name: Prepare artifact
         shell: bash
         run: |
-          ref_name="${{ github.ref_name }}"
+          ref_name="${GITHUB_REF_NAME}"
           version="${ref_name##*/v}"
 
           target="${{ matrix.target }}"
@@ -99,7 +99,7 @@ jobs:
         shell: bash
         if: matrix.os == 'windows-latest'
         run: |
-          archive="${{ env.ARCHIVE }}"
+          archive="${ARCHIVE}"
           certutil -hashfile "${archive}" SHA256 > "${archive}.sha256"
           echo "ARTIFACT_SUM=${archive}.sha256" >> $GITHUB_ENV
 
@@ -107,7 +107,7 @@ jobs:
         shell: bash
         if: matrix.os != 'windows-latest'
         run: |
-          archive="${{ env.ARCHIVE }}"
+          archive="${ARCHIVE}"
           shasum -a 256 "${archive}" > "${archive}.sha256"
           echo "ARTIFACT_SUM=${archive}.sha256" >> $GITHUB_ENV
 
@@ -116,9 +116,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
-          ref_name="${{ github.ref_name }}"
+          ref_name="${GITHUB_REF_NAME}"
 
-          artifact="${{ env.ARCHIVE }}"
-          artifact_sum="${{ env.ARTIFACT_SUM }}"
+          artifact="${ARCHIVE}"
+          artifact_sum="${ARTIFACT_SUM}"
           gh release upload "${ref_name}" "${artifact}" "${artifact_sum}"
 
