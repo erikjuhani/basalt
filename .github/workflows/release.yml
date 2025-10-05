@@ -6,16 +6,18 @@ on:
     tags:
       - 'basalt/v*.*.*'
 
+permissions: {}
+
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: 1
 
-permissions:
-  contents: write
-
 jobs:
   build:
+    permissions:
+      contents: write
+
     strategy:
       fail-fast: false
       matrix:
