@@ -37,5 +37,6 @@ jobs:
           RENOVATE_REPOSITORIES: ${{ github.repository }}
           LOG_LEVEL: ${{ github.event.inputs.log_level || 'info' }}
         with:
+          renovate-version: 41.124.1
           configurationFile: renovate-config.json
           token: '${{ steps.app-token.outputs.token }}'
