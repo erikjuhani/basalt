@@ -14,8 +14,9 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
-  build:
-    name: Release
+  # TODO: Separate into build and release jobs as both have very distinct focus
+  build_and_release:
+    name: Build and Release
 
     permissions:
       contents: write # Needed to create releases and update files
