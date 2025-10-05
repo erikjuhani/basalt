@@ -14,8 +14,9 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
-  build:
-    name: Release
+  # TODO: Separate into build and release jobs as both have very distinct focus
+  build_and_release:
+    name: Build and Release
 
     permissions:
       contents: write # Needed to create releases and update files
@@ -57,7 +58,7 @@ jobs:
         run: rustup toolchain install
 
       - name: Add Rust target
-        run: rustup target add ${MATRIX_TARGET}
+        run: rustup target add "${MATRIX_TARGET}"
 
       - name: Cache
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
@@ -80,7 +81,7 @@ jobs:
                                   musl-tools
 
       - name: Build binary
-        run: cargo build --locked --release --target ${MATRIX_TARGET}
+        run: cargo build --locked --release --target "${MATRIX_TARGET}"
 
       - name: Prepare artifact
         shell: bash
@@ -108,7 +109,7 @@ jobs:
         run: |
           archive="${ARCHIVE}"
           certutil -hashfile "${archive}" SHA256 > "${archive}.sha256"
-          echo "ARTIFACT_SUM=${archive}.sha256" >> $GITHUB_ENV
+          echo "ARTIFACT_SUM=${archive}.sha256" >> "$GITHUB_ENV"
 
       - name: Generate checksum (Unix)
         shell: bash
@@ -116,7 +117,7 @@ jobs:
         run: |
           archive="${ARCHIVE}"
           shasum -a 256 "${archive}" > "${archive}.sha256"
-          echo "ARTIFACT_SUM=${archive}.sha256" >> $GITHUB_ENV
+          echo "ARTIFACT_SUM=${archive}.sha256" >> "$GITHUB_ENV"
 
       - name: Upload artifact and checksum to existing GitHub release
         env:
