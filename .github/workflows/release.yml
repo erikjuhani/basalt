@@ -16,7 +16,7 @@ env:
 jobs:
   build:
     permissions:
-      contents: write
+      contents: write # Needed to create releases and update files
 
     strategy:
       fail-fast: false
