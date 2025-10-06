@@ -58,6 +58,7 @@ jobs:
         run: rustup toolchain install
 
       - name: Add Rust target
+        shell: bash
         run: rustup target add "${MATRIX_TARGET}"
 
       - name: Cache
@@ -81,6 +82,7 @@ jobs:
                                   musl-tools
 
       - name: Build binary
+        shell: bash
         run: cargo build --locked --release --target "${MATRIX_TARGET}"
 
       - name: Prepare artifact
