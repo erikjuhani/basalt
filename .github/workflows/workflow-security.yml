@@ -31,7 +31,7 @@ jobs:
           flags: "-ignore SC2153" # Possible misspelling false flags
 
       - name: Pinact
-        uses: suzuki-shunsuke/pinact-action@d735505f3decf76fca3fdbb4c952e5b3eba0ffdd # v0.1.2
+        uses: suzuki-shunsuke/pinact-action@5c5491051b56f602db279fe380abaf4112727eb2 # v0.2.2
         with:
           skip_push: "true"
 
