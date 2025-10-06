@@ -46,7 +46,7 @@ impl From<pulldown_cmark::BlockQuoteKind> for BlockQuoteKind {
 
 /// Denotes whether a list is ordered or unordered.
 #[derive(Clone, Debug, PartialEq)]
-pub enum ListKind {
+pub enum ItemKind {
     /// An ordered list item (e.g., `1. item`), storing the numeric index.
     Ordered(u64),
     /// An unordered list item (e.g., `- item`).
@@ -90,11 +90,11 @@ pub enum Node {
         source_range: SourceRange<usize>,
     },
     List {
-        kind: ListKind,
         nodes: Vec<Node>,
         source_range: SourceRange<usize>,
     },
     Item {
+        kind: ItemKind,
         nodes: Vec<Node>,
         source_range: SourceRange<usize>,
     },
@@ -127,6 +127,15 @@ impl Node {
             | Self::BlockQuote { source_range, .. }
             | Self::Item { source_range, .. }
             | Self::Task { source_range, .. } => *source_range = new_range,
+        }
+    }
+
+    pub fn rich_text(&self) -> Option<RichText> {
+        match self {
+            Self::Heading { text, .. }
+            | Self::Paragraph { text, .. }
+            | Self::CodeBlock { text, .. } => Some(text.clone()),
+            _ => None,
         }
     }
 }
@@ -185,22 +194,22 @@ pub fn node_to_sexp(node: &Node) -> String {
             )
         }
         Node::List {
+            nodes,
+            source_range,
+        } => {
+            format!("(list @{:?}\n  {})", source_range, nodes_to_sexp(nodes))
+        }
+        Node::Item {
             kind,
             nodes,
             source_range,
         } => {
             format!(
-                "(list {:?} @{:?}\n  {})",
+                "(item {:?} @{:?}\n  {})",
                 kind,
                 source_range,
                 nodes_to_sexp(nodes)
             )
-        }
-        Node::Item {
-            nodes,
-            source_range,
-        } => {
-            format!("(item @{:?}\n  {})", source_range, nodes_to_sexp(nodes))
         }
         Node::Task {
             kind,
@@ -228,17 +237,3 @@ pub fn rich_text_to_sexp(rich_text: &RichText) -> String {
         .collect::<Vec<_>>()
         .join("\n  ")
 }
-
-// impl Node {
-//     pub fn push_text_segment(&mut self, text_segment: TextSegment) {
-//         match self {
-//             Node::Heading { text, .. } => text.push_text_segment(text_segment),
-//             Node::BlockQuote { nodes, .. } => {
-//                 if let Some(last_node) = nodes.last_mut() {
-//                     last_node.push_text_segment(text_segment);
-//                 }
-//             }
-//             _ => {}
-//         }
-//     }
-// }

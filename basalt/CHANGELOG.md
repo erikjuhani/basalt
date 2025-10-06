@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.10.4 (Unreleased)
+## 0.10.4 (Oct, 6 2025)
 
 This release adds note name support in the editor pane. Follows a similar approach as in the Obsidian app itself. The note name can not be changed yet in basalt.
 
@@ -13,6 +13,7 @@ Additionally contains some fixes and slight changes to headings to make them wor
 ### Fixed
 
 - [Fix Outline state allowing to move past visible items](https://github.com/erikjuhani/basalt/commit/3339182706790d0865abb2f2bd1ceee129183397)
+- [Fix sub item rendering](https://github.com/erikjuhani/basalt/commit/e5c2835a90d38dd239b5ed820cd95b65a5934321)
 
 ### Changed
 

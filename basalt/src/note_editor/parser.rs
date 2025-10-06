@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use pulldown_cmark::{CodeBlockKind, Event, Options, Tag, TagEnd};
 
 use crate::note_editor::{
-    ast::{self, ListKind, Node, SourceRange, TaskKind},
+    ast::{self, Node, SourceRange, TaskKind},
     rich_text::{RichText, Style, TextSegment},
 };
 
@@ -32,6 +32,7 @@ impl<'a> Iterator for Parser<'a> {
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct ParserState {
     task_kind: Option<ast::TaskKind>,
+    item_kind: Vec<ast::ItemKind>,
 }
 
 impl<'a> Parser<'a> {
@@ -71,6 +72,16 @@ impl<'a> Parser<'a> {
         let mut nodes = Vec::new();
         let mut text_segments = Vec::new();
         let mut inline_styles = Vec::new();
+
+        match tag {
+            Tag::List(Some(start)) => {
+                state.item_kind.push(ast::ItemKind::Ordered(start));
+            }
+            Tag::List(..) => {
+                state.item_kind.push(ast::ItemKind::Unordered);
+            }
+            _ => {}
+        };
 
         while let Some((event, source_range)) = self.next() {
             match event {
@@ -126,13 +137,16 @@ impl<'a> Parser<'a> {
                             // TODO: Think if wrapping this into a paragraph is a good idea or not.
                             // Potentially storing a RichText here is better.
                             if !text.is_empty() {
-                                nodes.push(Node::Paragraph {
-                                    text,
-                                    source_range: source_range.clone(),
-                                });
+                                nodes.insert(
+                                    0,
+                                    Node::Paragraph {
+                                        text,
+                                        source_range: source_range.clone(),
+                                    },
+                                );
                             }
 
-                            if let Some(kind) = state.task_kind.take() {
+                            let item = if let Some(kind) = state.task_kind.take() {
                                 Some(Node::Task {
                                     kind,
                                     nodes,
@@ -140,18 +154,30 @@ impl<'a> Parser<'a> {
                                 })
                             } else {
                                 Some(Node::Item {
+                                    kind: state
+                                        .item_kind
+                                        .last()
+                                        .cloned()
+                                        .unwrap_or(ast::ItemKind::Unordered),
                                     nodes,
                                     source_range,
                                 })
-                            }
+                            };
+
+                            if let Some(ast::ItemKind::Ordered(start)) = state.item_kind.last_mut()
+                            {
+                                *start += 1;
+                            };
+
+                            item
                         }
-                        Tag::List(ordered) => Some(Node::List {
-                            kind: ordered
-                                .map(ListKind::Ordered)
-                                .unwrap_or(ListKind::Unordered),
-                            nodes,
-                            source_range,
-                        }),
+                        Tag::List(..) => {
+                            state.item_kind.pop();
+                            Some(Node::List {
+                                nodes,
+                                source_range,
+                            })
+                        }
                         Tag::CodeBlock(kind) => Some(Node::CodeBlock {
                             lang: match kind {
                                 CodeBlockKind::Fenced(lang) => Some(lang.to_string()),
@@ -387,7 +413,6 @@ mod tests {
         ];
 
         tests.into_iter().for_each(|(name, text)| {
-            println!("{:?}", from_str(text));
             assert_snapshot!(
                 name,
                 format!("{}\n ---\n\n{}", text, ast::nodes_to_sexp(&from_str(text)))

@@ -16,7 +16,7 @@ Similarly, you can create a nested task list by indenting one or more list items
   "Nesting task lists")
 (paragraph @22..104
   "Similarly, you can create a nested task list by indenting one or more list items:")
-(list Unordered @105..175
+(list @105..175
   (item Unchecked @105..123
   (paragraph @105..123
   "Task item 1"))

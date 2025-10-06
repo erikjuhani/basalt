@@ -20,22 +20,22 @@ You can use line breaks within an ordered list without altering the numbering.
   "Lists with line breaks")
 (paragraph @26..105
   "You can use line breaks within an ordered list without altering the numbering.")
-(list Ordered(1) @106..224
-  (item @106..126
+(list @106..224
+  (item Ordered(1) @106..126
   (paragraph @109..125
   "First list item"))
-(item @126..146
+(item Ordered(2) @126..146
   (paragraph @129..146
   "Second list item"))
-(item @146..166
+(item Ordered(3) @146..166
   (paragraph @149..165
   "Third list item"))
-(item @166..186
+(item Ordered(4) @166..186
   (paragraph @169..186
   "Fourth list item"))
-(item @186..205
+(item Ordered(5) @186..205
   (paragraph @189..205
   "Fifth list item"))
-(item @205..224
+(item Ordered(6) @205..224
   (paragraph @208..224
   "Sixth list item")))
