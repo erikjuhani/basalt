@@ -25,6 +25,17 @@
       "depNameTemplate": "rust",
       "packageNameTemplate": "rust-lang/rust",
       "datasourceTemplate": "github-tags"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        ".github/workflows/renovate.yml"
+      ],
+      "matchStrings": [
+        "renovate-version: (?<currentValue>[^\\s]+)"
+      ],
+      "depNameTemplate": "ghcr.io/renovatebot/renovate",
+      "datasourceTemplate": "docker"
     }
   ],
   "packageRules": [
