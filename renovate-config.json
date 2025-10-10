@@ -11,6 +11,7 @@
   "minimumReleaseAge": "3 days",
   "osvVulnerabilityAlerts": true,
   "requireConfig": "optional",
+  "semanticCommits": "disabled",
   "prBodyTemplate": "{{{table}}}{{{warnings}}}{{{notes}}}{{{changelogs}}}",
   "customManagers": [
     {
