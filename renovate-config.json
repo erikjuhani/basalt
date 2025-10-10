@@ -1,7 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended",
+    "config:best-practices",
     ":disableDependencyDashboard",
     "schedule:daily"
   ],
@@ -11,6 +11,7 @@
   "minimumReleaseAge": "3 days",
   "osvVulnerabilityAlerts": true,
   "requireConfig": "optional",
+  "semanticCommits": "disabled",
   "prBodyTemplate": "{{{table}}}{{{warnings}}}{{{notes}}}{{{changelogs}}}",
   "customManagers": [
     {
@@ -24,6 +25,17 @@
       "depNameTemplate": "rust",
       "packageNameTemplate": "rust-lang/rust",
       "datasourceTemplate": "github-tags"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        ".github/workflows/renovate.yml"
+      ],
+      "matchStrings": [
+        "renovate-version: (?<currentValue>[^\\s]+)"
+      ],
+      "depNameTemplate": "ghcr.io/renovatebot/renovate",
+      "datasourceTemplate": "docker"
     }
   ],
   "packageRules": [
