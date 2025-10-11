@@ -6,6 +6,7 @@ resolver = "2"
 basalt = { path = "basalt" }
 basalt-core = { path = "basalt-core", version = "0.6.1" }
 basalt-widgets = { path = "basalt-widgets", version = "0.1.1" }
+similar-asserts = "1.7.0"
 
 [profile.ci]
 inherits = "dev"

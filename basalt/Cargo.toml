@@ -25,6 +25,7 @@ thiserror = "2.0.16"
 [dev-dependencies]
 indoc = "2"
 insta = "1.43.2"
+similar-asserts.workspace = true
 
 [[bin]]
 name = "basalt"

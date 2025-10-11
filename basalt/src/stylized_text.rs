@@ -84,6 +84,8 @@ fn stylize_char(c: char, style: FontStyle) -> char {
 
 #[cfg(test)]
 mod tests {
+    use similar_asserts::assert_eq;
+
     use super::*;
 
     #[test]

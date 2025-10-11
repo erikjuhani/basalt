@@ -18,3 +18,4 @@ pulldown-cmark = "0.13.0"
 
 [dev-dependencies]
 indoc = "2"
+similar-asserts.workspace = true
