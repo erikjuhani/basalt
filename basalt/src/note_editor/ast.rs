@@ -217,7 +217,7 @@ pub fn node_to_sexp(node: &Node) -> String {
             source_range,
         } => {
             format!(
-                "(item {:?} @{:?}\n  {})",
+                "(task {:?} @{:?}\n  {})",
                 kind,
                 source_range,
                 nodes_to_sexp(nodes)
