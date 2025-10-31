@@ -10,6 +10,10 @@ on:
       - synchronize
       - reopened
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions: {}
 
 jobs:
@@ -41,6 +45,7 @@ jobs:
           annotations: true
           advanced-security: false
           persona: "pedantic"
+          version: v1.16.1
           min-severity: "low"
           inputs: |
               .github/workflows/

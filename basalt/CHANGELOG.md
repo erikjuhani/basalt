@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.11.0 (Unreleased)
+
+This release adds new improved note editor with proper text wrapping for all markdown elements (excluding code blocks).
+
+The new improved and refactored editor code should enable faster feature creation.
+
+### Added
+
+- [Add Cursor module](https://github.com/erikjuhani/basalt/commit/943256b8710cdd2081836c877623a3db8be21b70)
+- [Introduce virtual document structure with rendering](https://github.com/erikjuhani/basalt/commit/ba8f3a0b260f935e88346a0f451572bdeac8ffe8)
+
+### Changed
+
+- [Replace old editor with new implementation](https://github.com/erikjuhani/basalt/commit/ee4976f7734fc2ef67145195be3fa0f7f8fd3ecf)
+
 ## 0.10.4 (Oct, 6 2025)
 
 This release adds note name support in the editor pane. Follows a similar approach as in the Obsidian app itself. The note name can not be changed yet in basalt.

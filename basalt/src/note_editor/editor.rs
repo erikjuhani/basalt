@@ -1,252 +1,209 @@
-use std::marker::PhantomData;
+use std::{fmt, marker::PhantomData, ops::Deref};
 
 use ratatui::{
     buffer::Buffer,
-    layout::{Offset, Rect},
-    style::{Color, Modifier, Style, Stylize},
-    text::{Line, Span},
+    layout::{Offset, Rect, Size},
+    style::{Color, Stylize},
+    text::Line,
     widgets::{
-        self, Block, BorderType, Clear, Padding, Paragraph, ScrollbarOrientation, StatefulWidget,
-        Widget,
+        Block, BorderType, Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+        StatefulWidget, Widget,
     },
 };
 
-use crate::{
-    note_editor::{ast, rich_text::RichText},
-    stylized_text::{stylize, FontStyle},
+use crate::note_editor::{
+    ast,
+    cursor::{Cursor, CursorWidget},
+    parser,
+    virtual_document::VirtualDocument,
 };
 
-use super::state::View;
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum EditMode {
+    #[default]
+    /// Shows the markdown exactly as written
+    Source,
+    // TODO:
+    // /// Hides most of the markdown syntax
+    // LivePreview
+}
 
-use super::state::EditorState;
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum View {
+    #[default]
+    Read,
+    Edit(EditMode),
+}
 
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct Editor<'text_buffer>(PhantomData<&'text_buffer ()>);
-
-impl Editor<'_> {
-    fn task<'a>(kind: ast::TaskKind, content: Vec<Span<'a>>, prefix: Span<'a>) -> Line<'a> {
-        // TODO: Create an utility to insert n amount of spans with a symbol
-        let space = Span::from(" ");
-
-        match kind {
-            ast::TaskKind::Unchecked => Line::from(
-                [prefix, "□".dark_gray(), space]
-                    .into_iter()
-                    .chain(content)
-                    .collect::<Vec<_>>(),
-            ),
-            ast::TaskKind::Checked => {
-                let crossed_out_content = content
-                    .into_iter()
-                    .map(|span| span.dark_gray().add_modifier(Modifier::CROSSED_OUT));
-
-                Line::from(
-                    [prefix, "■".magenta(), space]
-                        .into_iter()
-                        .chain(crossed_out_content)
-                        .collect::<Vec<_>>(),
-                )
-            }
-            ast::TaskKind::LooselyChecked => Line::from(
-                [prefix, "■".magenta(), space]
-                    .into_iter()
-                    .chain(content)
-                    .collect::<Vec<_>>(),
-            ),
-        }
-    }
-
-    fn text_to_spans<'a>(text: RichText) -> Vec<Span<'a>> {
-        text.into_iter()
-            // TODO: Styling
-            .map(|text| Span::from(text.content))
-            .collect()
-    }
-
-    fn code_block<'a>(text: &RichText, width: usize) -> Vec<Line<'a>> {
-        text.iter()
-            .flat_map(|text| {
-                text.content
-                    .clone()
-                    .split("\n")
-                    .map(|line| {
-                        format!(
-                            " {} {}",
-                            line,
-                            // We subtract two to take the whitespace into account, which are
-                            // added in the format string.
-                            (line.chars().count()..width.saturating_sub(2))
-                                .map(|_| " ")
-                                .collect::<String>()
-                        )
-                    })
-                    .collect::<Vec<String>>()
-            })
-            .map(|text| Line::from(text).bg(Color::Black))
-            .collect()
-    }
-
-    fn wrap_with_prefix(text: String, width: usize, prefix: Span) -> Vec<Line> {
-        let options =
-            textwrap::Options::new(width.saturating_sub(prefix.width())).break_words(false);
-
-        textwrap::wrap(&text, &options)
-            .into_iter()
-            .map(|wrapped_line| {
-                Line::from([prefix.clone(), Span::from(wrapped_line.to_string())].to_vec())
-            })
-            .collect()
-    }
-
-    fn heading<'a>(level: ast::HeadingLevel, text: String, width: usize) -> Vec<Line<'a>> {
-        match level {
-            ast::HeadingLevel::H1 => [
-                Line::from(text.to_uppercase()).bold(),
-                (0..width).map(|_| "═").collect::<String>().into(),
-                Line::default(),
-            ]
-            .to_vec(),
-            ast::HeadingLevel::H2 => [
-                Line::from(text).bold().yellow(),
-                Line::from((0..width).map(|_| "─").collect::<String>()).yellow(),
-            ]
-            .to_vec(),
-            ast::HeadingLevel::H3 => [
-                Line::from(["⬤  ".into(), text.bold()].to_vec()).cyan(),
-                Line::default(),
-            ]
-            .to_vec(),
-            ast::HeadingLevel::H4 => [
-                Line::from(["● ".into(), text.bold()].to_vec()).magenta(),
-                Line::default(),
-            ]
-            .to_vec(),
-            ast::HeadingLevel::H5 => [
-                Line::from(["◆ ".into(), stylize(&text, FontStyle::Script).into()].to_vec()),
-                Line::default(),
-            ]
-            .to_vec(),
-            ast::HeadingLevel::H6 => [
-                Line::from(["✺ ".into(), stylize(&text, FontStyle::Script).into()].to_vec()),
-                Line::default(),
-            ]
-            .to_vec(),
-        }
-    }
-
-    fn render_item<'a>(
-        kind: &ast::ItemKind,
-        nodes: &[ast::Node],
-        area: Rect,
-        prefix: Span<'a>,
-    ) -> Vec<Line<'a>> {
-        if let Some((first, rest)) = nodes.split_first() {
-            let spans = Editor::text_to_spans(first.rich_text().unwrap_or_default());
-            let item = match kind {
-                ast::ItemKind::Ordered(i) => [prefix.clone(), format!("{i}. ").dark_gray()]
-                    .into_iter()
-                    .chain(spans)
-                    .collect::<Vec<_>>(),
-                _ => [prefix.clone(), "- ".dark_gray()]
-                    .into_iter()
-                    .chain(spans)
-                    .collect::<Vec<_>>(),
-            };
-
-            [Line::from(item)]
-                .into_iter()
-                .chain(rest.iter().flat_map(|node| {
-                    Editor::render_markdown(node, area, format!("  {}", prefix.clone()).into())
-                }))
-                .collect()
-        } else {
-            Vec::default()
-        }
-    }
-
-    fn render_markdown<'a>(node: &ast::Node, area: Rect, prefix: Span<'a>) -> Vec<Line<'a>> {
-        match node {
-            ast::Node::Paragraph { text, .. } => {
-                Editor::wrap_with_prefix(text.to_string(), area.width.into(), prefix.clone())
-                    .into_iter()
-                    .chain(if prefix.to_string().is_empty() {
-                        [Line::default()].to_vec()
-                    } else {
-                        [].to_vec()
-                    })
-                    .collect::<Vec<_>>()
-            }
-            ast::Node::Heading { level, text, .. } => {
-                Editor::heading(*level, text.to_string(), area.width.into())
-            }
-            ast::Node::Item { kind, nodes, .. } => Editor::render_item(kind, nodes, area, prefix),
-            ast::Node::Task { kind, nodes, .. } => [Editor::task(
-                kind.clone(),
-                Editor::text_to_spans(
-                    nodes
-                        .first()
-                        .map(|node| match node {
-                            ast::Node::Paragraph { text, .. } => text.clone(),
-                            _ => RichText::empty(),
-                        })
-                        .unwrap_or(RichText::empty()),
-                ),
-                prefix,
-            )]
-            .to_vec(),
-            // TODO: Add lang support and syntax highlighting
-            ast::Node::CodeBlock { text, .. } => {
-                [Line::from((0..area.width).map(|_| " ").collect::<String>()).bg(Color::Black)]
-                    .into_iter()
-                    .chain(Editor::code_block(text, area.width.into()))
-                    .chain([Line::default()])
-                    .collect::<Vec<_>>()
-            }
-            ast::Node::List { nodes, .. } => nodes
-                .iter()
-                .flat_map(|child| Editor::render_markdown(child, area, prefix.clone()))
-                .chain(if prefix.to_string().is_empty() {
-                    vec![Line::default()]
-                } else {
-                    vec![]
-                })
-                .collect(),
-
-            // TODO: Support callout block quote types
-            ast::Node::BlockQuote { nodes, .. } => nodes
-                .iter()
-                .map(|child| {
-                    // We need this to be a block of lines to make sure we enumarate and add
-                    // prefixed line breaks correctly.
-                    [Editor::render_markdown(
-                        child,
-                        area,
-                        Span::from(prefix.to_string() + "┃ ").magenta(),
-                    )]
-                    .to_vec()
-                })
-                .enumerate()
-                .flat_map(|(i, mut line_blocks)| {
-                    if i != 0 && i != nodes.len() {
-                        line_blocks.insert(
-                            0,
-                            [Line::from(prefix.to_string() + "┃ ").magenta()].to_vec(),
-                        );
-                    }
-                    line_blocks.into_iter().flatten().collect::<Vec<_>>()
-                })
-                .chain(if prefix.to_string().is_empty() {
-                    [Line::default()].to_vec()
-                } else {
-                    [].to_vec()
-                })
-                .collect::<Vec<Line<'a>>>(),
+impl fmt::Display for View {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            View::Read => write!(f, "READ"),
+            View::Edit(..) => write!(f, "EDIT"),
         }
     }
 }
 
-impl<'text_buffer> StatefulWidget for Editor<'text_buffer> {
-    type State = EditorState<'text_buffer>;
+#[derive(Clone, Debug, Default)]
+struct Viewport {
+    area: Rect,
+}
+
+impl Deref for Viewport {
+    type Target = Rect;
+
+    fn deref(&self) -> &Self::Target {
+        &self.area
+    }
+}
+
+impl Viewport {
+    pub fn resize(&mut self, size: Size) {
+        self.area.width = size.width;
+        self.area.height = size.height;
+    }
+
+    pub fn scroll_by(&mut self, offset: (i32, i32)) {
+        self.area = self.offset(Offset {
+            y: offset.0,
+            x: offset.1,
+        })
+    }
+}
+
+// TODO: Some Editable block when user hits insert?
+#[derive(Clone, Debug, Default)]
+pub struct State<'a> {
+    // TODO: Use Rope instead of String for O(log n) instead of O(n).
+    content: String,
+    pub view: View,
+    pub cursor: Cursor,
+    filename: String,
+    pub ast_nodes: Vec<ast::Node>,
+    virtual_document: VirtualDocument<'a>,
+    active: bool,
+    modified: bool,
+    viewport: Viewport,
+}
+
+impl<'a> State<'a> {
+    pub fn new(content: &str, filename: &str) -> Self {
+        let ast_nodes = parser::from_str(content);
+        let content = content.to_string();
+        Self {
+            content: content.clone(),
+            view: View::Read,
+            cursor: Cursor::default(),
+            viewport: Viewport::default(),
+            virtual_document: VirtualDocument::default(),
+            filename: filename.to_string(),
+            ast_nodes,
+            active: false,
+            modified: false,
+        }
+    }
+
+    pub fn active(&self) -> bool {
+        self.active
+    }
+
+    pub fn current_row(&self) -> usize {
+        *self
+            .virtual_document
+            .line_to_block()
+            .get(self.cursor.virtual_line())
+            .unwrap_or(&0)
+    }
+
+    pub fn scroll_by(&mut self, offset: (i32, i32)) {
+        self.viewport.scroll_by(offset);
+    }
+
+    pub fn set_view(&mut self, view: View) {
+        self.view = view;
+
+        self.virtual_document.layout(
+            &self.filename,
+            &self.content,
+            &self.view,
+            self.cursor.virtual_line(),
+            &self.ast_nodes,
+            self.viewport.width.into(),
+        );
+
+        match view {
+            View::Read => self.cursor.enter_read_mode(&self.virtual_document),
+            View::Edit(..) => self.cursor.enter_edit_mode(&self.virtual_document),
+        }
+    }
+
+    pub fn resize_viewport(&mut self, size: Size) {
+        // If width has changed we need to recalculate the wrapped lines.
+        // Height change doesn't matter as it only affects what is visible.
+        if self.viewport.width != size.width {
+            self.virtual_document.layout(
+                &self.filename,
+                &self.content,
+                &self.view,
+                self.cursor.virtual_line(),
+                &self.ast_nodes,
+                size.width.into(),
+            );
+        }
+
+        // TODO: if height has changed we need to move cursor if it goes out of bounds This means
+        // we need to move it to last visible spot. We only need to care about the bottom()
+        // boundary.
+        self.viewport.resize(size);
+    }
+
+    pub fn set_active(&mut self, active: bool) {
+        self.active = active;
+    }
+
+    pub fn cursor_left(&mut self) {}
+
+    pub fn cursor_right(&mut self) {}
+
+    // TODO: Applies to both cursor_up and cursor_down
+    // The cursor should always be fixed to the viewport. This would enable easier implementation
+    // for e.g. search feature when navigating between matches
+    pub fn cursor_up(&mut self, amount: usize) {
+        let prevline = self.cursor.virtual_line();
+        self.cursor.cursor_up(amount, self.virtual_document.lines());
+
+        let diff = self.cursor.virtual_line() as i32 - prevline as i32;
+
+        if self.cursor.virtual_line() < self.viewport.top() as usize {
+            self.viewport.scroll_by((diff, 0));
+        }
+    }
+
+    pub fn cursor_down(&mut self, amount: usize) {
+        // TODO: Implement scroll off so that the note scroll offset can be changed by moving
+        // cursor downwards when we are at the bottom.
+        let prevline = self.cursor.virtual_line();
+        self.cursor
+            .cursor_down(amount, self.virtual_document.lines());
+
+        let diff = self.cursor.virtual_line() as i32 - prevline as i32;
+
+        if self.cursor.virtual_line()
+            >= self
+                .viewport
+                .bottom()
+                .saturating_sub(self.virtual_document.meta().len() as u16) as usize
+        {
+            self.viewport.scroll_by((diff, 0));
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct NoteEditor<'a>(pub PhantomData<&'a ()>);
+
+impl<'a> StatefulWidget for NoteEditor<'a> {
+    type State = State<'a>;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         let mode_color = match state.view {
@@ -255,7 +212,7 @@ impl<'text_buffer> StatefulWidget for Editor<'text_buffer> {
         };
 
         let block = Block::bordered()
-            .border_type(if state.active() {
+            .border_type(if state.active {
                 BorderType::Thick
             } else {
                 BorderType::Rounded
@@ -275,188 +232,42 @@ impl<'text_buffer> StatefulWidget for Editor<'text_buffer> {
 
         let inner_area = block.inner(area);
 
-        let nodes = state.nodes();
+        // We only reliable know the size of the area for the editor once we arrive at this point.
+        // Calling the resize_width will cause the visual_blocks to be populated in the state.
+        // If width is not changed between frames the resize_width is a noop.
+        state.resize_viewport(inner_area.as_size());
 
-        let rendered_nodes: Vec<_> = nodes
+        let mut lines = state.virtual_document.meta().to_vec();
+        lines.extend(state.virtual_document.lines().to_vec());
+
+        let visible_lines = lines
             .iter()
-            .enumerate()
-            .map(|(i, node)| {
-                // TODO: Figure out how to wrap the text while editing / viewing the markdown
-                // blocks.
-                //
-                // The following code is not good, but might act as something that can be
-                // considered.
-                //
-                // let (row, col) = state.text_buffer().cursor();
-                //
-                // let mut ta = TextArea::from(
-                //     wrap_text(state.text_buffer().raw(), inner_area.width as usize).lines(),
-                // );
-                //
-                // let offset_row = col as u16 / inner_area.width;
-                //
-                // ta.move_cursor(tui_textarea::CursorMove::Jump(
-                //     row as u16 + offset_row,
-                //     if offset_row > 0 {
-                //         (col as u16).saturating_sub(inner_area.width * offset_row) as u16
-                //     } else {
-                //         col as u16
-                //     },
-                // ));
+            .skip(state.viewport.top() as usize)
+            .take(state.viewport.bottom() as usize)
+            // Cheaper to clone the subset of the lines
+            .cloned()
+            .map(|visual_line| visual_line.into())
+            .collect::<Vec<Line>>();
 
-                match (i == state.current_row, &state.view) {
-                    (true, View::Read) => {
-                        let (row, _) = state.text_buffer().cursor();
-                        Editor::render_markdown(node, inner_area, Span::default())
-                            .into_iter()
-                            .enumerate()
-                            .map(|(i, line)| if i == row { line.underlined() } else { line })
-                            .collect()
-                    }
-                    (true, _) => {
-                        let expected_line_count =
-                            Editor::render_markdown(node, inner_area, Span::default()).len();
+        let rendered_lines_count = state.virtual_document.lines().len();
+        let meta_lines_count = state.virtual_document.meta().len();
 
-                        let mut buffer_lines: Vec<Line> = state
-                            .text_buffer()
-                            .lines()
-                            .iter()
-                            .map(|line| Line::from(line.clone()))
-                            .collect();
+        Paragraph::new(visible_lines).block(block).render(area, buf);
 
-                        if buffer_lines.len() < expected_line_count {
-                            buffer_lines.resize(expected_line_count.max(1), Line::default());
-                        }
-
-                        buffer_lines
-                    }
-                    (false, _) => Editor::render_markdown(node, inner_area, Span::default()),
-                }
-            })
-            .collect();
-
-        let current_node_height = rendered_nodes
-            .get(state.current_row)
-            .map_or(0, |lines| lines.len() as u16);
-
-        let offset_row = if !rendered_nodes.is_empty() {
-            rendered_nodes[..state.current_row]
-                .iter()
-                .map(|lines| lines.len())
-                .sum::<usize>()
-        } else {
-            0
-        };
-
-        fn calculate_clipped_rows(offset: i16, pos_y: u16, height: u16, max: u16) -> u16 {
-            if offset < 0 {
-                height.saturating_sub(height.saturating_sub(offset.unsigned_abs()))
-            } else {
-                (pos_y + height).saturating_sub(max)
-            }
+        if !state.content.is_empty() {
+            CursorWidget::default()
+                .with_offset(Offset {
+                    x: inner_area.x as i32,
+                    y: inner_area.y as i32 + meta_lines_count as i32,
+                })
+                .render(state.viewport.area, buf, &mut state.cursor);
         }
 
-        let get_heading_lines = || match !state.file_name.is_empty() {
-            true => vec![
-                Line::from(stylize(&state.file_name, FontStyle::BlackBoardBold)),
-                Line::from((0..inner_area.width).map(|_| "═").collect::<String>()),
-                Line::default(),
-            ],
-            false => vec![],
-        };
+        if !area.is_empty() && lines.len() as u16 > inner_area.bottom() {
+            let mut scroll_state =
+                ScrollbarState::new(rendered_lines_count).position(state.cursor.virtual_line());
 
-        let heading_lines = get_heading_lines();
-        let heading_lines_len = heading_lines.len();
-
-        let scrollbar = state.scrollbar();
-
-        // We take the borders into consideration, thus we add 1, otherwise the calculated
-        // rect would be rendered over the block border.
-        let unsigned_clamped_vertical_offset = (offset_row + heading_lines_len + 1)
-            .saturating_sub(scrollbar.position)
-            .max(1) as u16;
-
-        let vertical_offset = offset_row as i16 - scrollbar.position as i16;
-
-        let max_height = inner_area.bottom();
-
-        // Amount of rows that get clipped
-        let clipped_rows = calculate_clipped_rows(
-            vertical_offset,
-            unsigned_clamped_vertical_offset,
-            current_node_height,
-            max_height,
-        );
-
-        let rect = Rect::new(
-            0,
-            0,
-            inner_area.width,
-            current_node_height.saturating_sub(clipped_rows),
-        )
-        .offset(Offset {
-            x: inner_area.x as i32,
-            y: unsigned_clamped_vertical_offset as i32,
-        })
-        .clamp(inner_area);
-
-        let content_lines = rendered_nodes.into_iter().flatten().collect::<Vec<_>>();
-        let content_lines_len = content_lines.len();
-        let mut scroll_state = scrollbar.state.content_length(content_lines_len);
-
-        let lines = [heading_lines, content_lines].concat();
-        let lines_len = lines.len();
-
-        let root_node = Paragraph::new(lines)
-            .block(block)
-            .scroll((scrollbar.position as u16, 0));
-
-        Widget::render(root_node, area, buf);
-
-        // TODO: Investigate why crash happens when complete node is rendered
-        if rect.top() < max_height && state.view != View::Read {
-            // Nothing is visible, so we exit early
-            if (vertical_offset < 0 && clipped_rows == 0) || state.view == View::Read {
-                return;
-            }
-
-            let buffer = state.text_buffer_as_mut();
-            let textarea = buffer.textarea_as_mut();
-
-            if vertical_offset > 0 && clipped_rows != 0 {
-                let (row, col) = textarea.cursor();
-                let fixed_scroll = current_node_height.saturating_sub(clipped_rows);
-
-                if (row as u16 + 1) > fixed_scroll {
-                    textarea.set_cursor_style(Style::default());
-                    textarea.set_cursor_line_style(Style::default());
-                    textarea.move_cursor(tui_textarea::CursorMove::Jump(
-                        fixed_scroll.saturating_sub(1),
-                        col as u16,
-                    ));
-                }
-            } else if vertical_offset < 0 && clipped_rows != 0 {
-                let (row, col) = textarea.cursor();
-                let row = row as u16;
-
-                textarea.scroll((clipped_rows as i16, 0));
-
-                if row < clipped_rows && textarea.lines().len() > 1 {
-                    textarea.move_cursor(tui_textarea::CursorMove::Jump(clipped_rows, col as u16));
-                    textarea.set_cursor_style(Style::default());
-                    textarea.set_cursor_line_style(Style::default());
-                } else {
-                    textarea.move_cursor(tui_textarea::CursorMove::Jump(row, col as u16));
-                }
-            }
-
-            Clear.render(rect, buf);
-            textarea.render(rect, buf);
-        }
-
-        if lines_len as u16 > inner_area.height && inner_area.width > 0 {
-            StatefulWidget::render(
-                widgets::Scrollbar::new(ScrollbarOrientation::VerticalRight),
+            Scrollbar::new(ScrollbarOrientation::VerticalRight).render(
                 area,
                 buf,
                 &mut scroll_state,
@@ -467,16 +278,14 @@ impl<'text_buffer> StatefulWidget for Editor<'text_buffer> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-
-    use crate::note_editor::state::EditMode;
+    use crate::note_editor::editor::EditMode;
 
     use super::*;
     use indoc::indoc;
     use insta::assert_snapshot;
     use ratatui::{
         backend::TestBackend,
-        crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
+        // crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
         Terminal,
     };
 
@@ -591,11 +400,10 @@ mod tests {
 
         tests.iter().for_each(|text| {
             _ = terminal.clear();
-            let mut state = EditorState::default();
-            state.set_content(text);
+            let mut state = State::new(text, "Test");
             terminal
                 .draw(|frame| {
-                    Editor::default().render(frame.area(), frame.buffer_mut(), &mut state)
+                    NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut state)
                 })
                 .unwrap();
             assert_snapshot!(terminal.backend());
@@ -620,67 +428,60 @@ mod tests {
             "#};
 
         let tests = [
-            ("empty_default_state", EditorState::default()),
-            ("default_content", {
-                let mut state = EditorState::default();
-                state.set_content(content);
-                state
-            }),
+            ("empty_default_state", State::default()),
+            ("with_content", State::new(content, "Test")),
             ("read_mode_with_content", {
-                let mut state = EditorState::default();
-                state.set_content(content);
+                let mut state = State::new(content, "Test");
                 state.set_view(View::Read);
                 state
             }),
             ("edit_mode_with_content", {
-                let mut state = EditorState::default();
-                state.set_content(content);
+                let mut state = State::new(content, "Test");
                 state.set_view(View::Edit(EditMode::Source));
                 state
             }),
-            ("edit_mode_with_content_and_simple_change", {
-                let mut state = EditorState::default();
-                state.set_content(content);
-                state.set_view(View::Edit(EditMode::Source));
-                state.edit(KeyEvent::new(KeyCode::Char('#'), KeyModifiers::empty()).into());
-                state.exit_insert();
-                state.set_view(View::Read);
-                state
-            }),
-            ("edit_mode_with_arbitrary_cursor_move", {
-                let mut state = EditorState::default();
-                state.set_content(content);
-                state.cursor_move_col(7);
-                state.set_view(View::Edit(EditMode::Source));
-                state.edit(KeyEvent::new(KeyCode::Char(' '), KeyModifiers::empty()).into());
-                state.edit(KeyEvent::new(KeyCode::Char('B'), KeyModifiers::empty()).into());
-                state.edit(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::empty()).into());
-                state.edit(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::empty()).into());
-                state.edit(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::empty()).into());
-                state.edit(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::empty()).into());
-                state.edit(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::empty()).into());
-                state.exit_insert();
-                state.set_view(View::Read);
-                state
-            }),
-            ("edit_mode_with_content_with_complete_word_input_change", {
-                let mut state = EditorState::default();
-                state.set_content(content);
-                state.cursor_down();
-                state.set_view(View::Edit(EditMode::Source));
-                state.edit(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()).into());
-                state.edit(KeyEvent::new(KeyCode::Char('B'), KeyModifiers::empty()).into());
-                state.edit(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::empty()).into());
-                state.edit(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::empty()).into());
-                state.edit(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::empty()).into());
-                state.edit(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::empty()).into());
-                state.edit(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::empty()).into());
-                state.edit(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()).into());
-                state.edit(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()).into());
-                state.exit_insert();
-                state.set_view(View::Read);
-                state
-            }),
+            // ("edit_mode_with_content_and_simple_change", {
+            //     let mut state = State::new(content, "Test");
+            //     state.set_view(View::Edit(EditMode::Source));
+            //     state.edit(KeyEvent::new(KeyCode::Char('#'), KeyModifiers::empty()).into());
+            //     state.exit_insert();
+            //     state.set_view(View::Read);
+            //     state
+            // }),
+            // ("edit_mode_with_arbitrary_cursor_move", {
+            //     let mut state = State::new(content, "Test");
+            //     state.set_content(content);
+            //     state.cursor_move_col(7);
+            //     state.set_view(View::Edit(EditMode::Source));
+            //     state.edit(KeyEvent::new(KeyCode::Char(' '), KeyModifiers::empty()).into());
+            //     state.edit(KeyEvent::new(KeyCode::Char('B'), KeyModifiers::empty()).into());
+            //     state.edit(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::empty()).into());
+            //     state.edit(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::empty()).into());
+            //     state.edit(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::empty()).into());
+            //     state.edit(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::empty()).into());
+            //     state.edit(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::empty()).into());
+            //     state.exit_insert();
+            //     state.set_view(View::Read);
+            //     state
+            // }),
+            // ("edit_mode_with_content_with_complete_word_input_change", {
+            //     let mut state = State::new(content, "Test");
+            //     state.set_content(content);
+            //     state.cursor_down();
+            //     state.set_view(View::Edit(EditMode::Source));
+            //     state.edit(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()).into());
+            //     state.edit(KeyEvent::new(KeyCode::Char('B'), KeyModifiers::empty()).into());
+            //     state.edit(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::empty()).into());
+            //     state.edit(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::empty()).into());
+            //     state.edit(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::empty()).into());
+            //     state.edit(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::empty()).into());
+            //     state.edit(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::empty()).into());
+            //     state.edit(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()).into());
+            //     state.edit(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()).into());
+            //     state.exit_insert();
+            //     state.set_view(View::Read);
+            //     state
+            // }),
         ];
 
         let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
@@ -689,7 +490,7 @@ mod tests {
             _ = terminal.clear();
             terminal
                 .draw(|frame| {
-                    Editor::default().render(frame.area(), frame.buffer_mut(), &mut state)
+                    NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut state)
                 })
                 .unwrap();
             assert_snapshot!(name, terminal.backend());
@@ -852,11 +653,11 @@ mod tests {
         let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
 
         tests.into_iter().for_each(|(name, content)| {
-            let mut state = EditorState::new("Note name", content, PathBuf::default());
+            let mut state = State::new(content, name);
             _ = terminal.clear();
             terminal
                 .draw(|frame| {
-                    Editor::default().render(frame.area(), frame.buffer_mut(), &mut state)
+                    NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut state)
                 })
                 .unwrap();
             assert_snapshot!(name, terminal.backend());

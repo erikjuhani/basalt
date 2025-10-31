@@ -26,10 +26,10 @@ You can toggle a task in Reading view by selecting the checkbox.
   (Code "[ ]")
   ".")
 (list @102..169
-  (item Checked @102..134
+  (task Checked @102..134
   (paragraph @102..134
   "This is a completed task."))
-(item Unchecked @134..169
+(task Unchecked @134..169
   (paragraph @134..169
   "This is an incomplete task.")))
 (paragraph @169..234
@@ -38,7 +38,7 @@ You can toggle a task in Reading view by selecting the checkbox.
   (paragraph @246..316
   "You can use any character inside the brackets to mark it as complete.")
 (list @320..357
-  (item Checked @320..331
+  (task Checked @320..331
   (paragraph @320..331
   "Milk"))
 (item Unordered @333..344
