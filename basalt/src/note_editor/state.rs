@@ -8,7 +8,7 @@ use std::{
     slice::SliceIndex,
 };
 
-use ratatui::widgets::ScrollbarState;
+use ratatui::{layout::Rect, widgets::ScrollbarState};
 use tui_textarea::Input;
 
 use crate::note_editor::{ast, parser};
@@ -63,6 +63,7 @@ pub struct EditorState<'text_buffer> {
     active: bool,
     pub modified: bool,
     dirty: bool,
+    area: Option<Rect>,
 }
 
 impl<'text_buffer> EditorState<'text_buffer> {
@@ -95,6 +96,10 @@ impl<'text_buffer> EditorState<'text_buffer> {
 
     pub fn active(&self) -> bool {
         self.active
+    }
+
+    pub fn set_editor_area(&mut self, area: Rect) {
+        self.area = Some(area);
     }
 
     pub fn new(file_name: &str, content: &str, path: PathBuf) -> Self {

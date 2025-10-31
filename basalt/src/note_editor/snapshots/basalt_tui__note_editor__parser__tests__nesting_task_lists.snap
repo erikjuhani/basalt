@@ -17,15 +17,15 @@ Similarly, you can create a nested task list by indenting one or more list items
 (paragraph @22..104
   "Similarly, you can create a nested task list by indenting one or more list items:")
 (list @105..175
-  (item Unchecked @105..123
+  (task Unchecked @105..123
   (paragraph @105..123
   "Task item 1"))
-(item Unchecked @123..140
+(task Unchecked @123..140
   (paragraph @123..140
   "Subtask 1"))
-(item Unchecked @140..158
+(task Unchecked @140..158
   (paragraph @140..158
   "Task item 2"))
-(item Unchecked @158..175
+(task Unchecked @158..175
   (paragraph @158..175
   "Subtask 1")))
