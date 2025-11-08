@@ -1,4 +1,9 @@
-use std::{fmt, marker::PhantomData, ops::Deref};
+use std::{
+    fmt,
+    marker::PhantomData,
+    ops::Deref,
+    path::{Path, PathBuf},
+};
 
 use ratatui::{
     buffer::Buffer,
@@ -13,7 +18,7 @@ use ratatui::{
 
 use crate::note_editor::{
     ast,
-    cursor::{Cursor, CursorWidget},
+    cursor::{Cursor, CursorMove, CursorWidget},
     parser,
     virtual_document::VirtualDocument,
 };
@@ -78,6 +83,7 @@ pub struct State<'a> {
     content: String,
     pub view: View,
     pub cursor: Cursor,
+    filepath: PathBuf,
     filename: String,
     pub ast_nodes: Vec<ast::Node>,
     virtual_document: VirtualDocument<'a>,
@@ -87,7 +93,7 @@ pub struct State<'a> {
 }
 
 impl<'a> State<'a> {
-    pub fn new(content: &str, filename: &str) -> Self {
+    pub fn new(content: &str, filename: &str, filepath: &Path) -> Self {
         let ast_nodes = parser::from_str(content);
         let content = content.to_string();
         Self {
@@ -97,6 +103,7 @@ impl<'a> State<'a> {
             viewport: Viewport::default(),
             virtual_document: VirtualDocument::default(),
             filename: filename.to_string(),
+            filepath: filepath.to_path_buf(),
             ast_nodes,
             active: false,
             modified: false,
@@ -107,7 +114,7 @@ impl<'a> State<'a> {
         self.active
     }
 
-    pub fn current_row(&self) -> usize {
+    pub fn current_block(&self) -> usize {
         *self
             .virtual_document
             .line_to_block()
@@ -131,7 +138,7 @@ impl<'a> State<'a> {
             self.viewport.width.into(),
         );
 
-        match view {
+        match self.view {
             View::Read => self.cursor.enter_read_mode(&self.virtual_document),
             View::Edit(..) => self.cursor.enter_edit_mode(&self.virtual_document),
         }
@@ -161,18 +168,68 @@ impl<'a> State<'a> {
         self.active = active;
     }
 
-    pub fn cursor_left(&mut self) {}
+    pub fn cursor_left(&mut self) {
+        if let Some((_, block)) = self.virtual_document.get_block(self.current_block()) {
+            self.cursor.move_action(CursorMove::Left(1), block.lines());
+        }
+    }
 
-    pub fn cursor_right(&mut self) {}
+    pub fn cursor_right(&mut self) {
+        if let Some((_, block)) = self.virtual_document.get_block(self.current_block()) {
+            self.cursor.move_action(CursorMove::Right(1), block.lines());
+        }
+    }
 
     // TODO: Applies to both cursor_up and cursor_down
     // The cursor should always be fixed to the viewport. This would enable easier implementation
     // for e.g. search feature when navigating between matches
     pub fn cursor_up(&mut self, amount: usize) {
-        let prevline = self.cursor.virtual_line();
-        self.cursor.cursor_up(amount, self.virtual_document.lines());
+        let prev_line = self.cursor.virtual_line();
+        // let prev_block = self
+        //     .virtual_document
+        //     .line_to_block()
+        //     .get(prev_line)
+        //     .unwrap();
 
-        let diff = self.cursor.virtual_line() as i32 - prevline as i32;
+        if let Some((virtual_line, _)) = self
+            .cursor
+            .prev_available_line(amount, self.virtual_document.lines())
+        {
+            self.virtual_document.layout(
+                &self.filename,
+                &self.content,
+                &self.view,
+                virtual_line,
+                &self.ast_nodes,
+                self.viewport.area.width.into(),
+            );
+        }
+
+        self.cursor
+            .move_action(CursorMove::Up(amount), self.virtual_document.lines());
+
+        // self.cursor.cursor_up(amount, self.virtual_document.lines());
+
+        // if matches!(self.view, View::Edit(..)) {
+        //     let current_block = self
+        //         .virtual_document
+        //         .line_to_block()
+        //         .get(self.cursor.virtual_line())
+        //         .unwrap();
+        //
+        //     if prev_block != current_block {
+        //         self.virtual_document.layout(
+        //             &self.filename,
+        //             &self.content,
+        //             &self.view,
+        //             self.cursor.virtual_line(),
+        //             &self.ast_nodes,
+        //             self.viewport.area.width.into(),
+        //         );
+        //     }
+        // }
+
+        let diff = self.cursor.virtual_line() as i32 - prev_line as i32;
 
         if self.cursor.virtual_line() < self.viewport.top() as usize {
             self.viewport.scroll_by((diff, 0));
@@ -182,11 +239,54 @@ impl<'a> State<'a> {
     pub fn cursor_down(&mut self, amount: usize) {
         // TODO: Implement scroll off so that the note scroll offset can be changed by moving
         // cursor downwards when we are at the bottom.
-        let prevline = self.cursor.virtual_line();
-        self.cursor
-            .cursor_down(amount, self.virtual_document.lines());
+        let prev_line = self.cursor.virtual_line();
+        // let prev_block = self
+        //     .virtual_document
+        //     .line_to_block()
+        //     .get(prev_line)
+        //     .unwrap();
 
-        let diff = self.cursor.virtual_line() as i32 - prevline as i32;
+        if let Some((virtual_line, _)) = self
+            .cursor
+            .next_available_line(amount, self.virtual_document.lines())
+        {
+            self.virtual_document.layout(
+                &self.filename,
+                &self.content,
+                &self.view,
+                virtual_line,
+                &self.ast_nodes,
+                self.viewport.area.width.into(),
+            );
+        }
+
+        // TODO: Needs to recalculate layout ahead of time
+        self.cursor
+            .move_action(CursorMove::Down(amount), self.virtual_document.lines());
+
+        // self.cursor
+        //     .cursor_down(amount, self.virtual_document.lines());
+
+        let diff = self.cursor.virtual_line() as i32 - prev_line as i32;
+
+        // if matches!(self.view, View::Edit(..)) {
+        //     let current_block = self
+        //         .virtual_document
+        //         .line_to_block()
+        //         .get(self.cursor.virtual_line())
+        //         .unwrap();
+        //
+        //     if prev_block != current_block {
+        //         self.virtual_document.layout(
+        //             &self.filename,
+        //             &self.content,
+        //             &self.view,
+        //             self.cursor.virtual_line(),
+        //             &self.ast_nodes,
+        //             self.viewport.area.width.into(),
+        //         );
+        //     }
+        // }
 
         if self.cursor.virtual_line()
             >= self
@@ -217,6 +317,12 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
             } else {
                 BorderType::Rounded
             })
+            // .title_top(format!(
+            //     "{},{},{}",
+            //     state.cursor.virtual_line(),
+            //     state.cursor.virtual_column(),
+            //     state.cursor.source_offset()
+            // ))
             .title_bottom(
                 [
                     format!(" {}", state.view).fg(mode_color).bold().italic(),
@@ -400,7 +506,7 @@ mod tests {
 
         tests.iter().for_each(|text| {
             _ = terminal.clear();
-            let mut state = State::new(text, "Test");
+            let mut state = State::new(text, "Test", Path::new("test.md"));
             terminal
                 .draw(|frame| {
                     NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut state)
@@ -429,14 +535,17 @@ mod tests {
 
         let tests = [
             ("empty_default_state", State::default()),
-            ("with_content", State::new(content, "Test")),
+            (
+                "with_content",
+                State::new(content, "Test", Path::new("test.md")),
+            ),
             ("read_mode_with_content", {
-                let mut state = State::new(content, "Test");
+                let mut state = State::new(content, "Test", Path::new("test.md"));
                 state.set_view(View::Read);
                 state
             }),
             ("edit_mode_with_content", {
-                let mut state = State::new(content, "Test");
+                let mut state = State::new(content, "Test", Path::new("test.md"));
                 state.set_view(View::Edit(EditMode::Source));
                 state
             }),
@@ -653,10 +762,183 @@ mod tests {
         let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
 
         tests.into_iter().for_each(|(name, content)| {
-            let mut state = State::new(content, name);
+            let mut state = State::new(content, name, Path::new("test.md"));
             _ = terminal.clear();
             terminal
                 .draw(|frame| {
+                    NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut state)
+                })
+                .unwrap();
+            assert_snapshot!(name, terminal.backend());
+        });
+    }
+
+    #[test]
+    fn test_raw_render() {
+        let tests = [
+            // (
+            //     "paragraphs",
+            //     indoc! { r#"## Paragraphs
+            //     To create paragraphs in Markdown, use a **blank line** to separate blocks of text. Each block of text separated by a blank line is treated as a distinct paragraph.
+            //
+            //     This is a paragraph.
+            //
+            //     This is another paragraph.
+            //
+            //     A blank line between lines of text creates separate paragraphs. This is the default behavior in Markdown.
+            //     "#},
+            // ),
+            // (
+            //     "headings",
+            //     indoc! { r#"## Headings
+            //     To create a heading, add up to six `#` symbols before your heading text. The number of `#` symbols determines the size of the heading.
+            //
+            //     # This is a heading 1
+            //     ## This is a heading 2
+            //     ### This is a heading 3
+            //     #### This is a heading 4
+            //     ##### This is a heading 5
+            //     ###### This is a heading 6
+            //     "#},
+            // ),
+            // (
+            //     "lists",
+            //     indoc! { r#"## Lists
+            //     You can create an unordered list by adding a `-`, `*`, or `+` before the text.
+            //
+            //     - First list item
+            //     - Second list item
+            //     - Third list item
+            //
+            //     To create an ordered list, start each line with a number followed by a `.` or `)` symbol.
+            //
+            //     1. First list item
+            //     2. Second list item
+            //     3. Third list item
+            //
+            //     1) First list item
+            //     2) Second list item
+            //     3) Third list item
+            //     "#},
+            // ),
+            (
+                "lists_raw_line_breaks",
+                indoc! { r#"## Lists with line breaks
+                You can use line breaks within an ordered list without altering the numbering.
+
+                - First list item
+
+
+                  - Second list item
+                    - Third list item
+
+                  - Fourth list item
+
+                - Fifth list item
+                    - Sixth list item
+                "#},
+            ),
+            // (
+            //     "task_lists",
+            //     indoc! { r#"## Task lists
+            //     To create a task list, start each list item with a hyphen and space followed by `[ ]`.
+            //
+            //     - [x] This is a completed task.
+            //     - [ ] This is an incomplete task.
+            //
+            //     You can toggle a task in Reading view by selecting the checkbox.
+            //
+            //     > [!tip]
+            //     > You can use any character inside the brackets to mark it as complete.
+            //     >
+            //     > - [x] Milk
+            //     > - [?] Eggs
+            //     > - [-] Eggs
+            //     "#},
+            // ),
+            // (
+            //     "nesting_lists",
+            //     indoc! { r#"## Nesting lists
+            //     You can nest any type of list—ordered, unordered, or task lists—under any other type of list.
+            //
+            //     To create a nested list, indent one or more list items. You can mix list types within a nested structure:
+            //
+            //     1. First list item
+            //        1. Ordered nested list item
+            //     2. Second list item
+            //        - Unordered nested list item
+            //     "#},
+            // ),
+            // (
+            //     "nesting_task_lists",
+            //     indoc! { r#"## Nesting task lists
+            //     Similarly, you can create a nested task list by indenting one or more list items:
+            //
+            //     - [ ] Task item 1
+            //      - [ ] Subtask 1
+            //     - [ ] Task item 2
+            //      - [ ] Subtask 1
+            //     "#},
+            // ),
+            // TODO: Implement horizontal rule
+            // (
+            //     "horizontal_rule",
+            //     indoc! { r#"## Horizontal rule
+            //     You can use three or more stars `***`, hyphens `---`, or underscore `___` on its own line to add a horizontal bar. You can also separate symbols using spaces.
+            //
+            //     ***
+            //     ****
+            //     * * *
+            //     ---
+            //     ----
+            //     - - -
+            //     ___
+            //     ____
+            //     _ _ _
+            //     "#},
+            // ),
+            // (
+            //     "code_blocks",
+            //     indoc! { r#"## Code blocks
+            //     To format code as a block, enclose it with three backticks or three tildes.
+            //
+            //     ```md
+            //     cd ~/Desktop
+            //     ```
+            //
+            //     You can also create a code block by indenting the text using `Tab` or 4 blank spaces.
+            //
+            //         cd ~/Desktop
+            //
+            //     "#},
+            // ),
+            // (
+            //     "code_syntax_highlighting_in_blocks",
+            //     indoc! { r#"## Code syntax highlighting in blocks
+            //     You can add syntax highlighting to a code block, by adding a language code after the first set of backticks.
+            //
+            //     ```js
+            //     function fancyAlert(arg) {
+            //       if(arg) {
+            //         $.facebox({div:'#foo'})
+            //       }
+            //     }
+            //     ```
+            //     "#},
+            // ),
+        ];
+
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+
+        tests.into_iter().for_each(|(name, content)| {
+            let mut state = State::new(content, name, Path::new("test.md"));
+
+            _ = terminal.clear();
+            terminal
+                .draw(|frame| {
+                    state.resize_viewport(frame.area().as_size());
+                    state.cursor_down(4);
+                    state.set_view(View::Edit(EditMode::Source));
                     NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut state)
                 })
                 .unwrap();

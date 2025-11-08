@@ -56,10 +56,17 @@ pub fn text_wrap<'a>(
     let options = textwrap::Options::new(width.saturating_sub(prefix_width + wrap_marker.len()))
         .break_words(false);
 
+    let mut current_range_start = source_range.start;
+
     textwrap::wrap(text.content.trim_end(), &options)
         .iter()
         .enumerate()
         .map(|(i, line)| {
+            let line_byte_len = line.len();
+            let source_range =
+                current_range_start..((current_range_start + line_byte_len).min(source_range.end));
+            current_range_start += line_byte_len;
+
             if i == 0 {
                 match &marker {
                     Some(marker) if *option == RenderStyle::Visual => virtual_line!([
@@ -219,8 +226,15 @@ pub fn code_block<'a>(
             .bg(Color::Black))
     ]);
 
+    let mut current_range_start = source_range.start;
+
     let mut lines = vec![padding_line.clone()];
     lines.extend(text.lines().map(|line| {
+        let line_byte_len = line.len();
+        let source_range =
+            current_range_start..((current_range_start + line_byte_len).min(source_range.end));
+        current_range_start += line_byte_len;
+
         virtual_line!([
             synthetic_span!(prefix.clone()),
             synthetic_span!(Span::styled(" ", Style::new().bg(Color::Black))),
@@ -312,14 +326,15 @@ pub fn item<'a>(
     max_width: usize,
     option: &RenderStyle,
 ) -> VirtualBlock<'a> {
-    let Some((text, _first, rest)) = nodes.split_first().and_then(|(first, rest)| {
+    let Some((text, rest)) = nodes.split_first().and_then(|(first, rest)| {
         let text = first.rich_text()?;
-        Some((text, first, rest))
+        Some((text, rest))
     }) else {
         return VirtualBlock::new(&[], source_range);
     };
 
     let text = text.to_string();
+
     let marker = match kind {
         ast::ItemKind::Ordered(i) => format!("{i}. ").dark_gray(),
         ast::ItemKind::Unordered => "- ".dark_gray(),
@@ -332,26 +347,55 @@ pub fn item<'a>(
             .map_or(text, |source| source.into()),
     };
 
-    let mut lines = text_wrap(
-        &text.into(),
-        // TODO: Make the visual marker a separate prefix so we do not repeat it
-        prefix.clone(),
-        source_range,
-        max_width,
-        Some(marker),
-        option,
-    );
+    let lines = match option {
+        RenderStyle::Visual => {
+            let mut lines = text_wrap(
+                &text.into(),
+                // TODO: Make the visual marker a separate prefix so we do not repeat it
+                prefix.clone(),
+                source_range,
+                max_width,
+                Some(marker),
+                option,
+            );
 
-    lines.extend(rest.iter().flat_map(|node| {
-        render_node(
-            content.to_string(),
-            node,
-            max_width,
-            prefix.clone().merge("  ".into()),
-            option,
-        )
-        .lines
-    }));
+            lines.extend(rest.iter().flat_map(|node| {
+                render_node(
+                    content.to_string(),
+                    node,
+                    max_width,
+                    prefix.merge("  ".into()),
+                    option,
+                )
+                .lines
+            }));
+
+            lines
+        }
+        // FIXME: In raw mode the prefix is not rendered on the correct spot if we split in deeper
+        // level
+        RenderStyle::Raw => {
+            let mut current_range_start = source_range.start;
+
+            text.lines()
+                .flat_map(|line| {
+                    let line_byte_len = line.len();
+                    let source_range: SourceRange<usize> = current_range_start
+                        ..((current_range_start + line_byte_len).min(source_range.end));
+                    current_range_start += line_byte_len;
+
+                    text_wrap(
+                        &line.to_string().into(),
+                        prefix.clone(),
+                        &source_range,
+                        max_width,
+                        None,
+                        option,
+                    )
+                })
+                .collect::<Vec<_>>()
+        }
+    };
 
     VirtualBlock::new(&lines, source_range)
 }

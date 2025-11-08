@@ -7,7 +7,7 @@ use ratatui::{
     DefaultTerminal,
 };
 
-use std::{cell::RefCell, fmt::Debug, io::Result};
+use std::{cell::RefCell, fmt::Debug, io::Result, path::PathBuf};
 
 use crate::{
     command,
@@ -131,7 +131,7 @@ impl From<ActivePane> for &str {
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct SelectedNote {
     name: String,
-    path: String,
+    path: PathBuf,
     content: String,
 }
 
@@ -139,7 +139,7 @@ impl From<&Note> for SelectedNote {
     fn from(value: &Note) -> Self {
         Self {
             name: value.name.clone(),
-            path: value.path.to_string_lossy().to_string(),
+            path: value.path.clone(),
             content: Note::read_to_string(value).unwrap_or_default(),
         }
     }
@@ -303,8 +303,11 @@ impl<'a> App<'a> {
                     .is_some_and(|note| note.content != selected_note.content);
                 state.selected_note = Some(selected_note.clone());
 
-                state.note_editor =
-                    note_editor::editor::State::new(&selected_note.content, &selected_note.name);
+                state.note_editor = note_editor::editor::State::new(
+                    &selected_note.content,
+                    &selected_note.name,
+                    &selected_note.path,
+                );
 
                 state.note_editor.set_active(true);
 
@@ -315,7 +318,7 @@ impl<'a> App<'a> {
                 // TODO: This should be behind an event/message
                 state.outline = OutlineState::new(
                     &state.note_editor.ast_nodes,
-                    state.note_editor.current_row(),
+                    state.note_editor.current_block(),
                     state.outline.is_open(),
                 );
 
@@ -333,7 +336,7 @@ impl<'a> App<'a> {
                 let (note_name, note_path) = state
                     .selected_note
                     .as_ref()
-                    .map(|note| (note.name.as_str(), note.path.as_str()))
+                    .map(|note| (note.name.as_str(), note.path.to_string_lossy()))
                     .unwrap_or_default();
 
                 return command::sync_command(
@@ -341,7 +344,7 @@ impl<'a> App<'a> {
                     command,
                     state.explorer.title,
                     note_name,
-                    note_path,
+                    &note_path,
                 );
             }
 
@@ -349,10 +352,15 @@ impl<'a> App<'a> {
                 let (note_name, note_path) = state
                     .selected_note
                     .as_ref()
-                    .map(|note| (note.name.as_str(), note.path.as_str()))
+                    .map(|note| (note.name.as_str(), note.path.to_string_lossy()))
                     .unwrap_or_default();
 
-                return command::spawn_command(command, state.explorer.title, note_name, note_path);
+                return command::spawn_command(
+                    command,
+                    state.explorer.title,
+                    note_name,
+                    &note_path,
+                );
             }
 
             Message::HelpModal(message) => {

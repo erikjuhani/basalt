@@ -13,7 +13,7 @@ use crate::{
 
 macro_rules! content_span {
     ($span:expr, $range:expr) => {{
-        VirtualSpan::Content($span, $range.clone())
+        VirtualSpan::Content($span.into(), $range.clone())
     }};
 }
 
@@ -61,11 +61,9 @@ impl VirtualSpan<'_> {
         }
     }
 
-    /// Only content span width is taken into account when calculating width
     pub fn width(&self) -> usize {
         match self {
-            VirtualSpan::Content(span, ..) => span.width(),
-            _ => 0,
+            VirtualSpan::Content(span, ..) | VirtualSpan::Synthetic(span) => span.width(),
         }
     }
 
@@ -95,9 +93,15 @@ impl<'a> VirtualLine<'a> {
         }
     }
 
-    /// Synthetic spans are not calculated into line width
     pub fn width(&self) -> usize {
         self.spans.iter().map(|span| span.width()).sum()
+    }
+
+    pub fn content_width(&self) -> usize {
+        self.spans
+            .iter()
+            .filter_map(|span| matches!(span, VirtualSpan::Content(..)).then_some(span.width()))
+            .sum()
     }
 
     pub fn contains_offset(&self, offset: usize) -> bool {
@@ -113,8 +117,8 @@ impl<'a> VirtualLine<'a> {
             .collect()
     }
 
-    pub fn virtual_spans(self) -> Vec<VirtualSpan<'a>> {
-        self.spans
+    pub fn virtual_spans(&self) -> &[VirtualSpan<'a>] {
+        &self.spans
     }
 
     pub fn source_range(&self) -> Option<SourceRange<usize>> {
@@ -200,12 +204,8 @@ impl VirtualDocument<'_> {
         &self.line_to_block
     }
 
-    pub fn get_block(&self, line: usize) -> Option<(usize, &VirtualBlock<'_>)> {
-        self.line_to_block().get(line).and_then(|block_idx| {
-            self.blocks()
-                .get(*block_idx)
-                .map(|block| (*block_idx, block))
-        })
+    pub fn get_block(&self, block_idx: usize) -> Option<(usize, &VirtualBlock<'_>)> {
+        self.blocks().get(block_idx).map(|block| (block_idx, block))
     }
 
     pub fn layout(
@@ -273,4 +273,54 @@ impl VirtualDocument<'_> {
         self.lines = lines;
         self.line_to_block = line_to_block;
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use indoc::indoc;
+
+    use crate::note_editor::{editor::View, parser, virtual_document::VirtualDocument};
+
+    // #[test]
+    // fn t0() {
+    //     let content = indoc! { r#"## Paragraphs
+    //     To create paragraphs in Markdown, use a **blank line** to separate blocks of text. Each block of text separated by a blank line is treated as a distinct paragraph.
+    //
+    //     This is a paragraph.
+    //
+    //     This is another paragraph.
+    //
+    //     A blank line between lines of text creates separate paragraphs. This is the default behavior in Markdown.
+    //     "#};
+    //
+    //     let ast_nodes = parser::from_str(content);
+    //     let mut virtual_document = VirtualDocument::new();
+    //
+    //     virtual_document.layout("Test", content, &View::Read, 0, &ast_nodes, 80);
+    //
+    //     assert_eq!(virtual_document.get_block(1), None);
+    // }
+
+    // #[test]
+    // fn test() {
+    //     let test_content = "To create paragraphs in Markdown, use a **blank line** to separate blocks of text. Each block of text separated by a blank line is treated as a distinct paragraph.";
+    //
+    //     let ast_node = &parser::from_str(test_content)[0];
+    //
+    //     let block = render_node(
+    //         test_content.to_string(),
+    //         ast_node,
+    //         80,
+    //         Span::default(),
+    //         &RenderStyle::Raw,
+    //     );
+    //
+    //     assert_eq!(
+    //         block,
+    //         VirtualBlock {
+    //             lines: vec![],
+    //             source_range: 0..1
+    //         }
+    //     )
+    // }
 }

@@ -62,25 +62,25 @@ pub fn update<'a>(
         Message::CursorUp => {
             state.cursor_up(1);
             return Some(AppMessage::Outline(outline::Message::SelectAt(
-                state.current_row(),
+                state.current_block(),
             )));
         }
         Message::CursorDown => {
             state.cursor_down(1);
             return Some(AppMessage::Outline(outline::Message::SelectAt(
-                state.current_row(),
+                state.current_block(),
             )));
         }
         Message::ScrollUp(scroll_amount) => {
             state.cursor_up(calc_scroll_amount(scroll_amount, screen_size.height.into()));
             return Some(AppMessage::Outline(outline::Message::SelectAt(
-                state.current_row(),
+                state.current_block(),
             )));
         }
         Message::ScrollDown(scroll_amount) => {
             state.cursor_down(calc_scroll_amount(scroll_amount, screen_size.height.into()));
             return Some(AppMessage::Outline(outline::Message::SelectAt(
-                state.current_row(),
+                state.current_block(),
             )));
         }
         _ => {}
