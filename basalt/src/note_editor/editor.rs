@@ -310,9 +310,7 @@ impl<'a> State<'a> {
                 self.exit_insert();
                 self.cursor.enter_read_mode(&self.virtual_document)
             }
-            View::Edit(..) => {
-                self.cursor.enter_edit_mode(&self.virtual_document)
-            }
+            View::Edit(..) => self.cursor.enter_edit_mode(&self.virtual_document),
         }
     }
 
@@ -348,15 +346,29 @@ impl<'a> State<'a> {
     }
 
     pub fn cursor_left(&mut self) {
-        if let Some((_, block)) = self.virtual_document.get_block(self.current_block()) {
-            self.cursor.move_action(CursorMove::Left(1), block.lines());
-        }
+        self.cursor
+            .move_action(CursorMove::Left(1), self.virtual_document.lines());
+
+        // if matches!(self.view, View::Edit(..)) {
+        //     if let Some((line_idx, _)) =
+        //         self.cursor.find_source_line(self.virtual_document.lines())
+        //     {
+        //         self.cursor.virtual_line = line_idx;
+        //     }
+        // }
     }
 
     pub fn cursor_right(&mut self) {
-        if let Some((_, block)) = self.virtual_document.get_block(self.current_block()) {
-            self.cursor.move_action(CursorMove::Right(1), block.lines());
-        }
+        self.cursor
+            .move_action(CursorMove::Right(1), self.virtual_document.lines());
+
+        // if matches!(self.view, View::Edit(..)) {
+        //     if let Some((line_idx, _)) =
+        //         self.cursor.find_source_line(self.virtual_document.lines())
+        //     {
+        //         self.cursor.virtual_line = line_idx;
+        //     }
+        // }
     }
 
     pub fn update_layout(&mut self) {

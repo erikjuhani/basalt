@@ -161,32 +161,38 @@ impl Cursor {
     }
 
     pub fn cursor_left(&mut self, amount: usize, lines: &[VirtualLine]) {
-        if let Some((_, line)) = self.find_source_line(lines) {
+        self.source_offset = self.source_offset.saturating_sub(amount);
+
+        if let Some((line_idx, line)) = self.find_source_line(lines) {
             if let Some(source_range) = line.source_range() {
                 self.source_offset = self
                     .source_offset
-                    .saturating_sub(amount)
                     .clamp(source_range.start, source_range.end.saturating_sub(1));
-
-                if let Some(column) = self.find_source_column(line) {
-                    self.virtual_column = column;
-                }
             }
+
+            if let Some(column) = self.find_source_column(line) {
+                self.virtual_column = column;
+            }
+
+            self.virtual_line = line_idx;
         }
     }
 
     pub fn cursor_right(&mut self, amount: usize, lines: &[VirtualLine]) {
-        if let Some((_, line)) = self.find_source_line(lines) {
+        self.source_offset = self.source_offset.saturating_add(amount);
+
+        if let Some((line_idx, line)) = self.find_source_line(lines) {
             if let Some(source_range) = line.source_range() {
                 self.source_offset = self
                     .source_offset
-                    .saturating_add(amount)
                     .clamp(source_range.start, source_range.end);
-
-                if let Some(column) = self.find_source_column(line) {
-                    self.virtual_column = column;
-                }
             }
+
+            if let Some(column) = self.find_source_column(line) {
+                self.virtual_column = column;
+            }
+
+            self.virtual_line = line_idx;
         }
     }
 
