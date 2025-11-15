@@ -1,11 +1,14 @@
 use std::iter;
 
-use ratatui::text::{Line, Span};
+use ratatui::{
+    crossterm::style::Stylize,
+    text::{Line, Span, ToSpan},
+};
 
 use crate::{
     note_editor::{
         ast::{self, SourceRange},
-        editor::View,
+        editor::{TextBuffer, View},
         render::{render_node, text_wrap, RenderStyle},
     },
     stylized_text::{stylize, FontStyle},
@@ -76,7 +79,8 @@ impl<'a> From<VirtualSpan<'a>> for Span<'a> {
     fn from(value: VirtualSpan<'a>) -> Self {
         match value {
             VirtualSpan::Synthetic(span) => span,
-            VirtualSpan::Content(span, _) => span,
+            VirtualSpan::Content(span, _) => span, // VirtualSpan::Content(span, source_range) => span
+                                                   //     .content(format!("{} ({:?})", span.content, source_range)),
         }
     }
 }
@@ -113,7 +117,15 @@ impl<'a> VirtualLine<'a> {
     pub fn spans(self) -> Vec<Span<'a>> {
         self.spans
             .into_iter()
-            .map(|visual_span| visual_span.into())
+            .flat_map(|virtual_span| match virtual_span {
+                VirtualSpan::Content(span, source_range) => {
+                    vec![
+                        span,
+                        synthetic_span!(format!(" ({:?})", source_range)).into(),
+                    ]
+                }
+                span => vec![span.into()],
+            })
             .collect()
     }
 
@@ -183,7 +195,7 @@ pub struct VirtualDocument<'a> {
     line_to_block: Vec<usize>,
 }
 
-impl VirtualDocument<'_> {
+impl<'a> VirtualDocument<'a> {
     pub fn new() -> Self {
         Self::default()
     }
@@ -194,6 +206,10 @@ impl VirtualDocument<'_> {
 
     pub fn blocks(&self) -> &[VirtualBlock<'_>] {
         &self.blocks
+    }
+
+    pub fn mut_blocks(&mut self) -> &mut [VirtualBlock<'a>] {
+        self.blocks.as_mut_slice()
     }
 
     pub fn lines(&self) -> &[VirtualLine<'_>] {
@@ -208,14 +224,19 @@ impl VirtualDocument<'_> {
         self.blocks().get(block_idx).map(|block| (block_idx, block))
     }
 
+    pub fn get_mut_block(&mut self, block_idx: usize) -> Option<&mut VirtualBlock<'a>> {
+        self.mut_blocks().get_mut(block_idx)
+    }
+
     pub fn layout(
         &mut self,
         note_name: &str,
         content: &str,
         view: &View,
-        cursor_line: usize,
+        current_block_idx: Option<usize>,
         ast_nodes: &[ast::Node],
         width: usize,
+        text_buffer: Option<TextBuffer>,
     ) {
         if !note_name.is_empty() {
             let mut meta = text_wrap(
@@ -234,17 +255,23 @@ impl VirtualDocument<'_> {
             self.meta = meta;
         }
 
-        let current_block_idx = self.line_to_block().get(cursor_line);
-
         let (blocks, lines, line_to_block) = ast_nodes.iter().enumerate().fold(
             (vec![], vec![], vec![]),
             |(mut blocks, mut lines, mut line_to_block), (idx, node)| {
                 let block = if current_block_idx
-                    .is_some_and(|block_idx| *block_idx == idx && matches!(view, View::Edit(..)))
+                    .is_some_and(|block_idx| block_idx == idx && matches!(view, View::Edit(..)))
                 {
+                    let mut node = node.clone();
+                    if let Some(text_buffer) = &text_buffer {
+                        node.set_source_range(text_buffer.source_range.clone());
+                    }
+
                     render_node(
-                        content.to_string(),
-                        node,
+                        text_buffer
+                            .clone()
+                            .map(|text_buffer| text_buffer.content)
+                            .unwrap_or_default(),
+                        &node,
                         width,
                         Span::default(),
                         &RenderStyle::Raw,

@@ -31,9 +31,9 @@ pub enum CursorMode {
 #[derive(Clone, Debug, Default)]
 pub struct Cursor {
     mode: CursorMode,
-    source_offset: usize,
-    virtual_line: usize,
-    virtual_column: usize,
+    pub source_offset: usize,
+    pub virtual_line: usize,
+    pub virtual_column: usize,
 }
 
 impl Cursor {
@@ -181,7 +181,7 @@ impl Cursor {
                 self.source_offset = self
                     .source_offset
                     .saturating_add(amount)
-                    .clamp(source_range.start, source_range.end.saturating_sub(1));
+                    .clamp(source_range.start, source_range.end);
 
                 if let Some(column) = self.find_source_column(line) {
                     self.virtual_column = column;

@@ -57,7 +57,6 @@ pub fn update<'a>(
         // TODO: Commented until editor functionality works
         // Message::CursorWordForward => state.cursor_word_forward(),
         // Message::CursorWordBackward => state.cursor_word_backward(),
-        // Message::Delete => state.delete_char(),
         // Message::SetRow(row) => state.set_row(*row),
         Message::CursorUp => {
             state.cursor_up(1);
@@ -92,15 +91,24 @@ pub fn update<'a>(
             // TODO: Commented until editor functionality works
             //         Message::ScrollUp(_) => state.cursor_up(),
             //         Message::ScrollDown(_) => state.cursor_down(),
-            //         Message::KeyEvent(key) => {
-            //             state.edit((*key).into());
-            //             return Some(AppMessage::UpdateSelectedNoteContent((
-            //                 state.content().to_string(),
-            //                 None,
-            //             )));
-            //         }
+            Message::KeyEvent(key) => {
+                match key.code {
+                    KeyCode::Char(c) => {
+                        state.insert_char(c);
+                    }
+                    _ => {}
+                }
+
+                // return Some(AppMessage::UpdateSelectedNoteContent((
+                //     state.content().to_string(),
+                //     None,
+                // )));
+            }
+            Message::Delete => {
+                state.delete_char();
+            }
             Message::Exit => {
-                // state.exit_insert();
+                state.exit_insert();
                 state.set_view(View::Read);
                 // return Some(AppMessage::UpdateSelectedNoteContent((
                 //     state.content().to_string(),
@@ -146,6 +154,8 @@ pub fn handle_editing_event(key: &KeyEvent) -> Option<Message> {
     match key.code {
         KeyCode::Up => Some(Message::CursorUp),
         KeyCode::Down => Some(Message::CursorDown),
+        KeyCode::Left => Some(Message::CursorLeft),
+        KeyCode::Right => Some(Message::CursorRight),
         KeyCode::Esc => Some(Message::Exit),
         KeyCode::Backspace => Some(Message::Delete),
         KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => {

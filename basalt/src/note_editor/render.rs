@@ -34,6 +34,68 @@ pub enum RenderStyle {
     Visual,
 }
 
+fn render_raw_text<'a>(
+    text: &str,
+    prefix: Span<'static>,
+    source_range: &SourceRange<usize>,
+    max_width: usize,
+) -> Vec<VirtualLine<'a>> {
+    let prefix_width = prefix.width();
+    let wrap_marker = "⤷ ";
+
+    let options =
+        textwrap::Options::new(max_width.saturating_sub(prefix_width + wrap_marker.len()))
+            .break_words(false);
+
+    let mut current_range_start = source_range.start;
+
+    textwrap::wrap(text.trim_end(), &options)
+        .iter()
+        .enumerate()
+        .map(|(i, line)| {
+            let line_byte_len = line.len();
+            let line_source_range =
+                current_range_start..((current_range_start + line_byte_len).min(source_range.end));
+            current_range_start += line_byte_len;
+
+            if i == 0 {
+                virtual_line!([
+                    synthetic_span!(prefix.clone()),
+                    content_span!(Span::raw(line.to_string()), line_source_range)
+                ])
+            } else {
+                virtual_line!([
+                    synthetic_span!(prefix.clone()),
+                    synthetic_span!(Span::styled(
+                        " ".repeat(prefix_width.saturating_sub(1).max(1)),
+                        prefix.style
+                    )),
+                    synthetic_span!(Span::styled(wrap_marker, Style::new().black())),
+                    content_span!(Span::raw(line.to_string()), line_source_range),
+                ])
+            }
+        })
+        .collect()
+}
+
+pub fn render_block_raw<'a>(
+    content: &str,
+    source_range: &SourceRange<usize>,
+    max_width: usize,
+    prefix: Span<'static>,
+) -> VirtualBlock<'a> {
+    let raw_text = extract_raw_text(content, source_range);
+    let lines = render_raw_text(&raw_text, prefix, source_range, max_width);
+    VirtualBlock::new(&lines, source_range)
+}
+
+fn extract_raw_text(content: &str, source_range: &SourceRange<usize>) -> String {
+    content
+        .get(source_range.clone())
+        .map(|s| s.to_string())
+        .unwrap_or_default()
+}
+
 // # Example:
 //
 // | Basalt is a TUI (Terminal User Interface)
@@ -108,9 +170,7 @@ pub fn heading<'a>(
     let text = text.to_string();
     let text = match option {
         RenderStyle::Visual => text,
-        RenderStyle::Raw => content
-            .get(source_range.clone())
-            .map_or(text, |source| source.into()),
+        RenderStyle::Raw => content.to_string(),
     };
     let prefix_width = prefix.width();
 
@@ -179,9 +239,8 @@ pub fn paragraph<'a>(
     let text = text.to_string();
     let text = match option {
         RenderStyle::Visual => text,
-        RenderStyle::Raw => content
-            .get(source_range.clone())
-            .map_or(text, |source| source.into()),
+        RenderStyle::Raw => content.to_string(), // .get(source_range.clone())
+                                                 // .map_or(text, |source| source.into()),
     };
 
     let mut lines = text_wrap(
@@ -214,9 +273,8 @@ pub fn code_block<'a>(
     let text = text.to_string();
     let text = match option {
         RenderStyle::Visual => text,
-        RenderStyle::Raw => content
-            .get(source_range.clone())
-            .map_or(text, |source| source.into()),
+        RenderStyle::Raw => content.to_string(), // .get(source_range.clone())
+                                                 // .map_or(text, |source| source.into()),
     };
 
     let padding_line = virtual_line!([
@@ -262,16 +320,25 @@ pub fn list<'a>(
     max_width: usize,
     option: &RenderStyle,
 ) -> VirtualBlock<'a> {
-    let mut lines: Vec<VirtualLine<'a>> = nodes
-        .iter()
-        .flat_map(|node| {
-            render_node(content.to_string(), node, max_width, prefix.clone(), option).lines
-        })
-        .collect();
+    let lines = match option {
+        RenderStyle::Raw => content
+            .lines()
+            .flat_map(|line| render_raw_text(line, prefix.clone(), source_range, max_width))
+            .collect(),
+        RenderStyle::Visual => {
+            let mut lines: Vec<VirtualLine<'a>> = nodes
+                .iter()
+                .flat_map(|node| {
+                    render_node(content.to_string(), node, max_width, prefix.clone(), option).lines
+                })
+                .collect();
 
-    if prefix.to_string().is_empty() {
-        lines.extend([empty_virtual_line!()]);
-    }
+            if prefix.to_string().is_empty() {
+                lines.extend([empty_virtual_line!()]);
+            }
+            lines
+        }
+    };
 
     VirtualBlock::new(&lines, source_range)
 }
@@ -292,9 +359,8 @@ pub fn task<'a>(
     let text = text.to_string();
     let text = match option {
         RenderStyle::Visual => text,
-        RenderStyle::Raw => content
-            .get(source_range.clone())
-            .map_or(text, |source| source.into()),
+        RenderStyle::Raw => content.to_string(), // .get(source_range.clone())
+                                                 // .map_or(text, |source| source.into()),
     };
     let (marker, text) = match kind {
         ast::TaskKind::Unchecked => ("□ ".dark_gray(), text.into()),
@@ -342,9 +408,8 @@ pub fn item<'a>(
 
     let text = match option {
         RenderStyle::Visual => text,
-        RenderStyle::Raw => content
-            .get(source_range.clone())
-            .map_or(text, |source| source.into()),
+        RenderStyle::Raw => content.to_string(), // .get(source_range.clone())
+                                                 // .map_or(text, |source| source.into()),
     };
 
     let lines = match option {
@@ -413,27 +478,33 @@ pub fn block_quote<'a>(
     max_width: usize,
     option: &RenderStyle,
 ) -> VirtualBlock<'a> {
-    let lines: Vec<VirtualLine<'a>> = nodes
-        .iter()
-        .enumerate()
-        .flat_map(|(i, node)| {
-            let mut lines = render_node(
-                content.to_string(),
-                node,
-                max_width,
-                prefix.merge(Span::raw("┃ ").magenta()),
-                option,
-            )
-            .lines;
-            if prefix.to_string().is_empty() && i != nodes.len().saturating_sub(1) {
-                lines.extend([virtual_line!([synthetic_span!(Span::raw("┃ ").magenta())])]);
-            }
-            if prefix.to_string().is_empty() && i == nodes.len().saturating_sub(1) {
-                lines.extend([empty_virtual_line!()]);
-            }
-            lines
-        })
-        .collect();
+    let lines = match option {
+        RenderStyle::Raw => content
+            .lines()
+            .flat_map(|line| render_raw_text(line, prefix.clone(), source_range, max_width))
+            .collect(),
+        RenderStyle::Visual => nodes
+            .iter()
+            .enumerate()
+            .flat_map(|(i, node)| {
+                let mut lines = render_node(
+                    content.to_string(),
+                    node,
+                    max_width,
+                    prefix.merge(Span::raw("┃ ").magenta()),
+                    option,
+                )
+                .lines;
+                if prefix.to_string().is_empty() && i != nodes.len().saturating_sub(1) {
+                    lines.extend([virtual_line!([synthetic_span!(Span::raw("┃ ").magenta())])]);
+                }
+                if prefix.to_string().is_empty() && i == nodes.len().saturating_sub(1) {
+                    lines.extend([empty_virtual_line!()]);
+                }
+                lines
+            })
+            .collect::<Vec<_>>(),
+    };
 
     VirtualBlock::new(&lines, source_range)
 }

@@ -225,7 +225,7 @@ impl<'a> App<'a> {
     }
 
     #[rustfmt::skip]
-    fn handle_active_component_event(config: &'a Config, _state: &AppState<'_>, key: &KeyEvent, active_component: ActivePane) -> Option<Message<'a>> {
+    fn handle_active_component_event(config: &'a Config, state: &AppState<'_>, key: &KeyEvent, active_component: ActivePane) -> Option<Message<'a>> {
         match active_component {
             ActivePane::Splash => config.splash.key_to_message(key.into()),
             ActivePane::Explorer => config.explorer.key_to_message(key.into()),
@@ -233,12 +233,12 @@ impl<'a> App<'a> {
             ActivePane::HelpModal => config.help_modal.key_to_message(key.into()),
             ActivePane::VaultSelectorModal => config.vault_selector_modal.key_to_message(key.into()),
             ActivePane::NoteEditor => {
-                    // if state.note_editor.is_editing() {
-                    //     note_editor::handle_editing_event(key).map(Message::NoteEditor)
-                    // } else {
-                    config.note_editor.key_to_message(key.into())
-                // }
-            },
+                    if state.note_editor.is_editing() {
+                        note_editor::handle_editing_event(key).map(Message::NoteEditor)
+                    } else {
+                        config.note_editor.key_to_message(key.into())
+                    }
+            }
         }
     }
 
