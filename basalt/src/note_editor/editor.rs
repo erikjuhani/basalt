@@ -18,7 +18,9 @@ use ratatui::{
 
 use crate::note_editor::{
     ast::{self, SourceRange},
-    cursor::{Cursor, CursorMove, CursorWidget},
+    cursor::{
+        offset_to_virtual_line, offset_to_virtual_position, Cursor, CursorMove, CursorWidget,
+    },
     parser,
     virtual_document::VirtualDocument,
 };
@@ -96,20 +98,28 @@ impl TextBuffer {
         }
     }
 
-    pub fn insert_char(&mut self, c: char, idx: usize) {
-        self.content
-            .insert(idx.saturating_sub(self.source_range.start), c);
-        self.source_range.end += c.len_utf8();
+    pub fn insert_char(&mut self, c: char, idx: usize, offset: usize) {
+        let char_idx = idx.saturating_sub(self.source_range.start) + offset;
 
+        let byte_idx = self
+            .content
+            .char_indices()
+            .nth(char_idx)
+            .map(|(i, _)| i)
+            .unwrap_or(self.content.len());
+
+        self.content.insert(byte_idx, c);
+        self.source_range.end += 1;
         self.modified = true;
     }
 
-    pub fn delete_char(&mut self, idx: usize) {
-        self.content
-            .remove(idx.saturating_sub(self.source_range.start));
-        self.source_range.end = self.source_range.end.saturating_sub(1);
-
-        self.modified = true;
+    pub fn delete_char(&mut self, idx: usize, offset: usize) {
+        let char_idx = idx.saturating_sub(self.source_range.start) + offset;
+        if let Some((byte_idx, _)) = self.content.char_indices().nth(char_idx) {
+            self.content.remove(byte_idx);
+            self.source_range.end = self.source_range.end.saturating_sub(1);
+            self.modified = true;
+        }
     }
 
     pub fn write(&self, original_content: &str) -> String {
@@ -190,74 +200,38 @@ impl<'a> State<'a> {
             }
         }
 
-        // Clear the edit buffer after exiting insert mode
         self.edit_buffer = None;
     }
 
     pub fn insert_char(&mut self, c: char) {
+        let block_idx = self.current_block();
         if let Some(buffer) = &mut self.edit_buffer {
-            buffer.insert_char(c, self.cursor.source_offset());
-            // if let Some(block) = self.virtual_document.get_mut_block(self.current_block()) {
-            //     block.source_range =
-            //         block.source_range.start..block.source_range.end.saturating_add(1)
-            // }
-            self.cursor_right();
+            if let Some((_, block)) = self.virtual_document.get_block(block_idx) {
+                if let Some(row) =
+                    offset_to_virtual_line(self.cursor.source_offset(), block.lines())
+                {
+                    buffer.insert_char(c, self.cursor.source_offset(), row);
+                    self.update_layout();
+                    // TODO: I need to figure out when a newline is formed
+                    if row < self.cursor.virtual_line {
+                        self.cursor_right();
+                    } else {
+                        self.cursor_right();
+                    }
+                }
+            }
         }
     }
 
     pub fn delete_char(&mut self) {
-        if let Some(buffer) = &mut self.edit_buffer {
-            buffer.delete_char(self.cursor.source_offset().saturating_sub(1));
-            self.cursor_left();
-        }
-        // if self.cursor.source_offset() == 0 {
-        //     return;
-        // }
-        //
-        // self.content
-        //     .remove(self.cursor.source_offset().saturating_sub(1));
-        //
-        // self.cursor_left();
-
-        // let block_idx = self.current_block();
-        //
-        // if let Some(block) = self.virtual_document.get_mut_block(block_idx) {
-        //     block.source_range =
-        //         block.source_range.start..(block.source_range.end.saturating_sub(1));
-        // }
-        // self.expand_current_block_range(-1);
-        // self.update_layout();
-    }
-
-    fn expand_current_block_range(&mut self, delta: i32) {
         let block_idx = self.current_block();
-
-        if let Some(block) = self.virtual_document.get_mut_block(block_idx) {
-            let new_end = (block.source_range.end as i32 + delta)
-                .max(block.source_range.start as i32) as usize;
-            block.source_range = block.source_range.start..new_end;
-        }
-
-        // Also update the AST node's source range
-        if let Some(node) = self.ast_nodes.get_mut(block_idx) {
-            Self::expand_node_range(node, delta);
-        }
-    }
-
-    fn expand_node_range(node: &mut ast::Node, delta: i32) {
-        use ast::Node::*;
-
-        match node {
-            Heading { source_range, .. }
-            | Paragraph { source_range, .. }
-            | CodeBlock { source_range, .. }
-            | List { source_range, .. }
-            | Item { source_range, .. }
-            | Task { source_range, .. }
-            | BlockQuote { source_range, .. } => {
-                let new_end =
-                    (source_range.end as i32 + delta).max(source_range.start as i32) as usize;
-                source_range.end = new_end;
+        if let Some(buffer) = &mut self.edit_buffer {
+            if let Some((_, block)) = self.virtual_document.get_block(block_idx) {
+                if let Some((line_idx, _)) = self.cursor.find_source_line(block.lines()) {
+                    buffer.delete_char(self.cursor.source_offset().saturating_sub(1), line_idx);
+                    self.update_layout();
+                    self.cursor_left();
+                }
             }
         }
     }
@@ -279,12 +253,10 @@ impl<'a> State<'a> {
     }
 
     pub fn set_view(&mut self, view: View) {
-        // Capture the current block BEFORE changing view and layout
         let block_idx = self.current_block();
 
         self.view = view;
 
-        // If entering edit mode, create the buffer BEFORE layout
         if matches!(self.view, View::Edit(..)) {
             self.enter_insert(block_idx);
         }
@@ -348,13 +320,42 @@ impl<'a> State<'a> {
     pub fn cursor_left(&mut self) {
         self.cursor
             .move_action(CursorMove::Left(1), self.virtual_document.lines());
-
+        // In edit mode, use the current block's lines (which are in raw mode)
+        // In read mode, use the full document lines (which are all in visual mode)
+        // let lines = if matches!(self.view, View::Edit(..)) {
+        //     if let Some((_, block)) = self.virtual_document.get_block(self.current_block()) {
+        //         block.lines()
+        //     } else {
+        //         self.virtual_document.lines()
+        //     }
+        // } else {
+        //     self.virtual_document.lines()
+        // };
+        //
+        // self.cursor.move_action(CursorMove::Left(1), lines);
+        //
         // if matches!(self.view, View::Edit(..)) {
-        //     if let Some((line_idx, _)) =
+        //     if let Some((line_idx, line)) =
         //         self.cursor.find_source_line(self.virtual_document.lines())
         //     {
         //         self.cursor.virtual_line = line_idx;
+        //         if let Some(column) = self.cursor.find_source_column(line) {
+        //             self.cursor.virtual_column = column;
+        //         }
         //     }
+        // }
+    }
+
+    pub fn cursor_right_insert(&mut self) {
+        self.cursor
+            .cursor_right_after_insert(self.virtual_document.lines());
+
+        // if let Some((row, col)) = offset_to_virtual_position(
+        //     self.cursor.source_offset(),
+        //     self.virtual_document.lines(),
+        // ) {
+        //     self.cursor.virtual_line = row;
+        //     self.cursor.virtual_column = col;
         // }
     }
 
@@ -362,12 +363,12 @@ impl<'a> State<'a> {
         self.cursor
             .move_action(CursorMove::Right(1), self.virtual_document.lines());
 
-        // if matches!(self.view, View::Edit(..)) {
-        //     if let Some((line_idx, _)) =
-        //         self.cursor.find_source_line(self.virtual_document.lines())
-        //     {
-        //         self.cursor.virtual_line = line_idx;
-        //     }
+        // if let Some((row, col)) = offset_to_virtual_position(
+        //     self.cursor.source_offset(),
+        //     self.virtual_document.lines(),
+        // ) {
+        //     self.cursor.virtual_line = row;
+        //     self.cursor.virtual_column = col;
         // }
     }
 

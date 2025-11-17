@@ -1,11 +1,14 @@
+use std::ops::ControlFlow;
+
 use ratatui::{
     buffer::Buffer,
     layout::{Offset, Rect},
     style::{Style, Stylize},
     widgets::StatefulWidget,
 };
+use unicode_width::UnicodeWidthChar;
 
-use crate::note_editor::virtual_document::{VirtualDocument, VirtualLine};
+use crate::note_editor::virtual_document::{VirtualDocument, VirtualLine, VirtualSpan};
 
 #[derive(Clone, Debug)]
 pub enum CursorMove {
@@ -34,6 +37,76 @@ pub struct Cursor {
     pub source_offset: usize,
     pub virtual_line: usize,
     pub virtual_column: usize,
+}
+
+pub fn offset_to_virtual_line<'a>(offset: usize, lines: &[VirtualLine<'a>]) -> Option<usize> {
+    lines.iter().enumerate().find_map(|(row, line)| {
+        let source_range = line.source_range()?;
+        (offset >= source_range.start && offset < source_range.end).then_some(row)
+    })
+}
+
+pub fn offset_to_virtual_column<'a>(offset: usize, line: &VirtualLine<'a>) -> Option<usize> {
+    let virtual_col = line.virtual_spans().iter().try_fold(0, |acc, span| {
+        match span
+            .source_range()
+            .filter(|span_range| offset >= span_range.start && offset <= span_range.end)
+        {
+            Some(source_range) => {
+                let idx = offset.saturating_sub(source_range.start);
+                let n = span
+                    .chars()
+                    .take(idx)
+                    .map(|c| c.width().unwrap_or_default())
+                    .sum::<usize>();
+
+                ControlFlow::Break(acc + n)
+            }
+            _ => ControlFlow::Continue(acc + span.width()),
+        }
+    });
+
+    match virtual_col {
+        ControlFlow::Break(col) => Some(col),
+        _ => None,
+    }
+}
+
+pub fn offset_to_virtual_position<'a>(
+    offset: usize,
+    lines: &[VirtualLine<'a>],
+) -> Option<(usize, usize)> {
+    lines.iter().enumerate().find_map(|(row, line)| {
+        let line_range = line.source_range()?;
+
+        if offset >= line_range.start && offset <= line_range.end {
+            let virtual_col = line.virtual_spans().iter().try_fold(0, |acc, span| {
+                match span
+                    .source_range()
+                    .filter(|span_range| offset >= span_range.start && offset < span_range.end)
+                {
+                    Some(source_range) => {
+                        let idx = offset.saturating_sub(source_range.start);
+                        let n = span
+                            .chars()
+                            .take(idx)
+                            .map(|c| c.width().unwrap_or_default())
+                            .sum::<usize>();
+
+                        ControlFlow::Break(acc + n)
+                    }
+                    _ => ControlFlow::Continue(acc + span.width()),
+                }
+            });
+
+            match virtual_col {
+                ControlFlow::Break(col) => Some((row, col)),
+                _ => None,
+            }
+        } else {
+            None
+        }
+    })
 }
 
 impl Cursor {
@@ -118,10 +191,9 @@ impl Cursor {
                 .source_offset
                 .clamp(source_range.start, source_range.end);
 
-            if let Some((_, line)) = self.find_source_line(block.lines()) {
-                if let Some(column) = self.find_source_column(line) {
-                    self.virtual_column = column;
-                }
+            if let Some((_, col)) = offset_to_virtual_position(self.source_offset(), block.lines())
+            {
+                self.virtual_column = col;
             }
 
             self.mode = CursorMode::Edit;
@@ -134,7 +206,8 @@ impl Cursor {
     ) -> Option<(usize, VirtualLine<'a>)> {
         for (idx, line) in lines.iter().enumerate() {
             if let Some(source_range) = line.source_range() {
-                if source_range.start <= self.source_offset && self.source_offset < source_range.end
+                if source_range.start <= self.source_offset
+                    && self.source_offset <= source_range.end
                 {
                     return Some((idx, line.clone()));
                 }
@@ -149,7 +222,8 @@ impl Cursor {
 
         for span in line.virtual_spans() {
             if let Some(source_range) = span.source_range() {
-                if source_range.start <= self.source_offset && self.source_offset < source_range.end
+                if source_range.start <= self.source_offset
+                    && self.source_offset <= source_range.end
                 {
                     return Some(width + self.source_offset.saturating_sub(source_range.start));
                 }
@@ -163,38 +237,77 @@ impl Cursor {
     pub fn cursor_left(&mut self, amount: usize, lines: &[VirtualLine]) {
         self.source_offset = self.source_offset.saturating_sub(amount);
 
-        if let Some((line_idx, line)) = self.find_source_line(lines) {
-            if let Some(source_range) = line.source_range() {
-                self.source_offset = self
-                    .source_offset
-                    .clamp(source_range.start, source_range.end.saturating_sub(1));
+        // if let Some((row, col)) = offset_to_virtual_position(self.source_offset(), lines) {
+        //     self.virtual_column = col;
+        //     self.virtual_line = row;
+        // }
+
+        if let Some(row) = offset_to_virtual_line(self.source_offset, lines) {
+            if let Some(line) = lines.get(row) {
+                //     if row < self.virtual_line() {
+                //         // TODO: This should be fixed after I figure out how to allow deleting past the
+                //         // last character / allow deleting the last character.
+                //         // For now we move backwards one byte index to allow users to keep deleting even if
+                //         // the line was wrapped.
+                //         self.source_offset += 1;
+                //     }
+                if let Some(col) = offset_to_virtual_column(self.source_offset, line) {
+                    self.virtual_column = col;
+                }
+            }
+            self.virtual_line = row;
+        }
+
+        // if let Some((line_idx, line)) = self.find_source_line(lines) {
+        //     if let Some(source_range) = line.source_range() {
+        //         self.source_offset = self
+        //             .source_offset
+        //             .clamp(source_range.start, source_range.end.saturating_sub(1));
+        //     }
+        //
+        //     if let Some(column) = self.find_source_column(line) {
+        //         self.virtual_column = column;
+        //     }
+        //
+        //     self.virtual_line = line_idx;
+        // }
+    }
+
+    pub fn cursor_right_after_insert(&mut self, lines: &[VirtualLine]) {
+        self.source_offset = self.source_offset.saturating_add(1);
+
+        if let Some(row) = offset_to_virtual_line(self.source_offset, lines) {
+            if row > self.virtual_line() {
+                self.virtual_line += 1;
+                self.source_offset -= 1;
             }
 
-            if let Some(column) = self.find_source_column(line) {
-                self.virtual_column = column;
+            if let Some(line) = lines.get(self.virtual_line) {
+                if let Some(col) = offset_to_virtual_column(self.source_offset, line) {
+                    self.virtual_column = col;
+                }
             }
-
-            self.virtual_line = line_idx;
         }
     }
 
     pub fn cursor_right(&mut self, amount: usize, lines: &[VirtualLine]) {
         self.source_offset = self.source_offset.saturating_add(amount);
 
-        if let Some((line_idx, line)) = self.find_source_line(lines) {
-            if let Some(source_range) = line.source_range() {
-                self.source_offset = self
-                    .source_offset
-                    .clamp(source_range.start, source_range.end);
+        if let Some(row) = offset_to_virtual_line(self.source_offset, lines) {
+            if row > self.virtual_line() {
+                self.virtual_line += 1;
             }
 
-            if let Some(column) = self.find_source_column(line) {
-                self.virtual_column = column;
+            if let Some(line) = lines.get(row) {
+                if let Some(col) = offset_to_virtual_column(self.source_offset, line) {
+                    self.virtual_column = col;
+                    self.virtual_line = row
+                }
             }
-
-            self.virtual_line = line_idx;
         }
     }
+
+    // pub fn offset_to_virtual(offset: usize) -> (usize, usize) {}
 
     /// (virtual_line, source_offset_start)
     pub fn next_available_line(

@@ -3,6 +3,8 @@ use ratatui::{
     text::{Span, ToSpan},
 };
 
+use unicode_width::UnicodeWidthStr;
+
 use crate::{
     note_editor::{
         ast::{self, SourceRange},
@@ -34,34 +36,97 @@ pub enum RenderStyle {
     Visual,
 }
 
-fn render_raw_text<'a>(
-    text: &str,
+// Internal consolidated text wrapping function
+fn text_wrap_internal<'a>(
+    text_content: &str,
+    text_style: Style,
     prefix: Span<'static>,
     source_range: &SourceRange<usize>,
-    max_width: usize,
+    width: usize,
+    marker: Option<Span<'static>>,
+    option: &RenderStyle,
+    show_debug_ranges: bool,
 ) -> Vec<VirtualLine<'a>> {
     let prefix_width = prefix.width();
     let wrap_marker = "⤷ ";
 
-    let options =
-        textwrap::Options::new(max_width.saturating_sub(prefix_width + wrap_marker.len()))
-            .break_words(false);
+    let show_debug_ranges = false;
+
+    let debug_suffix_len = if show_debug_ranges {
+        format!(" ({:?})", source_range).len()
+    } else {
+        0
+    };
+
+    let options = textwrap::Options::new(
+        width.saturating_sub(prefix_width + wrap_marker.width() + debug_suffix_len + 1),
+    )
+    .wrap_algorithm(textwrap::WrapAlgorithm::FirstFit)
+    .break_words(false);
+
+    let wrapped_lines = textwrap::wrap(text_content.trim_end(), &options);
 
     let mut current_range_start = source_range.start;
 
-    textwrap::wrap(text.trim_end(), &options)
+    wrapped_lines
         .iter()
         .enumerate()
         .map(|(i, line)| {
-            let line_byte_len = line.len();
+            let line_byte_len = line.width();
+
             let line_source_range =
-                current_range_start..((current_range_start + line_byte_len).min(source_range.end));
+                current_range_start..(current_range_start + line_byte_len).min(source_range.end);
+
             current_range_start += line_byte_len;
 
             if i == 0 {
+                match (&marker, show_debug_ranges) {
+                    (Some(m), true) if *option == RenderStyle::Visual => virtual_line!([
+                        synthetic_span!(prefix.clone()),
+                        synthetic_span!(m.clone()),
+                        content_span!(
+                            Span::styled(line.to_string(), text_style),
+                            line_source_range.clone()
+                        ),
+                        synthetic_span!(format!(" ({:?})", line_source_range))
+                    ]),
+                    (Some(m), false) if *option == RenderStyle::Visual => virtual_line!([
+                        synthetic_span!(prefix.clone()),
+                        synthetic_span!(m.clone()),
+                        content_span!(
+                            Span::styled(line.to_string(), text_style),
+                            line_source_range
+                        )
+                    ]),
+                    (_, true) => virtual_line!([
+                        synthetic_span!(prefix.clone()),
+                        content_span!(
+                            Span::styled(line.to_string(), text_style),
+                            line_source_range.clone()
+                        ),
+                        synthetic_span!(format!(" ({:?})", line_source_range))
+                    ]),
+                    (_, false) => virtual_line!([
+                        synthetic_span!(prefix.clone()),
+                        content_span!(
+                            Span::styled(line.to_string(), text_style),
+                            line_source_range
+                        )
+                    ]),
+                }
+            } else if show_debug_ranges {
                 virtual_line!([
                     synthetic_span!(prefix.clone()),
-                    content_span!(Span::raw(line.to_string()), line_source_range)
+                    synthetic_span!(Span::styled(
+                        " ".repeat(prefix_width.saturating_sub(1).max(1)),
+                        prefix.style
+                    )),
+                    synthetic_span!(Span::styled(wrap_marker, Style::new().black())),
+                    content_span!(
+                        Span::styled(line.to_string(), text_style),
+                        line_source_range.clone()
+                    ),
+                    synthetic_span!(format!(" ({:?})", line_source_range))
                 ])
             } else {
                 virtual_line!([
@@ -71,29 +136,32 @@ fn render_raw_text<'a>(
                         prefix.style
                     )),
                     synthetic_span!(Span::styled(wrap_marker, Style::new().black())),
-                    content_span!(Span::raw(line.to_string()), line_source_range),
+                    content_span!(
+                        Span::styled(line.to_string(), text_style),
+                        line_source_range
+                    )
                 ])
             }
         })
         .collect()
 }
 
-pub fn render_block_raw<'a>(
-    content: &str,
+fn render_raw_text<'a>(
+    text: &str,
+    prefix: Span<'static>,
     source_range: &SourceRange<usize>,
     max_width: usize,
-    prefix: Span<'static>,
-) -> VirtualBlock<'a> {
-    let raw_text = extract_raw_text(content, source_range);
-    let lines = render_raw_text(&raw_text, prefix, source_range, max_width);
-    VirtualBlock::new(&lines, source_range)
-}
-
-fn extract_raw_text(content: &str, source_range: &SourceRange<usize>) -> String {
-    content
-        .get(source_range.clone())
-        .map(|s| s.to_string())
-        .unwrap_or_default()
+) -> Vec<VirtualLine<'a>> {
+    text_wrap_internal(
+        text,
+        Style::default(),
+        prefix,
+        source_range,
+        max_width,
+        None,
+        &RenderStyle::Raw,
+        true,
+    )
 }
 
 // # Example:
@@ -112,48 +180,16 @@ pub fn text_wrap<'a>(
     marker: Option<Span<'static>>,
     option: &RenderStyle,
 ) -> Vec<VirtualLine<'a>> {
-    let prefix_width = prefix.width();
-    let wrap_marker = "⤷ ";
-
-    let options = textwrap::Options::new(width.saturating_sub(prefix_width + wrap_marker.len()))
-        .break_words(false);
-
-    let mut current_range_start = source_range.start;
-
-    textwrap::wrap(text.content.trim_end(), &options)
-        .iter()
-        .enumerate()
-        .map(|(i, line)| {
-            let line_byte_len = line.len();
-            let source_range =
-                current_range_start..((current_range_start + line_byte_len).min(source_range.end));
-            current_range_start += line_byte_len;
-
-            if i == 0 {
-                match &marker {
-                    Some(marker) if *option == RenderStyle::Visual => virtual_line!([
-                        synthetic_span!(prefix.clone()),
-                        synthetic_span!(marker.clone()),
-                        content_span!(Span::styled(line.to_string(), text.style), source_range)
-                    ]),
-                    _ => virtual_line!([
-                        synthetic_span!(prefix.clone()),
-                        content_span!(Span::styled(line.to_string(), text.style), source_range)
-                    ]),
-                }
-            } else {
-                virtual_line!([
-                    synthetic_span!(prefix.clone()),
-                    synthetic_span!(Span::styled(
-                        " ".repeat(prefix_width.saturating_sub(1).max(1)),
-                        prefix.style
-                    )),
-                    synthetic_span!(Span::styled(wrap_marker, Style::new().black())),
-                    content_span!(Span::styled(line.to_string(), text.style), source_range),
-                ])
-            }
-        })
-        .collect()
+    text_wrap_internal(
+        &text.content,
+        text.style,
+        prefix,
+        source_range,
+        width,
+        marker,
+        option,
+        true,
+    )
 }
 
 pub fn heading<'a>(
@@ -590,5 +626,19 @@ pub fn render_node<'a>(
             max_width,
             option,
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::note_editor::{
+        parser,
+        render::{render_node, render_raw_text, text_wrap},
+    };
+
+    #[test]
+    fn test_raw_text_wrap() {
+        let content = "This is a paragraph that will be wrapped into multiple lines.";
+        let node = &parser::from_str(content)[0];
     }
 }
