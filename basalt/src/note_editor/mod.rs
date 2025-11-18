@@ -6,6 +6,7 @@ mod render;
 mod rich_text;
 mod state;
 mod text_buffer;
+mod text_wrap;
 mod virtual_document;
 
 use ratatui::{

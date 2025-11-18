@@ -18,9 +18,7 @@ use ratatui::{
 
 use crate::note_editor::{
     ast::{self, SourceRange},
-    cursor::{
-        offset_to_virtual_line, offset_to_virtual_position, Cursor, CursorMove, CursorWidget,
-    },
+    cursor::{Cursor, CursorMove, CursorWidget},
     parser,
     virtual_document::VirtualDocument,
 };
@@ -98,8 +96,8 @@ impl TextBuffer {
         }
     }
 
-    pub fn insert_char(&mut self, c: char, idx: usize, offset: usize) {
-        let char_idx = idx.saturating_sub(self.source_range.start) + offset;
+    pub fn insert_char(&mut self, c: char, idx: usize) {
+        let char_idx = idx.saturating_sub(self.source_range.start);
 
         let byte_idx = self
             .content
@@ -113,8 +111,8 @@ impl TextBuffer {
         self.modified = true;
     }
 
-    pub fn delete_char(&mut self, idx: usize, offset: usize) {
-        let char_idx = idx.saturating_sub(self.source_range.start) + offset;
+    pub fn delete_char(&mut self, idx: usize) {
+        let char_idx = idx.saturating_sub(self.source_range.start);
         if let Some((byte_idx, _)) = self.content.char_indices().nth(char_idx) {
             self.content.remove(byte_idx);
             self.source_range.end = self.source_range.end.saturating_sub(1);
@@ -204,35 +202,18 @@ impl<'a> State<'a> {
     }
 
     pub fn insert_char(&mut self, c: char) {
-        let block_idx = self.current_block();
         if let Some(buffer) = &mut self.edit_buffer {
-            if let Some((_, block)) = self.virtual_document.get_block(block_idx) {
-                if let Some(row) =
-                    offset_to_virtual_line(self.cursor.source_offset(), block.lines())
-                {
-                    buffer.insert_char(c, self.cursor.source_offset(), row);
-                    self.update_layout();
-                    // TODO: I need to figure out when a newline is formed
-                    if row < self.cursor.virtual_line {
-                        self.cursor_right();
-                    } else {
-                        self.cursor_right();
-                    }
-                }
-            }
+            buffer.insert_char(c, self.cursor.source_offset());
+            self.update_layout();
+            self.cursor_right();
         }
     }
 
     pub fn delete_char(&mut self) {
-        let block_idx = self.current_block();
         if let Some(buffer) = &mut self.edit_buffer {
-            if let Some((_, block)) = self.virtual_document.get_block(block_idx) {
-                if let Some((line_idx, _)) = self.cursor.find_source_line(block.lines()) {
-                    buffer.delete_char(self.cursor.source_offset().saturating_sub(1), line_idx);
-                    self.update_layout();
-                    self.cursor_left();
-                }
-            }
+            buffer.delete_char(self.cursor.source_offset().saturating_sub(1));
+            self.update_layout();
+            self.cursor_left();
         }
     }
 
@@ -318,8 +299,11 @@ impl<'a> State<'a> {
     }
 
     pub fn cursor_left(&mut self) {
-        self.cursor
-            .move_action(CursorMove::Left(1), self.virtual_document.lines());
+        self.cursor.move_action(
+            CursorMove::Left(1),
+            self.virtual_document.lines(),
+            &self.edit_buffer,
+        );
         // In edit mode, use the current block's lines (which are in raw mode)
         // In read mode, use the full document lines (which are all in visual mode)
         // let lines = if matches!(self.view, View::Edit(..)) {
@@ -346,22 +330,12 @@ impl<'a> State<'a> {
         // }
     }
 
-    pub fn cursor_right_insert(&mut self) {
-        self.cursor
-            .cursor_right_after_insert(self.virtual_document.lines());
-
-        // if let Some((row, col)) = offset_to_virtual_position(
-        //     self.cursor.source_offset(),
-        //     self.virtual_document.lines(),
-        // ) {
-        //     self.cursor.virtual_line = row;
-        //     self.cursor.virtual_column = col;
-        // }
-    }
-
     pub fn cursor_right(&mut self) {
-        self.cursor
-            .move_action(CursorMove::Right(1), self.virtual_document.lines());
+        self.cursor.move_action(
+            CursorMove::Right(1),
+            self.virtual_document.lines(),
+            &self.edit_buffer,
+        );
 
         // if let Some((row, col)) = offset_to_virtual_position(
         //     self.cursor.source_offset(),
@@ -412,8 +386,11 @@ impl<'a> State<'a> {
             );
         }
 
-        self.cursor
-            .move_action(CursorMove::Up(amount), self.virtual_document.lines());
+        self.cursor.move_action(
+            CursorMove::Up(amount),
+            self.virtual_document.lines(),
+            &self.edit_buffer,
+        );
 
         // Re-layout if we're in edit mode
         if matches!(self.view, View::Edit(..)) {
@@ -461,8 +438,11 @@ impl<'a> State<'a> {
             );
         }
 
-        self.cursor
-            .move_action(CursorMove::Down(amount), self.virtual_document.lines());
+        self.cursor.move_action(
+            CursorMove::Down(amount),
+            self.virtual_document.lines(),
+            &self.edit_buffer,
+        );
 
         // Re-layout if we're in edit mode
         if matches!(self.view, View::Edit(..)) {
@@ -491,6 +471,15 @@ impl<'a> State<'a> {
                 .saturating_sub(self.virtual_document.meta().len() as u16) as usize
         {
             self.viewport.scroll_by((diff, 0));
+        }
+
+        if self.cursor.virtual_column() >= self.viewport.width.into() {
+            self.viewport.scroll_by((
+                0,
+                self.viewport
+                    .width
+                    .saturating_sub(self.cursor.virtual_column() as u16) as i32,
+            ));
         }
     }
 }

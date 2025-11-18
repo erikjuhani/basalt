@@ -19,7 +19,7 @@ macro_rules! content_span {
 
 macro_rules! synthetic_span {
     ($span:expr) => {{
-        VirtualSpan::Synthetic($span.into())
+        VirtualSpan::Synthetic($span.clone().into())
     }};
 }
 

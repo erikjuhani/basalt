@@ -8,7 +8,10 @@ use ratatui::{
 };
 use unicode_width::UnicodeWidthChar;
 
-use crate::note_editor::virtual_document::{VirtualDocument, VirtualLine, VirtualSpan};
+use crate::note_editor::{
+    editor::TextBuffer,
+    virtual_document::{VirtualDocument, VirtualLine},
+};
 
 #[derive(Clone, Debug)]
 pub enum CursorMove {
@@ -42,6 +45,8 @@ pub struct Cursor {
 pub fn offset_to_virtual_line<'a>(offset: usize, lines: &[VirtualLine<'a>]) -> Option<usize> {
     lines.iter().enumerate().find_map(|(row, line)| {
         let source_range = line.source_range()?;
+        // FIXME: A minor bug happens if user writes whitespace on a line and a word is then wrapped to
+        // next line. The cursor is also wrapped to next line.
         (offset >= source_range.start && offset < source_range.end).then_some(row)
     })
 }
@@ -133,7 +138,12 @@ impl Cursor {
         self.virtual_column
     }
 
-    pub fn move_action(&mut self, move_action: CursorMove, lines: &[VirtualLine]) {
+    pub fn move_action(
+        &mut self,
+        move_action: CursorMove,
+        lines: &[VirtualLine],
+        buffer: &Option<TextBuffer>,
+    ) {
         use CursorMove::*;
 
         match move_action {
@@ -153,10 +163,14 @@ impl Cursor {
                 self.cursor_down(amount, lines);
             }
             Left(amount) => {
-                self.cursor_left(amount, lines);
+                if let Some(text_buffer) = buffer {
+                    self.cursor_left(amount, lines, text_buffer);
+                }
             }
             Right(amount) => {
-                self.cursor_right(amount, lines);
+                if let Some(text_buffer) = buffer {
+                    self.cursor_right(amount, lines, text_buffer);
+                }
             }
             WordForward | WordBackward => {}
             _ => {}
@@ -164,8 +178,8 @@ impl Cursor {
     }
 
     pub fn enter_read_mode(&mut self, virtual_document: &VirtualDocument) {
-        if let Some((line, _)) = self.find_source_line(virtual_document.lines()) {
-            self.virtual_line = line;
+        if let Some(row) = offset_to_virtual_line(self.source_offset(), virtual_document.lines()) {
+            self.virtual_line = row;
         } else if let Some((next_line, source_offset)) =
             self.prev_available_line(0, virtual_document.lines())
         {
@@ -234,70 +248,29 @@ impl Cursor {
         None
     }
 
-    pub fn cursor_left(&mut self, amount: usize, lines: &[VirtualLine]) {
-        self.source_offset = self.source_offset.saturating_sub(amount);
-
-        // if let Some((row, col)) = offset_to_virtual_position(self.source_offset(), lines) {
-        //     self.virtual_column = col;
-        //     self.virtual_line = row;
-        // }
+    pub fn cursor_left(&mut self, amount: usize, lines: &[VirtualLine], buffer: &TextBuffer) {
+        self.source_offset = self
+            .source_offset
+            .saturating_sub(amount)
+            .max(buffer.source_range.start);
 
         if let Some(row) = offset_to_virtual_line(self.source_offset, lines) {
             if let Some(line) = lines.get(row) {
-                //     if row < self.virtual_line() {
-                //         // TODO: This should be fixed after I figure out how to allow deleting past the
-                //         // last character / allow deleting the last character.
-                //         // For now we move backwards one byte index to allow users to keep deleting even if
-                //         // the line was wrapped.
-                //         self.source_offset += 1;
-                //     }
                 if let Some(col) = offset_to_virtual_column(self.source_offset, line) {
                     self.virtual_column = col;
                 }
             }
             self.virtual_line = row;
         }
-
-        // if let Some((line_idx, line)) = self.find_source_line(lines) {
-        //     if let Some(source_range) = line.source_range() {
-        //         self.source_offset = self
-        //             .source_offset
-        //             .clamp(source_range.start, source_range.end.saturating_sub(1));
-        //     }
-        //
-        //     if let Some(column) = self.find_source_column(line) {
-        //         self.virtual_column = column;
-        //     }
-        //
-        //     self.virtual_line = line_idx;
-        // }
     }
 
-    pub fn cursor_right_after_insert(&mut self, lines: &[VirtualLine]) {
-        self.source_offset = self.source_offset.saturating_add(1);
+    pub fn cursor_right(&mut self, amount: usize, lines: &[VirtualLine], buffer: &TextBuffer) {
+        self.source_offset = self
+            .source_offset
+            .saturating_add(amount)
+            .min(buffer.source_range.end.saturating_sub(1));
 
         if let Some(row) = offset_to_virtual_line(self.source_offset, lines) {
-            if row > self.virtual_line() {
-                self.virtual_line += 1;
-                self.source_offset -= 1;
-            }
-
-            if let Some(line) = lines.get(self.virtual_line) {
-                if let Some(col) = offset_to_virtual_column(self.source_offset, line) {
-                    self.virtual_column = col;
-                }
-            }
-        }
-    }
-
-    pub fn cursor_right(&mut self, amount: usize, lines: &[VirtualLine]) {
-        self.source_offset = self.source_offset.saturating_add(amount);
-
-        if let Some(row) = offset_to_virtual_line(self.source_offset, lines) {
-            if row > self.virtual_line() {
-                self.virtual_line += 1;
-            }
-
             if let Some(line) = lines.get(row) {
                 if let Some(col) = offset_to_virtual_column(self.source_offset, line) {
                     self.virtual_column = col;
@@ -306,8 +279,6 @@ impl Cursor {
             }
         }
     }
-
-    // pub fn offset_to_virtual(offset: usize) -> (usize, usize) {}
 
     /// (virtual_line, source_offset_start)
     pub fn next_available_line(
@@ -505,72 +476,4 @@ impl StatefulWidget for CursorWidget {
             }
         }
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::note_editor::{
-        cursor::Cursor,
-        virtual_document::{content_span, synthetic_span, virtual_line, VirtualLine, VirtualSpan},
-    };
-
-    #[test]
-    fn t0() {
-        let mut cursor = Cursor::new(4);
-        let lines = [virtual_line!([
-            synthetic_span!(" > "),
-            content_span!("Hello World", 0..11)
-        ])];
-
-        let y = cursor.find_source_line(&lines).unwrap();
-        let x = cursor.find_source_column(y.1);
-
-        assert_eq!(x, Some(7));
-    }
-
-    // #[test]
-    // fn t1() {
-    //     let mut cursor = Cursor::default();
-    //     let lines = [
-    //         virtual_line!([synthetic_span!("# "), content_span!("Heading".into(), 0..7)]),
-    //         virtual_line!([synthetic_span!(""),]),
-    //         virtual_line!([
-    //             synthetic_span!(" > "),
-    //             content_span!("Hello World".into(), 8..19)
-    //         ]),
-    //     ];
-    //
-    //     cursor.cursor_down(1, &lines);
-    //     cursor.cursor_right(1, &lines);
-    //
-    //     println!("{:?}", cursor.source_offset);
-    //     let y = cursor.find_source_line(&lines).unwrap();
-    //     let x = cursor.find_source_column(y.clone().1);
-    //     println!("{:?}, {:?}", y.0, x);
-    //
-    //     assert_eq!(x, Some(7));
-    // }
-
-    // #[test]
-    // fn test() {
-    //     let test_content = "To create paragraphs in Markdown, use a **blank line** to separate blocks of text. Each block of text separated by a blank line is treated as a distinct paragraph.";
-    //
-    //     let ast_node = &parser::from_str(test_content)[0];
-    //
-    //     let block = render_node(
-    //         test_content.to_string(),
-    //         ast_node,
-    //         80,
-    //         Span::default(),
-    //         &RenderStyle::Raw,
-    //     );
-    //
-    //     assert_eq!(
-    //         block,
-    //         VirtualBlock {
-    //             lines: vec![],
-    //             source_range: 0..1
-    //         }
-    //     )
-    // }
 }

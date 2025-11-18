@@ -9,6 +9,7 @@ use crate::{
     note_editor::{
         ast::{self, SourceRange},
         rich_text::RichText,
+        text_wrap::wrap_preserve_trailing,
         virtual_document::{
             content_span, empty_virtual_line, synthetic_span, virtual_line, VirtualBlock,
             VirtualLine, VirtualSpan,
@@ -45,26 +46,12 @@ fn text_wrap_internal<'a>(
     width: usize,
     marker: Option<Span<'static>>,
     option: &RenderStyle,
-    show_debug_ranges: bool,
 ) -> Vec<VirtualLine<'a>> {
     let prefix_width = prefix.width();
+
     let wrap_marker = "⤷ ";
 
-    let show_debug_ranges = false;
-
-    let debug_suffix_len = if show_debug_ranges {
-        format!(" ({:?})", source_range).len()
-    } else {
-        0
-    };
-
-    let options = textwrap::Options::new(
-        width.saturating_sub(prefix_width + wrap_marker.width() + debug_suffix_len + 1),
-    )
-    .wrap_algorithm(textwrap::WrapAlgorithm::FirstFit)
-    .break_words(false);
-
-    let wrapped_lines = textwrap::wrap(text_content.trim_end(), &options);
+    let wrapped_lines = wrap_preserve_trailing(text_content, width, wrap_marker.width() + 1);
 
     let mut current_range_start = source_range.start;
 
@@ -79,68 +66,30 @@ fn text_wrap_internal<'a>(
 
             current_range_start += line_byte_len;
 
-            if i == 0 {
-                match (&marker, show_debug_ranges) {
-                    (Some(m), true) if *option == RenderStyle::Visual => virtual_line!([
-                        synthetic_span!(prefix.clone()),
-                        synthetic_span!(m.clone()),
-                        content_span!(
-                            Span::styled(line.to_string(), text_style),
-                            line_source_range.clone()
-                        ),
-                        synthetic_span!(format!(" ({:?})", line_source_range))
-                    ]),
-                    (Some(m), false) if *option == RenderStyle::Visual => virtual_line!([
-                        synthetic_span!(prefix.clone()),
-                        synthetic_span!(m.clone()),
-                        content_span!(
-                            Span::styled(line.to_string(), text_style),
-                            line_source_range
-                        )
-                    ]),
-                    (_, true) => virtual_line!([
-                        synthetic_span!(prefix.clone()),
-                        content_span!(
-                            Span::styled(line.to_string(), text_style),
-                            line_source_range.clone()
-                        ),
-                        synthetic_span!(format!(" ({:?})", line_source_range))
-                    ]),
-                    (_, false) => virtual_line!([
-                        synthetic_span!(prefix.clone()),
-                        content_span!(
-                            Span::styled(line.to_string(), text_style),
-                            line_source_range
-                        )
-                    ]),
+            let first_line = i == 0;
+            let content_span = Span::styled(line.to_string(), text_style);
+
+            match (&marker, first_line) {
+                (Some(marker), true) if *option == RenderStyle::Visual => virtual_line!([
+                    synthetic_span!(prefix),
+                    synthetic_span!(marker),
+                    content_span!(content_span, line_source_range)
+                ]),
+                (_, true) => virtual_line!([
+                    synthetic_span!(prefix),
+                    content_span!(content_span, line_source_range)
+                ]),
+                _ => {
+                    virtual_line!([
+                        synthetic_span!(prefix),
+                        synthetic_span!(Span::styled(
+                            " ".repeat(prefix_width.saturating_sub(1).max(1)),
+                            prefix.style
+                        )),
+                        synthetic_span!(Span::styled(wrap_marker, Style::new().dark_gray())),
+                        content_span!(content_span, line_source_range)
+                    ])
                 }
-            } else if show_debug_ranges {
-                virtual_line!([
-                    synthetic_span!(prefix.clone()),
-                    synthetic_span!(Span::styled(
-                        " ".repeat(prefix_width.saturating_sub(1).max(1)),
-                        prefix.style
-                    )),
-                    synthetic_span!(Span::styled(wrap_marker, Style::new().black())),
-                    content_span!(
-                        Span::styled(line.to_string(), text_style),
-                        line_source_range.clone()
-                    ),
-                    synthetic_span!(format!(" ({:?})", line_source_range))
-                ])
-            } else {
-                virtual_line!([
-                    synthetic_span!(prefix.clone()),
-                    synthetic_span!(Span::styled(
-                        " ".repeat(prefix_width.saturating_sub(1).max(1)),
-                        prefix.style
-                    )),
-                    synthetic_span!(Span::styled(wrap_marker, Style::new().black())),
-                    content_span!(
-                        Span::styled(line.to_string(), text_style),
-                        line_source_range
-                    )
-                ])
             }
         })
         .collect()
@@ -160,7 +109,6 @@ fn render_raw_text<'a>(
         max_width,
         None,
         &RenderStyle::Raw,
-        true,
     )
 }
 
@@ -188,7 +136,6 @@ pub fn text_wrap<'a>(
         width,
         marker,
         option,
-        true,
     )
 }
 
@@ -275,8 +222,7 @@ pub fn paragraph<'a>(
     let text = text.to_string();
     let text = match option {
         RenderStyle::Visual => text,
-        RenderStyle::Raw => content.to_string(), // .get(source_range.clone())
-                                                 // .map_or(text, |source| source.into()),
+        RenderStyle::Raw => content.to_string(),
     };
 
     let mut lines = text_wrap(
@@ -309,8 +255,7 @@ pub fn code_block<'a>(
     let text = text.to_string();
     let text = match option {
         RenderStyle::Visual => text,
-        RenderStyle::Raw => content.to_string(), // .get(source_range.clone())
-                                                 // .map_or(text, |source| source.into()),
+        RenderStyle::Raw => content.to_string(),
     };
 
     let padding_line = virtual_line!([
@@ -395,8 +340,7 @@ pub fn task<'a>(
     let text = text.to_string();
     let text = match option {
         RenderStyle::Visual => text,
-        RenderStyle::Raw => content.to_string(), // .get(source_range.clone())
-                                                 // .map_or(text, |source| source.into()),
+        RenderStyle::Raw => content.to_string(),
     };
     let (marker, text) = match kind {
         ast::TaskKind::Unchecked => ("□ ".dark_gray(), text.into()),
@@ -480,7 +424,7 @@ pub fn item<'a>(
 
             text.lines()
                 .flat_map(|line| {
-                    let line_byte_len = line.len();
+                    let line_byte_len = line.width();
                     let source_range: SourceRange<usize> = current_range_start
                         ..((current_range_start + line_byte_len).min(source_range.end));
                     current_range_start += line_byte_len;
@@ -626,19 +570,5 @@ pub fn render_node<'a>(
             max_width,
             option,
         ),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::note_editor::{
-        parser,
-        render::{render_node, render_raw_text, text_wrap},
-    };
-
-    #[test]
-    fn test_raw_text_wrap() {
-        let content = "This is a paragraph that will be wrapped into multiple lines.";
-        let node = &parser::from_str(content)[0];
     }
 }
