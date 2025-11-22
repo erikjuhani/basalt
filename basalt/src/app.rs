@@ -249,11 +249,9 @@ impl<'a> App<'a> {
     ) -> Option<Message<'a>> {
         let global_message = config.global.key_to_message(key.into());
 
-        // let is_editing = state.note_editor.is_editing();
+        let is_editing = state.note_editor.is_editing();
 
-        if global_message.is_some()
-        /* && !is_editing */
-        {
+        if global_message.is_some() && !is_editing {
             return global_message;
         }
 

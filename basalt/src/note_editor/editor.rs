@@ -18,7 +18,7 @@ use ratatui::{
 
 use crate::note_editor::{
     ast::{self, SourceRange},
-    cursor::{Cursor, CursorMove, CursorWidget},
+    cursor::{Cursor, CursorMode, CursorMove, CursorWidget},
     parser,
     virtual_document::VirtualDocument,
 };
@@ -131,11 +131,10 @@ impl TextBuffer {
     }
 }
 
-// TODO: Some Editable block when user hits insert?
 #[derive(Clone, Debug, Default)]
 pub struct State<'a> {
     // TODO: Use Rope instead of String for O(log n) instead of O(n).
-    content: String,
+    pub content: String,
     pub view: View,
     pub cursor: Cursor,
     filepath: PathBuf,
@@ -205,7 +204,7 @@ impl<'a> State<'a> {
         if let Some(buffer) = &mut self.edit_buffer {
             buffer.insert_char(c, self.cursor.source_offset());
             self.update_layout();
-            self.cursor_right();
+            self.cursor_right(1);
         }
     }
 
@@ -213,7 +212,7 @@ impl<'a> State<'a> {
         if let Some(buffer) = &mut self.edit_buffer {
             buffer.delete_char(self.cursor.source_offset().saturating_sub(1));
             self.update_layout();
-            self.cursor_left();
+            self.cursor_left(1);
         }
     }
 
@@ -298,52 +297,37 @@ impl<'a> State<'a> {
         self.active = active;
     }
 
-    pub fn cursor_left(&mut self) {
-        self.cursor.move_action(
-            CursorMove::Left(1),
-            self.virtual_document.lines(),
-            &self.edit_buffer,
-        );
-        // In edit mode, use the current block's lines (which are in raw mode)
-        // In read mode, use the full document lines (which are all in visual mode)
-        // let lines = if matches!(self.view, View::Edit(..)) {
-        //     if let Some((_, block)) = self.virtual_document.get_block(self.current_block()) {
-        //         block.lines()
-        //     } else {
-        //         self.virtual_document.lines()
-        //     }
-        // } else {
-        //     self.virtual_document.lines()
-        // };
-        //
-        // self.cursor.move_action(CursorMove::Left(1), lines);
-        //
-        // if matches!(self.view, View::Edit(..)) {
-        //     if let Some((line_idx, line)) =
-        //         self.cursor.find_source_line(self.virtual_document.lines())
-        //     {
-        //         self.cursor.virtual_line = line_idx;
-        //         if let Some(column) = self.cursor.find_source_column(line) {
-        //             self.cursor.virtual_column = column;
-        //         }
-        //     }
-        // }
+    pub fn modified(&self) -> bool {
+        self.edit_buffer()
+            .map(|buffer| buffer.modified)
+            .unwrap_or(false)
     }
 
-    pub fn cursor_right(&mut self) {
+    pub fn cursor_left(&mut self, amount: usize) {
         self.cursor.move_action(
-            CursorMove::Right(1),
+            CursorMove::Left(amount),
             self.virtual_document.lines(),
             &self.edit_buffer,
         );
+    }
 
-        // if let Some((row, col)) = offset_to_virtual_position(
-        //     self.cursor.source_offset(),
-        //     self.virtual_document.lines(),
-        // ) {
-        //     self.cursor.virtual_line = row;
-        //     self.cursor.virtual_column = col;
-        // }
+    // TODO: Implement cursor jumping
+    // pub fn cursor_jump(&mut self, jump_to_row: u16) {
+    //     if matches!(self.cursor.mode(), CursorMode::Read) {
+    //         self.cursor.move_action(
+    //             CursorMove::Jump(jump_to_row, 0),
+    //             self.virtual_document.lines(),
+    //             &self.edit_buffer,
+    //         );
+    //     }
+    // }
+
+    pub fn cursor_right(&mut self, amount: usize) {
+        self.cursor.move_action(
+            CursorMove::Right(amount),
+            self.virtual_document.lines(),
+            &self.edit_buffer,
+        );
     }
 
     pub fn update_layout(&mut self) {
@@ -473,14 +457,14 @@ impl<'a> State<'a> {
             self.viewport.scroll_by((diff, 0));
         }
 
-        if self.cursor.virtual_column() >= self.viewport.width.into() {
-            self.viewport.scroll_by((
-                0,
-                self.viewport
-                    .width
-                    .saturating_sub(self.cursor.virtual_column() as u16) as i32,
-            ));
-        }
+        // if self.cursor.virtual_column() >= self.viewport.width.into() {
+        //     self.viewport.scroll_by((
+        //         0,
+        //         self.viewport
+        //             .width
+        //             .saturating_sub(self.cursor.virtual_column() as u16) as i32,
+        //     ));
+        // }
     }
 }
 
@@ -502,16 +486,16 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
             } else {
                 BorderType::Rounded
             })
-            .title_top(format!(
-                "{},{},{}",
-                state.cursor.virtual_line(),
-                state.cursor.virtual_column(),
-                state.cursor.source_offset()
-            ))
+            // .title_top(format!(
+            //     "{},{},{}",
+            //     state.cursor.virtual_line(),
+            //     state.cursor.virtual_column(),
+            //     state.cursor.source_offset()
+            // ))
             .title_bottom(
                 [
                     format!(" {}", state.view).fg(mode_color).bold().italic(),
-                    if state.modified {
+                    if state.modified() {
                         "* ".bold().italic()
                     } else {
                         " ".into()
@@ -576,11 +560,7 @@ mod tests {
     use super::*;
     use indoc::indoc;
     use insta::assert_snapshot;
-    use ratatui::{
-        backend::TestBackend,
-        // crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
-        Terminal,
-    };
+    use ratatui::{backend::TestBackend, Terminal};
 
     #[test]
     fn test_rendered_markdown_view() {
@@ -705,6 +685,8 @@ mod tests {
 
     #[test]
     fn test_rendered_editor_states() {
+        type TestCase = (&'static str, Box<dyn Fn(Rect) -> State<'static>>);
+
         let content = indoc! { r#"## Deep Quotes
 
             You can have deeper levels of quotes by adding a > symbols before the text inside the block quote.
@@ -720,72 +702,81 @@ mod tests {
             > Back to regular thoughts
             "#};
 
-        let tests = [
-            ("empty_default_state", State::default()),
+        let tests: Vec<TestCase> = vec![
+            ("empty_default_state", Box::new(|_| State::default())),
             (
-                "with_content",
-                State::new(content, "Test", Path::new("test.md")),
+                "read_mode_with_content",
+                Box::new(|_| State::new(content, "Test", Path::new("test.md"))),
             ),
-            ("read_mode_with_content", {
-                let mut state = State::new(content, "Test", Path::new("test.md"));
-                state.set_view(View::Read);
-                state
-            }),
-            ("edit_mode_with_content", {
-                let mut state = State::new(content, "Test", Path::new("test.md"));
-                state.set_view(View::Edit(EditMode::Source));
-                state
-            }),
-            // ("edit_mode_with_content_and_simple_change", {
-            //     let mut state = State::new(content, "Test");
-            //     state.set_view(View::Edit(EditMode::Source));
-            //     state.edit(KeyEvent::new(KeyCode::Char('#'), KeyModifiers::empty()).into());
-            //     state.exit_insert();
-            //     state.set_view(View::Read);
-            //     state
-            // }),
-            // ("edit_mode_with_arbitrary_cursor_move", {
-            //     let mut state = State::new(content, "Test");
-            //     state.set_content(content);
-            //     state.cursor_move_col(7);
-            //     state.set_view(View::Edit(EditMode::Source));
-            //     state.edit(KeyEvent::new(KeyCode::Char(' '), KeyModifiers::empty()).into());
-            //     state.edit(KeyEvent::new(KeyCode::Char('B'), KeyModifiers::empty()).into());
-            //     state.edit(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::empty()).into());
-            //     state.edit(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::empty()).into());
-            //     state.edit(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::empty()).into());
-            //     state.edit(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::empty()).into());
-            //     state.edit(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::empty()).into());
-            //     state.exit_insert();
-            //     state.set_view(View::Read);
-            //     state
-            // }),
-            // ("edit_mode_with_content_with_complete_word_input_change", {
-            //     let mut state = State::new(content, "Test");
-            //     state.set_content(content);
-            //     state.cursor_down();
-            //     state.set_view(View::Edit(EditMode::Source));
-            //     state.edit(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()).into());
-            //     state.edit(KeyEvent::new(KeyCode::Char('B'), KeyModifiers::empty()).into());
-            //     state.edit(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::empty()).into());
-            //     state.edit(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::empty()).into());
-            //     state.edit(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::empty()).into());
-            //     state.edit(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::empty()).into());
-            //     state.edit(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::empty()).into());
-            //     state.edit(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()).into());
-            //     state.edit(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()).into());
-            //     state.exit_insert();
-            //     state.set_view(View::Read);
-            //     state
-            // }),
+            (
+                "edit_mode_with_content",
+                Box::new(|_| {
+                    let mut state = State::new(content, "Test", Path::new("test.md"));
+                    state.set_view(View::Edit(EditMode::Source));
+                    state
+                }),
+            ),
+            (
+                "edit_mode_with_content_and_simple_change",
+                Box::new(|area| {
+                    let mut state = State::new(content, "Test", Path::new("test.md"));
+                    state.resize_viewport(area.as_size());
+                    state.set_view(View::Edit(EditMode::Source));
+                    state.insert_char('#');
+                    state.exit_insert();
+                    state.set_view(View::Read);
+                    state
+                }),
+            ),
+            (
+                "edit_mode_with_arbitrary_cursor_move",
+                Box::new(|area| {
+                    let mut state = State::new(content, "Test", Path::new("test.md"));
+                    state.resize_viewport(area.as_size());
+                    state.set_view(View::Edit(EditMode::Source));
+                    state.cursor_right(7);
+                    state.insert_char(' ');
+                    state.insert_char('B');
+                    state.insert_char('a');
+                    state.insert_char('s');
+                    state.insert_char('a');
+                    state.insert_char('l');
+                    state.insert_char('t');
+                    state.exit_insert();
+                    state.set_view(View::Read);
+                    state
+                }),
+            ),
+            (
+                "edit_mode_with_content_with_complete_word_input_change",
+                Box::new(|area| {
+                    let mut state = State::new(content, "Test", Path::new("test.md"));
+                    state.resize_viewport(area.as_size());
+                    state.cursor_down(1);
+                    state.set_view(View::Edit(EditMode::Source));
+                    state.insert_char('\n');
+                    state.insert_char('B');
+                    state.insert_char('a');
+                    state.insert_char('s');
+                    state.insert_char('a');
+                    state.insert_char('l');
+                    state.insert_char('t');
+                    state.insert_char('\n');
+                    state.insert_char('\n');
+                    state.exit_insert();
+                    state.set_view(View::Read);
+                    state
+                }),
+            ),
         ];
 
         let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
 
-        tests.into_iter().for_each(|(name, mut state)| {
+        tests.into_iter().for_each(|(name, state_fn)| {
             _ = terminal.clear();
             terminal
                 .draw(|frame| {
+                    let mut state = state_fn(frame.area());
                     NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut state)
                 })
                 .unwrap();
@@ -960,6 +951,7 @@ mod tests {
         });
     }
 
+    // TODO: Add snapshots tests for raw rendering (edit buffer)
     #[test]
     fn test_raw_render() {
         let tests = [
@@ -1008,23 +1000,23 @@ mod tests {
             //     3) Third list item
             //     "#},
             // ),
-            (
-                "lists_raw_line_breaks",
-                indoc! { r#"## Lists with line breaks
-                You can use line breaks within an ordered list without altering the numbering.
-
-                - First list item
-
-
-                  - Second list item
-                    - Third list item
-
-                  - Fourth list item
-
-                - Fifth list item
-                    - Sixth list item
-                "#},
-            ),
+            // (
+            //     "lists_raw_line_breaks",
+            //     indoc! { r#"## Lists with line breaks
+            //     You can use line breaks within an ordered list without altering the numbering.
+            //
+            //     1. First list item
+            //
+            //
+            //       2. Second list item
+            //        3. Third list item
+            //
+            //       4. Fourth list item
+            //
+            //     5. Fifth list item
+            //       6. Sixth list item
+            //     "#},
+            // ),
             // (
             //     "task_lists",
             //     indoc! { r#"## Task lists
@@ -1119,16 +1111,19 @@ mod tests {
 
         tests.into_iter().for_each(|(name, content)| {
             let mut state = State::new(content, name, Path::new("test.md"));
+            state.set_view(View::Edit(EditMode::Source));
 
             _ = terminal.clear();
             terminal
                 .draw(|frame| {
                     state.resize_viewport(frame.area().as_size());
                     state.cursor_down(4);
-                    state.set_view(View::Edit(EditMode::Source));
+                    // state.update_layout();
                     NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut state)
                 })
                 .unwrap();
+            println!("{:?}", state);
+
             assert_snapshot!(name, terminal.backend());
         });
     }

@@ -53,8 +53,8 @@ pub fn update<'a>(
     state: &mut State,
 ) -> Option<AppMessage<'a>> {
     match message {
-        Message::CursorLeft => state.cursor_left(),
-        Message::CursorRight => state.cursor_right(),
+        Message::CursorLeft => state.cursor_left(1),
+        Message::CursorRight => state.cursor_right(1),
         // TODO: Commented until editor functionality works
         // Message::CursorWordForward => state.cursor_word_forward(),
         // Message::CursorWordBackward => state.cursor_word_backward(),
@@ -97,13 +97,16 @@ pub fn update<'a>(
                     KeyCode::Char(c) => {
                         state.insert_char(c);
                     }
+                    KeyCode::Enter => {
+                        state.insert_char('\n');
+                    }
                     _ => {}
                 }
 
-                // return Some(AppMessage::UpdateSelectedNoteContent((
-                //     state.content().to_string(),
-                //     None,
-                // )));
+                return Some(AppMessage::UpdateSelectedNoteContent((
+                    state.content.to_string(),
+                    None,
+                )));
             }
             Message::Delete => {
                 state.delete_char();
@@ -111,10 +114,10 @@ pub fn update<'a>(
             Message::Exit => {
                 state.exit_insert();
                 state.set_view(View::Read);
-                // return Some(AppMessage::UpdateSelectedNoteContent((
-                //     state.content().to_string(),
-                //     Some(state.nodes().to_vec()),
-                // )));
+                return Some(AppMessage::UpdateSelectedNoteContent((
+                    state.content.to_string(),
+                    Some(state.ast_nodes.clone()),
+                )));
             }
             _ => {}
         },

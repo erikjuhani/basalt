@@ -47,7 +47,7 @@ pub fn offset_to_virtual_line<'a>(offset: usize, lines: &[VirtualLine<'a>]) -> O
         let source_range = line.source_range()?;
         // FIXME: A minor bug happens if user writes whitespace on a line and a word is then wrapped to
         // next line. The cursor is also wrapped to next line.
-        (offset >= source_range.start && offset < source_range.end).then_some(row)
+        (offset >= source_range.start && offset <= source_range.end).then_some(row)
     })
 }
 
@@ -248,6 +248,11 @@ impl Cursor {
         None
     }
 
+    // FIXME: Currently we consider new line characters as part of the source buffer when
+    // calculating the virtual cursor location, however, this appears as an ui/ux bug when
+    // travelling to next line using left or right movement. The cursor appears to be 'stuck',
+    // since we don't render new line characters. For movement purposes the new line characters
+    // should be skipped in the source_range.
     pub fn cursor_left(&mut self, amount: usize, lines: &[VirtualLine], buffer: &TextBuffer) {
         self.source_offset = self
             .source_offset
@@ -264,6 +269,11 @@ impl Cursor {
         }
     }
 
+    // FIXME: Currently we consider new line characters as part of the source buffer when
+    // calculating the virtual cursor location, however, this appears as an ui/ux bug when
+    // travelling to next line using left or right movement. The cursor appears to be 'stuck',
+    // since we don't render new line characters. For movement purposes the new line characters
+    // should be skipped in the source_range.
     pub fn cursor_right(&mut self, amount: usize, lines: &[VirtualLine], buffer: &TextBuffer) {
         self.source_offset = self
             .source_offset
@@ -363,7 +373,9 @@ impl Cursor {
                         if let Some(source_range) = line.source_range() {
                             let column_offset =
                                 if let Some(prev_source_range) = prev_line.source_range() {
-                                    self.source_offset.saturating_sub(prev_source_range.start)
+                                    self.source_offset
+                                        .saturating_sub(prev_source_range.start)
+                                        .min(line.content_width())
                                 } else {
                                     0
                                 };
@@ -417,7 +429,9 @@ impl Cursor {
                         if let Some(source_range) = line.source_range() {
                             let column_offset =
                                 if let Some(prev_source_range) = prev_line.source_range() {
-                                    self.source_offset.saturating_sub(prev_source_range.start)
+                                    self.source_offset
+                                        .saturating_sub(prev_source_range.start)
+                                        .min(line.content_width())
                                 } else {
                                     0
                                 };

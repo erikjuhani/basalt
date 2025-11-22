@@ -259,6 +259,9 @@ impl<'a> VirtualDocument<'a> {
             self.meta = meta;
         }
 
+        // FIXME: When text buffer has more lines than the original rendered output
+        // and new lines are added at the end  the text buffer render will match the next block and
+        // replace visually the next block with the text buffer.
         let (blocks, lines, line_to_block) = ast_nodes.iter().enumerate().fold(
             (vec![], vec![], vec![]),
             |(mut blocks, mut lines, mut line_to_block), (idx, node)| {
