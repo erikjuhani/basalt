@@ -256,20 +256,20 @@ impl<'a> State<'a> {
         //     self.edit_buffer.clone(),
         // );
 
+        use cursor::Message::*;
+
         match self.view {
             View::Read => {
                 self.exit_insert();
-                cursor::update(
-                    &cursor::Message::SwitchMode(cursor::CursorMode::Read),
-                    &mut self.cursor,
+                self.cursor.update(
+                    SwitchMode(cursor::CursorMode::Read),
                     self.virtual_document.lines(),
                     &None,
                 );
             }
             View::Edit(..) => {
-                cursor::update(
-                    &cursor::Message::SwitchMode(cursor::CursorMode::Edit),
-                    &mut self.cursor,
+                self.cursor.update(
+                    SwitchMode(cursor::CursorMode::Edit),
                     self.virtual_document.lines(),
                     &self.edit_buffer,
                 );
@@ -310,18 +310,20 @@ impl<'a> State<'a> {
     }
 
     pub fn cursor_left(&mut self, amount: usize) {
-        cursor::update(
-            &cursor::Message::MoveLeft(amount),
-            &mut self.cursor,
+        use cursor::Message::*;
+
+        self.cursor.update(
+            MoveLeft(amount),
             self.virtual_document.lines(),
             &self.edit_buffer,
         );
     }
 
     pub fn cursor_right(&mut self, amount: usize) {
-        cursor::update(
-            &cursor::Message::MoveRight(amount),
-            &mut self.cursor,
+        use cursor::Message::*;
+
+        self.cursor.update(
+            MoveRight(amount),
             self.virtual_document.lines(),
             &self.edit_buffer,
         );
@@ -360,6 +362,8 @@ impl<'a> State<'a> {
     // The cursor should always be fixed to the viewport. This would enable easier implementation
     // for e.g. search feature when navigating between matches
     pub fn cursor_up(&mut self, amount: usize) {
+        use cursor::Message::*;
+
         let prev_line = self.cursor.virtual_line();
 
         // If in edit mode, temporarily switch to all-visual layout before moving
@@ -377,9 +381,8 @@ impl<'a> State<'a> {
             );
         }
 
-        cursor::update(
-            &cursor::Message::MoveUp(amount),
-            &mut self.cursor,
+        self.cursor.update(
+            MoveUp(amount),
             self.virtual_document.lines(),
             &self.edit_buffer,
         );
@@ -408,6 +411,7 @@ impl<'a> State<'a> {
     }
 
     pub fn cursor_down(&mut self, amount: usize) {
+        use cursor::Message::*;
         // TODO: Implement scroll off so that the note scroll offset can be changed by moving
         // cursor downwards when we are at the bottom.
         let prev_line = self.cursor.virtual_line();
@@ -427,9 +431,8 @@ impl<'a> State<'a> {
             );
         }
 
-        cursor::update(
-            &cursor::Message::MoveDown(amount),
-            &mut self.cursor,
+        self.cursor.update(
+            MoveDown(amount),
             self.virtual_document.lines(),
             &self.edit_buffer,
         );
