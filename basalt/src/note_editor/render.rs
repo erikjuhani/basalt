@@ -217,7 +217,7 @@ pub fn render_raw<'a>(
 ) -> Vec<VirtualLine<'a>> {
     let mut current_range_start = source_range.start;
 
-    content
+    let mut lines = content
         .lines()
         .flat_map(|line| {
             // TODO: Make sure that the line cannot exceed the source range end
@@ -225,7 +225,10 @@ pub fn render_raw<'a>(
             current_range_start = line_range.end;
             render_raw_line(line, prefix.clone(), &line_range, max_width)
         })
-        .collect()
+        .collect::<Vec<_>>();
+
+    lines.push(empty_virtual_line!());
+    lines
 }
 
 pub fn paragraph<'a>(
@@ -276,7 +279,7 @@ pub fn code_block<'a>(
         RenderStyle::Raw => {
             let mut current_range_start = source_range.start;
 
-            content
+            let mut lines = content
                 .lines()
                 .map(|line| {
                     let line_range = line_range(current_range_start, line.width(), true);
@@ -295,7 +298,10 @@ pub fn code_block<'a>(
                             .bg(Color::Black)),
                     ])
                 })
-                .collect()
+                .collect::<Vec<_>>();
+
+            lines.push(empty_virtual_line!());
+            lines
         }
         RenderStyle::Visual => {
             let text = text.to_string();
@@ -375,32 +381,37 @@ pub fn task<'a>(
     max_width: usize,
     option: &RenderStyle,
 ) -> VirtualBlock<'a> {
-    let Some(text) = nodes.first().and_then(|first| first.rich_text()) else {
-        return VirtualBlock::new(&[], source_range);
-    };
+    let lines = match option {
+        RenderStyle::Raw => render_raw(content, source_range, max_width, prefix),
+        RenderStyle::Visual => {
+            let Some(text) = nodes.first().and_then(|first| first.rich_text()) else {
+                return VirtualBlock::new(&[], source_range);
+            };
 
-    let text = text.to_string();
-    let text = match option {
-        RenderStyle::Visual => text,
-        RenderStyle::Raw => content.to_string(),
-    };
-    let (marker, text) = match kind {
-        ast::TaskKind::Unchecked => ("□ ".dark_gray(), text.into()),
-        ast::TaskKind::LooselyChecked => ("■ ".magenta(), text.dark_gray()),
-        ast::TaskKind::Checked => (
-            "■ ".magenta(),
-            text.dark_gray().add_modifier(Modifier::CROSSED_OUT),
-        ),
-    };
+            let text = text.to_string();
+            let text = match option {
+                RenderStyle::Visual => text,
+                RenderStyle::Raw => content.to_string(),
+            };
+            let (marker, text) = match kind {
+                ast::TaskKind::Unchecked => ("□ ".dark_gray(), text.into()),
+                ast::TaskKind::LooselyChecked => ("■ ".magenta(), text.dark_gray()),
+                ast::TaskKind::Checked => (
+                    "■ ".magenta(),
+                    text.dark_gray().add_modifier(Modifier::CROSSED_OUT),
+                ),
+            };
 
-    let lines = text_wrap(
-        &text,
-        prefix.clone(),
-        source_range,
-        max_width,
-        Some(marker),
-        option,
-    );
+            text_wrap(
+                &text,
+                prefix.clone(),
+                source_range,
+                max_width,
+                Some(marker),
+                option,
+            )
+        }
+    };
 
     VirtualBlock::new(&lines, source_range)
 }
@@ -458,29 +469,6 @@ pub fn item<'a>(
 
     VirtualBlock::new(&lines, source_range)
 }
-
-// // FIXME: In raw mode the prefix is not rendered on the correct spot if we split in deeper
-// // level
-// RenderStyle::Raw => {
-//     let mut current_range_start = source_range.start;
-//
-//     text.lines()
-//         .flat_map(|line| {
-//             let line_byte_len = line.width();
-//             let source_range: SourceRange<usize> = current_range_start
-//                 ..((current_range_start + line_byte_len).min(source_range.end));
-//             current_range_start += line_byte_len;
-//
-//             text_wrap(
-//                 &line.to_string().into(),
-//                 prefix.clone(),
-//                 &source_range,
-//                 max_width,
-//                 None,
-//                 option,
-//             )
-//         })
-//         .collect::<Vec<_>>()
 
 pub fn line_range(start: usize, line_width: usize, newline: bool) -> SourceRange<usize> {
     // NOTE: When the content is replaced by rope the new lines are kept

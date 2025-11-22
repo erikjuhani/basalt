@@ -14,17 +14,204 @@ use crate::note_editor::{
 };
 
 #[derive(Clone, Debug)]
-pub enum CursorMove {
-    Top,
-    Bottom,
-    WordForward,
-    WordBackward,
-    Up(usize),
-    Down(usize),
-    Left(usize),
-    Right(usize),
-    Move(i32, i32),
-    Jump(u16, u16),
+pub enum Message {
+    // MoveTop,
+    // MoveBottom,
+    // WordForward,
+    // WordBackward,
+    MoveUp(usize),
+    MoveDown(usize),
+    MoveLeft(usize),
+    MoveRight(usize),
+    // Move(i32, i32),
+    // Jump(u16, u16),
+    SwitchMode(CursorMode),
+}
+
+pub fn update(
+    message: &Message,
+    cursor: &mut Cursor,
+    lines: &[VirtualLine],
+    text_buffer: &Option<TextBuffer>,
+) {
+    use Message::*;
+
+    match message {
+        // MoveTop => todo!("Needs Jump"),
+        // MoveBottom => todo!("Needs Jump"),
+
+        // FIXME: Currently we consider new line characters as part of the source buffer when
+        // calculating the virtual cursor location, however, this appears as an ui/ux bug when
+        // travelling to next line using left or right movement. The cursor appears to be 'stuck',
+        // since we don't render new line characters. For movement purposes the new line characters
+        // should be skipped in the source_range.
+        MoveLeft(amount) => {
+            if let Some(text_buffer) = text_buffer {
+                cursor.source_offset = cursor
+                    .source_offset
+                    .saturating_sub(*amount)
+                    .max(text_buffer.source_range.start);
+
+                // TODO: This is exactly the same as in MoveRight. Unify.
+                if let Some(row) = offset_to_virtual_line(cursor.source_offset, lines) {
+                    if let Some(line) = lines.get(row) {
+                        if let Some(col) = offset_to_virtual_column(cursor.source_offset, line) {
+                            cursor.virtual_column = col;
+                        }
+                    }
+                    cursor.virtual_line = row;
+                }
+            }
+        }
+
+        // FIXME: Currently we consider new line characters as part of the source buffer when
+        // calculating the virtual cursor location, however, this appears as an ui/ux bug when
+        // travelling to next line using left or right movement. The cursor appears to be 'stuck',
+        // since we don't render new line characters. For movement purposes the new line characters
+        // should be skipped in the source_range.
+        MoveRight(amount) => {
+            if let Some(text_buffer) = text_buffer {
+                cursor.source_offset = cursor
+                    .source_offset
+                    .saturating_add(*amount)
+                    .min(text_buffer.source_range.end.saturating_sub(1));
+
+                // TODO: This is exactly the same as in MoveLeft. Unify.
+                if let Some(row) = offset_to_virtual_line(cursor.source_offset, lines) {
+                    if let Some(line) = lines.get(row) {
+                        if let Some(col) = offset_to_virtual_column(cursor.source_offset, line) {
+                            cursor.virtual_column = col;
+                        }
+                        cursor.virtual_line = row
+                    }
+                }
+            }
+        }
+
+        // TODO: Applies to both cursor_up and cursor_down
+        // The cursor should always be fixed to the viewport. This would enable easier implementation
+        // for e.g. search feature when navigating between matches
+        MoveUp(amount) => {
+            let current_idx = cursor.virtual_line;
+            let target_idx = current_idx.saturating_sub(*amount);
+
+            for idx in (0..=target_idx).rev() {
+                if let Some(line) = lines.get(idx).filter(|line| line.has_content()) {
+                    cursor.virtual_line = idx;
+
+                    if let Some(source_range) = line.source_range() {
+                        match cursor.mode() {
+                            CursorMode::Read => cursor.source_offset = source_range.start,
+                            CursorMode::Edit => {
+                                // TODO: Revisit and refactor the implementation
+                                // For instance the up/down does not work correctly and the column
+                                // is all over the place
+                                let prev_range_start = lines
+                                    .get(current_idx)
+                                    .and_then(|line| line.source_range())
+                                    .map(|source_range| source_range.start)
+                                    .unwrap_or(0);
+
+                                let column_offset = cursor
+                                    .source_offset
+                                    .saturating_sub(prev_range_start)
+                                    .min(line.content_width());
+
+                                cursor.source_offset = source_range
+                                    .start
+                                    .saturating_add(column_offset)
+                                    .min(source_range.end);
+
+                                if let Some(column) = cursor.find_source_column(line.clone()) {
+                                    cursor.virtual_column = column;
+                                }
+                            }
+                        }
+                    }
+
+                    return;
+                }
+            }
+        }
+
+        // TODO: Implement scroll offset so that the file scroll offset can be changed by moving
+        // cursor downwards when we are at the bottom.
+        MoveDown(amount) => {
+            let current_idx = cursor.virtual_line;
+            let target_idx = current_idx.saturating_add(*amount).min(lines.len());
+
+            for (idx, line) in lines.iter().enumerate().skip(target_idx) {
+                if line.has_content() {
+                    cursor.virtual_line = idx;
+
+                    if let Some(source_range) = line.source_range() {
+                        match cursor.mode() {
+                            CursorMode::Read => cursor.source_offset = source_range.start,
+                            CursorMode::Edit => {
+                                // TODO: Revisit and refactor the implementation
+                                // For instance the up/down does not work correctly and the column
+                                // is all over the place
+                                let prev_range_start = lines
+                                    .get(current_idx)
+                                    .and_then(|line| line.source_range())
+                                    .map(|source_range| source_range.start)
+                                    .unwrap_or(0);
+
+                                let column_offset = cursor
+                                    .source_offset
+                                    .saturating_sub(prev_range_start)
+                                    .min(line.content_width());
+
+                                cursor.source_offset =
+                                    source_range.start.saturating_add(column_offset);
+
+                                if let Some(column) = cursor.find_source_column(line.clone()) {
+                                    cursor.virtual_column = column;
+                                }
+                            }
+                        }
+                    }
+
+                    return;
+                }
+            }
+        }
+
+        SwitchMode(CursorMode::Read) => {
+            // TODO: Use direction enum to determine, which was the last know direction where the
+            // cursor was heading, this way we can select should we check prev or next line if the
+            // current_line does not have content.
+            if let Some(row) = offset_to_virtual_line(cursor.source_offset, lines) {
+                cursor.virtual_line = row;
+            } else if let Some((prev_line, source_offset)) = cursor.prev_available_line(0, lines) {
+                cursor.virtual_line = prev_line;
+                cursor.source_offset = source_offset;
+            } else if let Some((next_line, source_offset)) = cursor.next_available_line(0, lines) {
+                cursor.virtual_line = next_line;
+                cursor.source_offset = source_offset;
+            }
+
+            cursor.mode = CursorMode::Read;
+        }
+
+        SwitchMode(CursorMode::Edit) => {
+            if let Some(text_buffer) = text_buffer {
+                cursor.source_offset = cursor
+                    .source_offset
+                    .clamp(text_buffer.source_range.start, text_buffer.source_range.end);
+
+                if let Some(idx) = offset_to_virtual_line(cursor.source_offset, lines) {
+                    if let Some(line) = lines.get(idx).filter(|line| line.has_content()) {
+                        if let Some(column) = offset_to_virtual_column(cursor.source_offset, line) {
+                            cursor.virtual_column = column;
+                        }
+                    }
+                }
+
+                cursor.mode = CursorMode::Edit;
+            }
+        }
+    };
 }
 
 #[derive(Clone, Debug, Default)]
@@ -136,45 +323,6 @@ impl Cursor {
 
     pub fn virtual_column(&self) -> usize {
         self.virtual_column
-    }
-
-    pub fn move_action(
-        &mut self,
-        move_action: CursorMove,
-        lines: &[VirtualLine],
-        buffer: &Option<TextBuffer>,
-    ) {
-        use CursorMove::*;
-
-        match move_action {
-            Top => {
-                self.source_offset = 0;
-                self.virtual_line = 0;
-                self.virtual_column = 0;
-            }
-            Bottom => {
-                // ^ Maybe do something similar to top
-                self.cursor_down(lines.len(), lines);
-            }
-            Up(amount) => {
-                self.cursor_up(amount, lines);
-            }
-            Down(amount) => {
-                self.cursor_down(amount, lines);
-            }
-            Left(amount) => {
-                if let Some(text_buffer) = buffer {
-                    self.cursor_left(amount, lines, text_buffer);
-                }
-            }
-            Right(amount) => {
-                if let Some(text_buffer) = buffer {
-                    self.cursor_right(amount, lines, text_buffer);
-                }
-            }
-            WordForward | WordBackward => {}
-            _ => {}
-        }
     }
 
     pub fn enter_read_mode(&mut self, virtual_document: &VirtualDocument) {

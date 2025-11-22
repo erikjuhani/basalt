@@ -54,7 +54,7 @@ impl VirtualSpan<'_> {
         }
     }
 
-    pub fn chars(&self) -> Chars {
+    pub fn chars(&self) -> Chars<'_> {
         match self {
             Self::Content(span, ..) => span.content.chars(),
             Self::Synthetic(..) => "".chars(),
@@ -232,6 +232,8 @@ impl<'a> VirtualDocument<'a> {
         self.mut_blocks().get_mut(block_idx)
     }
 
+    // FIXME: Refactor. Too many arguments.
+    #[allow(clippy::too_many_arguments)]
     pub fn layout(
         &mut self,
         note_name: &str,

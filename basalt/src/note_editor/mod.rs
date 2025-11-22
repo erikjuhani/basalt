@@ -47,6 +47,7 @@ pub enum Message {
     Delete,
 }
 
+// FIXME: Add resize message to handle resize related updates like cursor positioning
 pub fn update<'a>(
     message: &Message,
     screen_size: Size,

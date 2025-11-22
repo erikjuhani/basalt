@@ -18,7 +18,7 @@ use ratatui::{
 
 use crate::note_editor::{
     ast::{self, SourceRange},
-    cursor::{Cursor, CursorMode, CursorMove, CursorWidget},
+    cursor::{self, Cursor, CursorWidget},
     parser,
     virtual_document::VirtualDocument,
 };
@@ -63,6 +63,10 @@ impl Deref for Viewport {
 }
 
 impl Viewport {
+    pub fn size_changed(&self, size: Size) -> bool {
+        (self.height, self.width) != (size.height, size.width)
+    }
+
     pub fn resize(&mut self, size: Size) {
         self.area.width = size.width;
         self.area.height = size.height;
@@ -137,12 +141,12 @@ pub struct State<'a> {
     pub content: String,
     pub view: View,
     pub cursor: Cursor,
-    filepath: PathBuf,
+    _filepath: PathBuf,
     filename: String,
     pub ast_nodes: Vec<ast::Node>,
     virtual_document: VirtualDocument<'a>,
     active: bool,
-    modified: bool,
+    _modified: bool,
     viewport: Viewport,
     edit_buffer: Option<TextBuffer>,
 }
@@ -159,10 +163,10 @@ impl<'a> State<'a> {
             viewport: Viewport::default(),
             virtual_document: VirtualDocument::default(),
             filename: filename.to_string(),
-            filepath: filepath.to_path_buf(),
+            _filepath: filepath.to_path_buf(),
             ast_nodes,
             active: false,
-            modified: false,
+            _modified: false,
         }
     }
 
@@ -174,6 +178,7 @@ impl<'a> State<'a> {
         self.edit_buffer.as_ref()
     }
 
+    // FIXME: if document is empty cannot write as there is no markdown block to write on.
     pub fn enter_insert(&mut self, block_idx: usize) {
         if let Some((_, block)) = self.virtual_document.get_block(block_idx) {
             let source_range = block.source_range();
@@ -240,41 +245,45 @@ impl<'a> State<'a> {
         if matches!(self.view, View::Edit(..)) {
             self.enter_insert(block_idx);
         }
-
-        let current_block_idx = if matches!(self.view, View::Edit(..)) {
-            Some(block_idx)
-        } else {
-            None
-        };
-
-        self.virtual_document.layout(
-            &self.filename,
-            &self.content,
-            &self.view,
-            current_block_idx,
-            &self.ast_nodes,
-            self.viewport.width.into(),
-            self.edit_buffer.clone(),
-        );
+        //
+        // self.virtual_document.layout(
+        //     &self.filename,
+        //     &self.content,
+        //     &self.view,
+        //     Some(block_idx),
+        //     &self.ast_nodes,
+        //     self.viewport.width.into(),
+        //     self.edit_buffer.clone(),
+        // );
 
         match self.view {
             View::Read => {
                 self.exit_insert();
-                self.cursor.enter_read_mode(&self.virtual_document)
+                cursor::update(
+                    &cursor::Message::SwitchMode(cursor::CursorMode::Read),
+                    &mut self.cursor,
+                    self.virtual_document.lines(),
+                    &None,
+                );
             }
-            View::Edit(..) => self.cursor.enter_edit_mode(&self.virtual_document),
+            View::Edit(..) => {
+                cursor::update(
+                    &cursor::Message::SwitchMode(cursor::CursorMode::Edit),
+                    &mut self.cursor,
+                    self.virtual_document.lines(),
+                    &self.edit_buffer,
+                );
+            }
         }
     }
 
     pub fn resize_viewport(&mut self, size: Size) {
-        // If width has changed we need to recalculate the wrapped lines.
-        // Height change doesn't matter as it only affects what is visible.
-        if self.viewport.width != size.width {
-            let current_block_idx = if matches!(self.view, View::Edit(..)) {
-                Some(self.current_block())
-            } else {
-                None
-            };
+        // TODO: if height has changed we need to move cursor if it goes out of bounds This means
+        // we need to move it to last visible spot. We only need to care about the bottom()
+        // boundary.
+        if self.viewport.size_changed(size) {
+            let current_block_idx =
+                matches!(self.view, View::Edit(..)).then_some(self.current_block());
 
             self.virtual_document.layout(
                 &self.filename,
@@ -285,12 +294,9 @@ impl<'a> State<'a> {
                 size.width.into(),
                 self.edit_buffer.clone(),
             );
-        }
 
-        // TODO: if height has changed we need to move cursor if it goes out of bounds This means
-        // we need to move it to last visible spot. We only need to care about the bottom()
-        // boundary.
-        self.viewport.resize(size);
+            self.viewport.resize(size);
+        }
     }
 
     pub fn set_active(&mut self, active: bool) {
@@ -304,8 +310,18 @@ impl<'a> State<'a> {
     }
 
     pub fn cursor_left(&mut self, amount: usize) {
-        self.cursor.move_action(
-            CursorMove::Left(amount),
+        cursor::update(
+            &cursor::Message::MoveLeft(amount),
+            &mut self.cursor,
+            self.virtual_document.lines(),
+            &self.edit_buffer,
+        );
+    }
+
+    pub fn cursor_right(&mut self, amount: usize) {
+        cursor::update(
+            &cursor::Message::MoveRight(amount),
+            &mut self.cursor,
             self.virtual_document.lines(),
             &self.edit_buffer,
         );
@@ -321,14 +337,6 @@ impl<'a> State<'a> {
     //         );
     //     }
     // }
-
-    pub fn cursor_right(&mut self, amount: usize) {
-        self.cursor.move_action(
-            CursorMove::Right(amount),
-            self.virtual_document.lines(),
-            &self.edit_buffer,
-        );
-    }
 
     pub fn update_layout(&mut self) {
         let current_block_idx = if matches!(self.view, View::Edit(..)) {
@@ -353,7 +361,6 @@ impl<'a> State<'a> {
     // for e.g. search feature when navigating between matches
     pub fn cursor_up(&mut self, amount: usize) {
         let prev_line = self.cursor.virtual_line();
-        let prev_block = self.current_block();
 
         // If in edit mode, temporarily switch to all-visual layout before moving
         // so that line_to_block mapping is accurate
@@ -370,17 +377,16 @@ impl<'a> State<'a> {
             );
         }
 
-        self.cursor.move_action(
-            CursorMove::Up(amount),
+        cursor::update(
+            &cursor::Message::MoveUp(amount),
+            &mut self.cursor,
             self.virtual_document.lines(),
             &self.edit_buffer,
         );
 
-        // Re-layout if we're in edit mode
         if matches!(self.view, View::Edit(..)) {
             let current_block_idx = self.current_block();
 
-            // Enter insert mode for the current block
             self.enter_insert(current_block_idx);
 
             self.virtual_document.layout(
@@ -405,7 +411,6 @@ impl<'a> State<'a> {
         // TODO: Implement scroll off so that the note scroll offset can be changed by moving
         // cursor downwards when we are at the bottom.
         let prev_line = self.cursor.virtual_line();
-        let prev_block = self.current_block();
 
         // If in edit mode, temporarily switch to all-visual layout before moving
         // so that line_to_block mapping is accurate
@@ -422,8 +427,9 @@ impl<'a> State<'a> {
             );
         }
 
-        self.cursor.move_action(
-            CursorMove::Down(amount),
+        cursor::update(
+            &cursor::Message::MoveDown(amount),
+            &mut self.cursor,
             self.virtual_document.lines(),
             &self.edit_buffer,
         );
@@ -507,9 +513,9 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
 
         let inner_area = block.inner(area);
 
-        // We only reliable know the size of the area for the editor once we arrive at this point.
-        // Calling the resize_width will cause the visual_blocks to be populated in the state.
-        // If width is not changed between frames the resize_width is a noop.
+        // NOTE: We only reliably know the size of the area for the editor once we arrive at this point.
+        // Calling the resize_width will cause the visual blocks to be populated in the state.
+        // If width or height is not changed between frames, the resize_width is a noop.
         state.resize_viewport(inner_area.as_size());
 
         state.update_layout();
