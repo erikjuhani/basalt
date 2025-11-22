@@ -2,13 +2,4 @@
 
 set -e
 
-if command -v pinact >/dev/null; then
-  find .github/workflows -name '*.yml' -print0 | xargs -0 pinact run --check
-fi
-
-make fmt-check
-cargo check --locked --profile ci --workspace --all-targets
-cargo clippy --profile ci --workspace --all-targets -- -D warnings
-cargo test --profile ci --workspace --all-targets
-cargo build --profile ci --workspace --all-targets
-cargo package --no-verify --allow-dirty
+make check
