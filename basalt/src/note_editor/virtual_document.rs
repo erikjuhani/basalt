@@ -1,25 +1,29 @@
-use std::iter;
+use std::{
+    iter,
+    str::{CharIndices, Chars},
+};
 
 use ratatui::text::{Line, Span};
 
 use crate::{
     note_editor::{
         ast::{self, SourceRange},
-        editor::View,
         render::{render_node, text_wrap, RenderStyle},
+        state::View,
+        text_buffer::TextBuffer,
     },
     stylized_text::{stylize, FontStyle},
 };
 
 macro_rules! content_span {
     ($span:expr, $range:expr) => {{
-        VirtualSpan::Content($span, $range.clone())
+        VirtualSpan::Content($span.into(), $range.clone())
     }};
 }
 
 macro_rules! synthetic_span {
     ($span:expr) => {{
-        VirtualSpan::Synthetic($span.into())
+        VirtualSpan::Synthetic($span.clone().into())
     }};
 }
 
@@ -54,6 +58,20 @@ impl VirtualSpan<'_> {
         }
     }
 
+    pub fn chars(&self) -> Chars<'_> {
+        match self {
+            Self::Content(span, ..) => span.content.chars(),
+            Self::Synthetic(..) => "".chars(),
+        }
+    }
+
+    pub fn char_indices(&self) -> CharIndices<'_> {
+        match self {
+            Self::Content(span, ..) => span.content.char_indices(),
+            Self::Synthetic(..) => "".char_indices(),
+        }
+    }
+
     pub fn source_range(&self) -> Option<&SourceRange<usize>> {
         match self {
             Self::Content(.., source_range) => Some(source_range),
@@ -61,11 +79,9 @@ impl VirtualSpan<'_> {
         }
     }
 
-    /// Only content span width is taken into account when calculating width
     pub fn width(&self) -> usize {
         match self {
-            VirtualSpan::Content(span, ..) => span.width(),
-            _ => 0,
+            VirtualSpan::Content(span, ..) | VirtualSpan::Synthetic(span) => span.width(),
         }
     }
 
@@ -95,26 +111,12 @@ impl<'a> VirtualLine<'a> {
         }
     }
 
-    /// Synthetic spans are not calculated into line width
-    pub fn width(&self) -> usize {
-        self.spans.iter().map(|span| span.width()).sum()
-    }
-
-    pub fn contains_offset(&self, offset: usize) -> bool {
-        self.spans
-            .iter()
-            .any(|visual_span| visual_span.contains_offset(offset))
-    }
-
     pub fn spans(self) -> Vec<Span<'a>> {
-        self.spans
-            .into_iter()
-            .map(|visual_span| visual_span.into())
-            .collect()
+        self.spans.into_iter().map(|s| s.into()).collect()
     }
 
-    pub fn virtual_spans(self) -> Vec<VirtualSpan<'a>> {
-        self.spans
+    pub fn virtual_spans(&self) -> &[VirtualSpan<'a>] {
+        &self.spans
     }
 
     pub fn source_range(&self) -> Option<SourceRange<usize>> {
@@ -136,9 +138,7 @@ impl<'a> VirtualLine<'a> {
 
     pub fn has_content(&self) -> bool {
         // We short-circuit when we find content span
-        self.spans
-            .iter()
-            .any(|span| matches!(span, VirtualSpan::Content(..)))
+        self.spans.iter().any(|span| !span.is_synthetic())
     }
 }
 
@@ -162,10 +162,6 @@ impl<'a> VirtualBlock<'a> {
         }
     }
 
-    pub fn lines(&self) -> &[VirtualLine<'_>] {
-        &self.lines
-    }
-
     pub fn source_range(&self) -> &SourceRange<usize> {
         &self.source_range
     }
@@ -179,11 +175,7 @@ pub struct VirtualDocument<'a> {
     line_to_block: Vec<usize>,
 }
 
-impl VirtualDocument<'_> {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
+impl<'a> VirtualDocument<'a> {
     pub fn meta(&self) -> &[VirtualLine<'_>] {
         &self.meta
     }
@@ -200,22 +192,21 @@ impl VirtualDocument<'_> {
         &self.line_to_block
     }
 
-    pub fn get_block(&self, line: usize) -> Option<(usize, &VirtualBlock<'_>)> {
-        self.line_to_block().get(line).and_then(|block_idx| {
-            self.blocks()
-                .get(*block_idx)
-                .map(|block| (*block_idx, block))
-        })
+    pub fn get_block(&self, block_idx: usize) -> Option<(usize, &VirtualBlock<'_>)> {
+        self.blocks().get(block_idx).map(|block| (block_idx, block))
     }
 
+    // FIXME: Refactor. Too many arguments.
+    #[allow(clippy::too_many_arguments)]
     pub fn layout(
         &mut self,
         note_name: &str,
         content: &str,
         view: &View,
-        cursor_line: usize,
+        current_block_idx: Option<usize>,
         ast_nodes: &[ast::Node],
         width: usize,
+        text_buffer: Option<TextBuffer>,
     ) {
         if !note_name.is_empty() {
             let mut meta = text_wrap(
@@ -234,17 +225,23 @@ impl VirtualDocument<'_> {
             self.meta = meta;
         }
 
-        let current_block_idx = self.line_to_block().get(cursor_line);
-
         let (blocks, lines, line_to_block) = ast_nodes.iter().enumerate().fold(
             (vec![], vec![], vec![]),
             |(mut blocks, mut lines, mut line_to_block), (idx, node)| {
                 let block = if current_block_idx
-                    .is_some_and(|block_idx| *block_idx == idx && matches!(view, View::Edit(..)))
+                    .is_some_and(|block_idx| block_idx == idx && matches!(view, View::Edit(..)))
                 {
+                    let mut node = node.clone();
+                    if let Some(text_buffer) = &text_buffer {
+                        node.set_source_range(text_buffer.source_range.clone());
+                    }
+
                     render_node(
-                        content.to_string(),
-                        node,
+                        text_buffer
+                            .clone()
+                            .map(|text_buffer| text_buffer.content)
+                            .unwrap_or_default(),
+                        &node,
                         width,
                         Span::default(),
                         &RenderStyle::Raw,

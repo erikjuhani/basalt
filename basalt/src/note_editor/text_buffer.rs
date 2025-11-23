@@ -1,140 +1,51 @@
-use core::fmt;
-
-use tui_textarea::{Input, TextArea};
-
-// TODO: Text wrapping according to the available width of the area
-#[derive(Clone, Debug, Default)]
-pub struct TextBuffer<'a> {
-    textarea: TextArea<'a>,
-    modified: bool,
-}
+use crate::note_editor::ast::SourceRange;
 
 #[derive(Clone, Debug)]
-pub enum CursorMove {
-    Top,
-    Bottom,
-    WordForward,
-    WordBackward,
-    Up,
-    Down,
-    Left,
-    Right,
-    Move(i32, i32),
-    Jump(u16, u16),
+pub struct TextBuffer {
+    // FIXME: Change to Rope
+    pub content: String,
+    pub source_range: SourceRange<usize>,
+    pub modified: bool,
+    original_source_range: SourceRange<usize>,
 }
 
-impl From<(i32, i32)> for CursorMove {
-    fn from(value: (i32, i32)) -> Self {
-        Self::Move(value.0, value.1)
-    }
-}
-
-impl fmt::Display for TextBuffer<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let raw_buffer = self.textarea.lines().join("\n");
-        write!(f, "{raw_buffer}")
-    }
-}
-
-impl<'a> AsMut<TextBuffer<'a>> for TextBuffer<'a> {
-    fn as_mut(&mut self) -> &mut TextBuffer<'a> {
-        self
-    }
-}
-
-impl From<String> for TextBuffer<'_> {
-    fn from(value: String) -> Self {
+impl TextBuffer {
+    pub fn new(content: &str, source_range: SourceRange<usize>) -> Self {
         Self {
-            textarea: value.lines().into(),
-            ..Default::default()
-        }
-    }
-}
-
-impl<'a> From<&str> for TextBuffer<'a> {
-    fn from(value: &str) -> Self {
-        Self {
-            textarea: value.lines().into(),
-            ..Default::default()
-        }
-    }
-}
-
-impl<'a> TextBuffer<'a> {
-    pub fn new(source: &str) -> Self {
-        Self {
-            textarea: source.lines().into(),
-            ..Default::default()
+            content: content.to_string(),
+            original_source_range: source_range.clone(),
+            source_range,
+            // FIXME: Implement history to get accurate modified bool
+            modified: false,
         }
     }
 
-    pub fn is_modified(&self) -> bool {
-        self.modified
-    }
+    pub fn insert_char(&mut self, c: char, idx: usize) {
+        let char_idx = idx.saturating_sub(self.source_range.start);
 
-    pub fn is_empty(&self) -> bool {
-        self.textarea.is_empty()
-    }
-
-    pub fn with_cursor_position(mut self, (row, col): (usize, usize)) -> Self {
-        let textarea = self.textarea_as_mut();
-        textarea.move_cursor(tui_textarea::CursorMove::Jump(row as u16, col as u16));
-        self
-    }
-
-    pub fn textarea_as_mut(&mut self) -> &mut TextArea<'a> {
-        &mut self.textarea
-    }
-
-    pub fn lines(&self) -> &[String] {
-        self.textarea.lines()
-    }
-
-    pub fn modified(&self) -> bool {
-        self.modified
-    }
-
-    pub fn edit(&mut self, input: Input) {
-        self.modified = self.textarea.input(input);
-    }
-
-    pub fn cursor_move(&mut self, cursor_move: CursorMove) {
-        match cursor_move {
-            CursorMove::Top => self.textarea.move_cursor(tui_textarea::CursorMove::Top),
-            CursorMove::Bottom => self.textarea.move_cursor(tui_textarea::CursorMove::Bottom),
-            CursorMove::Up => self.textarea.move_cursor(tui_textarea::CursorMove::Up),
-            CursorMove::Down => self.textarea.move_cursor(tui_textarea::CursorMove::Down),
-            CursorMove::Left => self.textarea.move_cursor(tui_textarea::CursorMove::Back),
-            CursorMove::Right => self.textarea.move_cursor(tui_textarea::CursorMove::Forward),
-            CursorMove::WordForward => self
-                .textarea
-                .move_cursor(tui_textarea::CursorMove::WordForward),
-            CursorMove::WordBackward => self
-                .textarea
-                .move_cursor(tui_textarea::CursorMove::WordBack),
-            CursorMove::Jump(row, col) => self
-                .textarea
-                .move_cursor(tui_textarea::CursorMove::Jump(row, col)),
-            CursorMove::Move(row, col) => {
-                let (cur_row, cur_col) = self.cursor();
-
-                let row = match row.is_positive() {
-                    true => cur_row.saturating_add(row as usize),
-                    false => cur_row.saturating_sub(row.unsigned_abs() as usize),
-                };
-
-                let col = match col.is_positive() {
-                    true => cur_col.saturating_add(col as usize),
-                    false => cur_col.saturating_sub(col.unsigned_abs() as usize),
-                };
-
-                self.textarea
-                    .move_cursor(tui_textarea::CursorMove::Jump(row as u16, col as u16))
-            }
+        if let Some((byte_idx, _)) = self.content.char_indices().nth(char_idx) {
+            self.content.insert(byte_idx, c);
+            self.source_range.end += 1;
+            self.modified = true;
         }
     }
 
-    pub fn cursor(&self) -> (usize, usize) {
-        self.textarea.cursor()
+    pub fn delete_char(&mut self, idx: usize) {
+        let char_idx = idx.saturating_sub(self.source_range.start);
+        if let Some((byte_idx, _)) = self.content.char_indices().nth(char_idx.saturating_sub(1)) {
+            self.content.remove(byte_idx);
+            self.source_range.end = self.source_range.end.saturating_sub(1);
+            self.modified = true;
+        }
+    }
+
+    pub fn write(&self, original_content: &str) -> String {
+        if self.modified {
+            let str_start = &original_content[..self.original_source_range.start];
+            let str_end = &original_content[self.original_source_range.end..];
+            format!("{}{}{}", str_start, self.content, str_end)
+        } else {
+            original_content.to_owned()
+        }
     }
 }

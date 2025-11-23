@@ -51,7 +51,8 @@ pub fn update<'a>(message: &Message, state: &mut OutlineState) -> Option<AppMess
         Message::Toggle => state.toggle(),
         Message::Select => {
             if let Some(item) = state.selected() {
-                return Some(AppMessage::NoteEditor(note_editor::Message::SetRow(
+                return Some(AppMessage::NoteEditor(note_editor::Message::JumpToBlock(
+                    // Block index
                     item.get_range().start,
                 )));
             }
