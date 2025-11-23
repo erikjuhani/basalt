@@ -10,6 +10,7 @@
   "commitBodyTable": true,
   "minimumReleaseAge": "3 days",
   "osvVulnerabilityAlerts": true,
+  "minimumReleaseAgeBehaviour": "timestamp-optional",
   "requireConfig": "optional",
   "semanticCommits": "disabled",
   "prBodyTemplate": "{{{table}}}{{{warnings}}}{{{notes}}}{{{changelogs}}}",
