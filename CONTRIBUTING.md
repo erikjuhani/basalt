@@ -33,6 +33,34 @@ Open an issue first so we can chat about the feature work or claim an existing i
 
 If you find mistakes in the documentation or need simple code fixes, please go ahead and open a pull request with the changes!
 
+### Changelog Trailers
+
+When making changes that should appear in the changelog, add a `Changelog:` trailer to your commit message. This helps automatically categorize your changes when generating release notes.
+
+Available changelog trailers:
+
+- `Changelog: breaking` - Breaking changes
+- `Changelog: added` - New features
+- `Changelog: changed` - Changes to existing functionality
+- `Changelog: deprecated` - Soon-to-be removed features
+- `Changelog: removed` - Removed features
+- `Changelog: fixed` - Bug fixes
+- `Changelog: security` - Security-related changes
+- `Changelog: dependencies` - Dependency updates
+
+Example commit message:
+
+```gitcommit
+Add support for custom keybindings
+
+This commit introduces the ability to define custom keybindings
+in the configuration file.
+
+Changelog: added
+```
+
+If your change doesn't need to appear in the changelog (typo fixes, internal refactoring, etc.), simply omit the `Changelog:` trailer.
+
 ### Git Pre-push Hook
 
 There's a useful pre-push git hook under `scripts`, which you can enable by running the following command:
@@ -48,6 +76,48 @@ The script runs the same test commands as in the `test.yml` workflow.
 > [!CAUTION]
 >
 > This section is unfinished. It should explain roughly what is being run in the CI and what is required for CI to actually run on a PR opened from a fork.
+
+## Creating a Release
+
+> [!NOTE]
+>
+> This section is primarily for maintainers, but it's documented here for transparency and in case contributors are curious about the release process.
+
+The release process involves the following steps:
+
+### 1. Generate the Changelog
+
+Before creating a release tag, generate the changelog for each crate using the `make changelog` target:
+
+```sh
+make changelog crate=basalt version=X.Y.Z
+make changelog crate=basalt-core version=X.Y.Z
+make changelog crate=basalt-widgets version=X.Y.Z
+```
+
+The generated changelogs will be grouped by category (Breaking, Added, Changed, Fixed, etc.) and include links to commits and PRs. If a crate has no commits with `Changelog:` trailers since the last release, the changelog file will remain unchanged (no empty version sections will be added).
+
+### 2. Commit the Changelog Updates
+
+Commit only the changelogs that were actually modified:
+
+```sh
+git add basalt/CHANGELOG.md basalt-core/CHANGELOG.md basalt-widgets/CHANGELOG.md
+git commit -m "Update changelogs for vX.Y.Z"
+```
+
+### 3. Create and Push the Release Tag
+
+```sh
+git tag basalt/vX.Y.Z
+git push origin basalt/vX.Y.Z
+```
+
+The tag must follow the pattern `basalt/vX.Y.Z` (e.g., `basalt/v0.4.0`) to trigger the release workflow.
+
+### 4. Create the GitHub Release
+
+The GitHub Actions workflow will automatically build binaries for multiple platforms. Once the artifacts are uploaded, create a GitHub release manually through the GitHub UI and copy the relevant section from the generated CHANGELOG.md.
 
 ---
 
