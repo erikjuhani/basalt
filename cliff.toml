@@ -1,0 +1,118 @@
+[remote.github]
+owner = "erikjuhani"
+repo = "basalt"
+
+[changelog]
+header = """
+# Changelog
+"""
+body = """
+{%- if commits | length > 0 -%}
+{%- if version %}
+## [{{ version | split(pat="/") | last }}]({{ self::remote_url() }}/releases/tag/{{ version }}) ({{ timestamp | date(format="%b, %d %Y") }})
+{% endif -%}
+{%- endif -%}
+{% macro commit(commit) -%}
+- [{{ commit.id | truncate(length=7, end="") }}]({{ self::remote_url() }}/commit/{{ commit.id }}) \
+  {{ commit.message | split(pat="\n") | first | upper_first | trim }}
+  {%- set lines = commit.message | split(pat="\n") | slice(start=1) -%}
+  {%- set body_lines = [] -%}
+  {%- set trailers = [] -%}
+
+  {%- for line in lines -%}
+    {%- if line is starting_with("Signed-off-by:") or line is starting_with("Co-authored-by:") -%}
+      {%- set_global trailers = trailers | concat(with=line) -%}
+    {%- elif line is matching("^[A-Za-z-]+: .+") -%}
+      {# Skip other trailers - don't add them to body_lines #}
+    {%- else -%}
+      {%- set_global body_lines = body_lines | concat(with=line) -%}
+    {%- endif -%}
+  {%- endfor -%}
+
+  {%- set commit_body = body_lines | join(sep="\n") | trim -%}
+
+  {% if commit.remote.username %} by @{{ commit.remote.username }}{%- endif -%}\
+  {% if commit.remote.pr_number %} in [#{{ commit.remote.pr_number }}]({{ self::remote_url() }}/pull/{{ commit.remote.pr_number }}){%- endif %}\
+
+{%- if commit.breaking %} [**breaking**]{% endif %}
+{% if commit_body %}
+{%- for line in commit_body | split(pat="\n") %}
+{%- if line | trim %}
+  > {{ line }}
+{%- else %}
+  >
+{%- endif %}
+{%- endfor %}
+{%- endif %}
+{%- if trailers | length > 0 %}
+  >
+{%- for trailer in trailers %}
+  {{ trailer | indent(prefix="> ", first=true, blank=true) }}
+{%- endfor %}
+{%- endif %}
+{% endmacro -%}
+
+{%- if commits | length > 0 -%}
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | trim | upper_first }}
+{% for commit in commits | filter(attribute="scope") | sort(attribute="scope") %}
+{{ self::commit(commit=commit) }}
+{%- endfor -%}
+{% for commit in commits %}
+{%- if not commit.scope %}
+{{ self::commit(commit=commit) }}
+{%- endif -%}
+{%- endfor -%}
+{%- endfor %}
+
+{%- if not release_link -%}
+{% if github.contributors | filter(attribute="is_first_time", value=true) | length != 0 %}
+### New Contributors
+{%- endif %}\
+{% for contributor in github.contributors | filter(attribute="is_first_time", value=true) %}
+* @{{ contributor.username }} made their first contribution
+{%- if contributor.pr_number %} in \
+[#{{ contributor.pr_number }}]({{ self::remote_url() }}/pull/{{ contributor.pr_number }}) \
+{%- endif %}
+{%- endfor %}
+{%- endif %}
+
+{% if version %}
+{% if previous.version %}
+
+{%- if release_link -%}
+**Full Changelog**: {{ release_link }}
+{%- else -%}
+**Full Changelog**: {{ self::remote_url() }}/compare/{{ previous.version }}...{{ version }}
+{% endif %}
+{% endif %}
+{%- else -%}
+{% raw %}\n{% endraw %}
+{%- endif %}
+{%- endif -%}
+{%- macro remote_url() -%}
+{%- if remote.owner -%}
+https://github.com/{{ remote.owner }}/{{ remote.repo }}\
+{%- else -%}
+https://github.com/{{ remote.github.owner }}/{{ remote.github.repo }}\
+{%- endif -%}
+{% endmacro %}
+"""
+trim = true
+
+[git]
+conventional_commits = false
+commit_parsers = [
+  { message = "Changelog: breaking", group = "Breaking" },
+  { message = "Changelog: added", group = "Added" },
+  { message = "Changelog: changed", group = "Changed" },
+  { message = "Changelog: deprecated", group = "Deprecated" },
+  { message = "Changelog: removed", group = "Removed" },
+  { message = "Changelog: fixed", group = "Fixed" },
+  { message = "Changelog: security", group = "Security" },
+  { message = "Changelog: dependencies", group = "Dependencies" },
+  { field = "author.name", pattern = "renovate-updater|dependabot", group = "Dependencies" },
+  { message = "^Merge pull request", skip = true },
+  { message = "^Merge branch", skip = true },
+]
+filter_commits = true
