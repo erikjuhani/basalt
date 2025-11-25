@@ -70,6 +70,9 @@ jobs:
         with:
           app-id: ${{ vars.RENOVATE_APP_ID }}
           private-key: ${{ secrets.RENOVATE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: |
+            basalt
 
       - name: Restore cache
         if: github.event.inputs.repoCache != 'disabled'
