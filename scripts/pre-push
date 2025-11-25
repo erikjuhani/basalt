@@ -3,7 +3,7 @@
 set -e
 
 if command -v pinact >/dev/null; then
-  find .github/workflows -name '*.yml' -exec pinact run --check {} \;
+  find .github/workflows -name '*.yml' -print0 | xargs -0 pinact run --check
 fi
 
 make fmt-check
