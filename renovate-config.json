@@ -37,6 +37,17 @@
       ],
       "depNameTemplate": "ghcr.io/renovatebot/renovate",
       "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        ".github/workflows/workflow-security.yml"
+      ],
+      "matchStrings": [
+        "name: zizmor\\s+uses: zizmorcore/zizmor-action@[a-f0-9]+ # [^\\s]+\\s+with:[\\s\\S]*?version: (?<currentValue>v[0-9.]+)"
+      ],
+      "depNameTemplate": "zizmorcore/zizmor",
+      "datasourceTemplate": "github-releases"
     }
   ],
   "packageRules": [
