@@ -1,4 +1,7 @@
-use std::iter;
+use std::{
+    iter,
+    str::{CharIndices, Chars},
+};
 
 use ratatui::text::{Line, Span};
 
@@ -13,13 +16,13 @@ use crate::{
 
 macro_rules! content_span {
     ($span:expr, $range:expr) => {{
-        VirtualSpan::Content($span, $range.clone())
+        VirtualSpan::Content($span.into(), $range.clone())
     }};
 }
 
 macro_rules! synthetic_span {
     ($span:expr) => {{
-        VirtualSpan::Synthetic($span.into())
+        VirtualSpan::Synthetic($span.clone().into())
     }};
 }
 
@@ -51,6 +54,20 @@ impl VirtualSpan<'_> {
         match self {
             VirtualSpan::Content(_, source_range) => source_range.contains(&offset),
             _ => false,
+        }
+    }
+
+    pub fn chars(&self) -> Chars<'_> {
+        match self {
+            Self::Content(span, ..) => span.content.chars(),
+            Self::Synthetic(..) => "".chars(),
+        }
+    }
+
+    pub fn char_indices(&self) -> CharIndices<'_> {
+        match self {
+            Self::Content(span, ..) => span.content.char_indices(),
+            Self::Synthetic(..) => "".char_indices(),
         }
     }
 
