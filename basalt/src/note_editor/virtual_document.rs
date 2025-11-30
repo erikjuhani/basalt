@@ -78,11 +78,9 @@ impl VirtualSpan<'_> {
         }
     }
 
-    /// Only content span width is taken into account when calculating width
     pub fn width(&self) -> usize {
         match self {
-            VirtualSpan::Content(span, ..) => span.width(),
-            _ => 0,
+            VirtualSpan::Content(span, ..) | VirtualSpan::Synthetic(span) => span.width(),
         }
     }
 
