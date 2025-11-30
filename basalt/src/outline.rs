@@ -51,8 +51,10 @@ pub fn update<'a>(message: &Message, state: &mut OutlineState) -> Option<AppMess
         Message::Toggle => state.toggle(),
         Message::Select => {
             if let Some(item) = state.selected() {
-                return Some(AppMessage::NoteEditor(note_editor::Message::SetRow(
-                    item.get_range().start,
+                // This is a block idx, not a source range offset
+                let block_idx = item.get_range().start;
+                return Some(AppMessage::NoteEditor(note_editor::Message::JumpToBlock(
+                    block_idx,
                 )));
             }
         }

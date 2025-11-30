@@ -7,7 +7,7 @@ use ratatui::{
     DefaultTerminal,
 };
 
-use std::{cell::RefCell, fmt::Debug, io::Result};
+use std::{cell::RefCell, fmt::Debug, io::Result, path::PathBuf};
 
 use crate::{
     command,
@@ -16,7 +16,8 @@ use crate::{
     help_modal::{self, HelpModal, HelpModalState},
     note_editor::{
         self, ast,
-        editor::{NoteEditor, View},
+        editor::NoteEditor,
+        state::{NoteEditorState, View},
     },
     outline::{self, Outline, OutlineState},
     splash_modal::{self, SplashModal, SplashModalState},
@@ -51,7 +52,7 @@ pub struct AppState<'a> {
 
     active_pane: ActivePane,
     explorer: ExplorerState<'a>,
-    note_editor: note_editor::editor::State<'a>,
+    note_editor: NoteEditorState<'a>,
     outline: OutlineState,
     selected_note: Option<SelectedNote>,
 
@@ -131,7 +132,7 @@ impl From<ActivePane> for &str {
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct SelectedNote {
     name: String,
-    path: String,
+    path: PathBuf,
     content: String,
 }
 
@@ -139,7 +140,7 @@ impl From<&Note> for SelectedNote {
     fn from(value: &Note) -> Self {
         Self {
             name: value.name.clone(),
-            path: value.path.to_string_lossy().to_string(),
+            path: value.path.clone(),
             content: Note::read_to_string(value).unwrap_or_default(),
         }
     }
@@ -225,7 +226,7 @@ impl<'a> App<'a> {
     }
 
     #[rustfmt::skip]
-    fn handle_active_component_event(config: &'a Config, _state: &AppState<'_>, key: &KeyEvent, active_component: ActivePane) -> Option<Message<'a>> {
+    fn handle_active_component_event(config: &'a Config, state: &AppState<'_>, key: &KeyEvent, active_component: ActivePane) -> Option<Message<'a>> {
         match active_component {
             ActivePane::Splash => config.splash.key_to_message(key.into()),
             ActivePane::Explorer => config.explorer.key_to_message(key.into()),
@@ -233,12 +234,12 @@ impl<'a> App<'a> {
             ActivePane::HelpModal => config.help_modal.key_to_message(key.into()),
             ActivePane::VaultSelectorModal => config.vault_selector_modal.key_to_message(key.into()),
             ActivePane::NoteEditor => {
-                    // if state.note_editor.is_editing() {
-                    //     note_editor::handle_editing_event(key).map(Message::NoteEditor)
-                    // } else {
-                    config.note_editor.key_to_message(key.into())
-                // }
-            },
+                    if state.note_editor.is_editing() {
+                        note_editor::handle_editing_event(key).map(Message::NoteEditor)
+                    } else {
+                        config.note_editor.key_to_message(key.into())
+                    }
+            }
         }
     }
 
@@ -249,11 +250,9 @@ impl<'a> App<'a> {
     ) -> Option<Message<'a>> {
         let global_message = config.global.key_to_message(key.into());
 
-        // let is_editing = state.note_editor.is_editing();
+        let is_editing = state.note_editor.is_editing();
 
-        if global_message.is_some()
-        /* && !is_editing */
-        {
+        if global_message.is_some() && !is_editing {
             return global_message;
         }
 
@@ -293,7 +292,7 @@ impl<'a> App<'a> {
             },
             Message::OpenVault(vault) => {
                 state.explorer = ExplorerState::new(&vault.name, vault.entries());
-                state.note_editor = note_editor::editor::State::default();
+                state.note_editor = NoteEditorState::default();
                 return Some(Message::SetActivePane(ActivePane::Explorer));
             }
             Message::SelectNote(selected_note) => {
@@ -303,8 +302,11 @@ impl<'a> App<'a> {
                     .is_some_and(|note| note.content != selected_note.content);
                 state.selected_note = Some(selected_note.clone());
 
-                state.note_editor =
-                    note_editor::editor::State::new(&selected_note.content, &selected_note.name);
+                state.note_editor = NoteEditorState::new(
+                    &selected_note.content,
+                    &selected_note.name,
+                    &selected_note.path,
+                );
 
                 state.note_editor.set_active(true);
 
@@ -315,7 +317,7 @@ impl<'a> App<'a> {
                 // TODO: This should be behind an event/message
                 state.outline = OutlineState::new(
                     &state.note_editor.ast_nodes,
-                    state.note_editor.current_row(),
+                    state.note_editor.current_block(),
                     state.outline.is_open(),
                 );
 
@@ -333,7 +335,7 @@ impl<'a> App<'a> {
                 let (note_name, note_path) = state
                     .selected_note
                     .as_ref()
-                    .map(|note| (note.name.as_str(), note.path.as_str()))
+                    .map(|note| (note.name.as_str(), note.path.to_string_lossy()))
                     .unwrap_or_default();
 
                 return command::sync_command(
@@ -341,7 +343,7 @@ impl<'a> App<'a> {
                     command,
                     state.explorer.title,
                     note_name,
-                    note_path,
+                    &note_path,
                 );
             }
 
@@ -349,10 +351,15 @@ impl<'a> App<'a> {
                 let (note_name, note_path) = state
                     .selected_note
                     .as_ref()
-                    .map(|note| (note.name.as_str(), note.path.as_str()))
+                    .map(|note| (note.name.as_str(), note.path.to_string_lossy()))
                     .unwrap_or_default();
 
-                return command::spawn_command(command, state.explorer.title, note_name, note_path);
+                return command::spawn_command(
+                    command,
+                    state.explorer.title,
+                    note_name,
+                    &note_path,
+                );
             }
 
             Message::HelpModal(message) => {

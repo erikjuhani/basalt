@@ -8,8 +8,9 @@ use ratatui::text::{Line, Span};
 use crate::{
     note_editor::{
         ast::{self, SourceRange},
-        editor::View,
         render::{render_node, text_wrap, RenderStyle},
+        state::View,
+        text_buffer::TextBuffer,
     },
     stylized_text::{stylize, FontStyle},
 };
@@ -191,22 +192,21 @@ impl<'a> VirtualDocument<'a> {
         &self.line_to_block
     }
 
-    pub fn get_block(&self, line: usize) -> Option<(usize, &VirtualBlock<'_>)> {
-        self.line_to_block().get(line).and_then(|block_idx| {
-            self.blocks()
-                .get(*block_idx)
-                .map(|block| (*block_idx, block))
-        })
+    pub fn get_block(&self, block_idx: usize) -> Option<(usize, &VirtualBlock<'_>)> {
+        self.blocks().get(block_idx).map(|block| (block_idx, block))
     }
 
+    // FIXME: Refactor. Too many arguments.
+    #[allow(clippy::too_many_arguments)]
     pub fn layout(
         &mut self,
         note_name: &str,
         content: &str,
         view: &View,
-        cursor_line: usize,
+        current_block_idx: Option<usize>,
         ast_nodes: &[ast::Node],
         width: usize,
+        text_buffer: Option<TextBuffer>,
     ) {
         if !note_name.is_empty() {
             let mut meta = text_wrap(
@@ -225,17 +225,23 @@ impl<'a> VirtualDocument<'a> {
             self.meta = meta;
         }
 
-        let current_block_idx = self.line_to_block().get(cursor_line);
-
         let (blocks, lines, line_to_block) = ast_nodes.iter().enumerate().fold(
             (vec![], vec![], vec![]),
             |(mut blocks, mut lines, mut line_to_block), (idx, node)| {
                 let block = if current_block_idx
-                    .is_some_and(|block_idx| *block_idx == idx && matches!(view, View::Edit(..)))
+                    .is_some_and(|block_idx| block_idx == idx && matches!(view, View::Edit(..)))
                 {
+                    let mut node = node.clone();
+                    if let Some(text_buffer) = &text_buffer {
+                        node.set_source_range(text_buffer.source_range.clone());
+                    }
+
                     render_node(
-                        content.to_string(),
-                        node,
+                        text_buffer
+                            .clone()
+                            .map(|text_buffer| text_buffer.content)
+                            .unwrap_or_default(),
+                        &node,
                         width,
                         Span::default(),
                         &RenderStyle::Raw,
