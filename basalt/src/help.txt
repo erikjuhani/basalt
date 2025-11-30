@@ -19,7 +19,8 @@ DISCLAIMER
   Basalt is in its early stages, with a very limited set of features, and is
   therefore susceptible to changes. The experimental editor feature is disabled
   by default but can be enabled in the configuration file. When enabled, it
-  allows basic note modification and editing capabilities.
+  provides a custom-built editor with limited capabilities for basic note
+  modification.
 
   Quitting the application may feel a bit abrupt, as the application exits
   immediately after pressing ‹q›. I have some plans to handle this differently
@@ -152,53 +153,41 @@ INTERFACE
 
     EDIT MODE (Experimental)
 
-      Edit mode allows you to make changes to your note. This mode uses the
-      tui-textarea crate and provides basic text editing capabilities.
+      Edit mode allows you to make changes to your note. The editor is built
+      from scratch with limited capabilities. Single block editing is supported
+      (navigating between blocks switches the active edit buffer).
 
       WARNING: Edit mode key mappings cannot be modified through configuration.
 
+      SUPPORTED OPERATIONS:
+        • Character insertion
+        • Character deletion (backspace only)
+        • Navigation (arrow keys, word jumping)
+        • Newline insertion (Enter)
+
       EDITING COMMANDS
 
-        ‹Ctrl+H›, ‹Backspace›    Delete character before cursor
-        ‹Ctrl+D›, ‹Delete›       Delete character at cursor
-        ‹Ctrl+M›, ‹Enter›        Insert newline
-        ‹Ctrl+K›                 Delete from cursor to end of line
-        ‹Ctrl+J›                 Delete from cursor to beginning of line
-        ‹Ctrl+W›, ‹Alt+H›,       Delete word before cursor
-        ‹Alt+Backspace›
-        ‹Alt+D›, ‹Alt+Delete›    Delete word after cursor
-
-      UNDO/REDO AND CLIPBOARD
-
-        ‹Ctrl+U›                 Undo
-        ‹Ctrl+R›                 Redo
-        ‹Ctrl+C›, ‹Copy›         Copy selected text
-        ‹Ctrl+X›, ‹Cut›          Cut selected text
-        ‹Ctrl+Y›, ‹Paste›        Paste text
+        ‹Backspace›              Delete character before cursor
+        ‹Enter›                  Insert newline
+        ‹Ctrl+E›                 Toggle to read mode
+        ‹Esc›                    Exit edit mode
 
       CURSOR MOVEMENT
 
-        ‹Ctrl+F›, ‹→›             Move forward one character
-        ‹Ctrl+B›, ‹←›             Move backward one character
-        ‹Ctrl+P›, ‹↑›             Move up one line
-        ‹Ctrl+N›, ‹↓›             Move down one line
-        ‹Alt+→›, ‹Ctrl+→›         Move forward by word
-        ‹Alt+←›, ‹Ctrl+←›         Move backward by word
-        ‹Alt+]›, ‹Alt+P›,         Move up by paragraph
-        ‹Ctrl+↑›
-        ‹Alt+[›, ‹Alt+N›,         Move down by paragraph
-        ‹Ctrl+↓›
+        ‹→›                      Move forward one character
+        ‹←›                      Move backward one character
+        ‹↑›                      Move up one line
+        ‹↓›                      Move down one line
+        ‹Alt+→›                  Move forward by word
+        ‹Alt+←›                  Move backward by word
 
-      LINE/DOCUMENT NAVIGATION
-
-        ‹Ctrl+E›, ‹End›,          Move to end of line
-        ‹Ctrl+Alt+F›
-        ‹Ctrl+A›, ‹Home›,         Move to beginning of line
-        ‹Ctrl+Alt+B›
-        ‹Alt+<›, ‹Ctrl+Alt+P›     Move to top of document
-        ‹Alt+>›, ‹Ctrl+Alt+N›     Move to bottom of document
-        ‹Ctrl+V›, ‹PageDown›      Scroll down by page
-        ‹Alt+V›, ‹PageUp›         Scroll up by page
+      LIMITATIONS:
+        • No undo/redo support
+        • No clipboard operations (copy/paste/cut)
+        • No text selection
+        • No multi-line deletion
+        • No line/word deletion commands
+        • No jumping to start/end of line or document
 
 ────────────────────────────────────────────────────────────────────────────
 
@@ -261,8 +250,8 @@ FEATURES
   • Sort notes alphabetically
   • Experimental editor mode for note modification (when enabled)
   • Multiple editor modes: View mode for reading, Edit mode for changes
-  • Basic text editing capabilities in Edit mode
-  • Undo/redo functionality and clipboard operations (Only in Edit mode while modifying a markdown block)
+  • Basic text editing capabilities in Edit mode (custom implementation)
+  • Single block editing with character insertion and deletion
 
 ────────────────────────────────────────────────────────────────────────────
 

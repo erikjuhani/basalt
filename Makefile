@@ -1,7 +1,16 @@
-.PHONY: fmt cargo-fmt json-fmt fmt-check cargo-fmt-check json-fmt-check vhs changelog
+.PHONY: fmt cargo-fmt json-fmt fmt-check cargo-fmt-check json-fmt-check vhs check changelog
 
 vhs:
 	./scripts/vhs
+
+check:
+	@$(MAKE) fmt-check
+	@if command -v pinact >/dev/null 2>&1; then find .github/workflows -name '*.yml' -print0 | xargs -0 pinact run --check ; fi
+	cargo check --locked --profile ci --workspace --all-targets
+	cargo clippy --profile ci --workspace --all-targets -- -D warnings
+	cargo test --profile ci --workspace --all-targets
+	cargo build --profile ci --workspace --all-targets
+	cargo package --no-verify --allow-dirty
 
 fmt: cargo-fmt json-fmt
 

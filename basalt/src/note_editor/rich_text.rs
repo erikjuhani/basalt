@@ -1,4 +1,4 @@
-use std::{fmt, slice::Iter, vec::IntoIter};
+use std::{fmt, vec::IntoIter};
 
 use pulldown_cmark::CowStr;
 
@@ -40,6 +40,13 @@ impl TextSegment {
         self.style = Some(style.clone());
     }
 
+    pub fn empty_line() -> Self {
+        Self {
+            content: '\n'.to_string(),
+            style: None,
+        }
+    }
+
     pub fn plain(content: &str) -> Self {
         Self {
             content: content.to_string(),
@@ -78,7 +85,7 @@ impl From<&str> for TextSegment {
     fn from(content: &str) -> Self {
         // Replace tab character with spaces.
         // Tab character can break the rendered TUI.
-        // TODO: Control tab length with config value.
+        // FIXME: Control tab length with config value.
         Self::plain(&content.replace("\t", "  "))
     }
 }
@@ -115,16 +122,8 @@ impl RichText {
         Self::default()
     }
 
-    pub fn iter(&self) -> Iter<'_, TextSegment> {
-        self.segments.iter()
-    }
-
     pub fn is_empty(&self) -> bool {
         self.segments.is_empty()
-    }
-
-    pub fn push_text_segment(&mut self, text_segment: TextSegment) {
-        self.segments.push(text_segment);
     }
 
     pub fn segments(&self) -> &[TextSegment] {
