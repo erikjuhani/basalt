@@ -1,5 +1,196 @@
 # Changelog
 
+## [0.11.0](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.11.0) (Nov, 30 2025)
+
+Basalt author and maintainer here! Wanted to write a few words before the _regular_ changelog.
+
+Phew, this took longer than expected, but here we are. The editor feature does not offer feature parity with the tui-textarea that was being used previously, however, it can properly wrap the text while writing, which frankly, I find quite pleasing.
+
+If you encounter any bugs or additional strangeness please open an issue! The editor was made by me and most likely contains errors. Use with caution! :)
+
+I'm taking a small break from basalt for the advent of code puzzles! So expect slower development during December.
+
+This release fixes the following issues: [#105](https://github.com/erikjuhani/basalt/issues/105), [#104](https://github.com/erikjuhani/basalt/issues/104), [#95](https://github.com/erikjuhani/basalt/issues/95)
+
+Demo:
+
+![basalt demo of new 0.11.0 version editor capabilities](https://github.com/erikjuhani/basalt/blob/083ca1abc96ae35bf8ba144476c0224a63854259/assets/basalt-0-11-0.gif?raw=true)
+
+### Added
+
+- [ba8f3a0](https://github.com/erikjuhani/basalt/commit/ba8f3a0b260f935e88346a0f451572bdeac8ffe8) Introduce virtual document structure with rendering by @erikjuhani
+
+> I decided to implement a virtual document, which is essentially the
+> virtually rendered version of the markdown document. This virtual
+> document is a collection of virtual blocks, virtual lines and virtual
+> spans.
+>
+> Virtual lines and spans are turned into Ratatui variants to render them
+> in terminal.
+>
+> Virtual spans are separated into two concepts, synthetic and content.
+>
+> - Synthetic spans are elements that are not calculated as part of the
+>   markdown source.
+> - Content spans on the other hand are elements that are calculated as
+>   part of the markdown source.
+>
+> This separation enables more fluid use cases and easier management
+> codewise for more rendered content, like text wrapping symbols,
+> additional emphasize lines or spans, etc.
+>
+> Rendering is a collection of functions that are turned into virtual
+> blocks. These virtual blocks map directly into top level markdown nodes.
+>
+> All rendered functions wrap the text with the given max width. The text
+> wrapping is a generalized wrapping function that can be now run for "any"
+> markdown node that is defined in the ast module.
+
+- [943256b](https://github.com/erikjuhani/basalt/commit/943256b8710cdd2081836c877623a3db8be21b70) Add Cursor module by @erikjuhani
+
+> Cursor module is responsible for keeping up with the cursor state.
+> Cursor can be switched between two modes, read and edit.
+>
+> Each mode behaves a bit differently, read only considers the virtual
+> elements, and edit mode considers the source content.
+>
+> For now only the read mode variant is properly implemented.
+>
+> The rendering is handled with a separate stateful CursorWidget component
+> that takes the cursor state as an input and draws the cursor
+> accordingly.
+>
+> In read mode the cursor is drawn as a full-width line cursor.
+
+- [b26f0ff](https://github.com/erikjuhani/basalt/commit/b26f0ffbf5b2ca7d86c6fc1bb882b8259d5c1610) Add soft break parsing to markdown parser
+
+> Also add empty_line() helper function to TextSegment struct. This
+> creates a new empty line with "\n" as the content.
+>
+> This empty line can then be split in the render functions, but still
+> keep the content inside a single markdown node (e.g. paragraph).
+
+- [5222b7e](https://github.com/erikjuhani/basalt/commit/5222b7e316227076d287f897500cc479386db53e) Add text wrapping helper utility
+
+> The text wrapper module exposes `wrap_preserve_trailing`, which, as name
+> implies, keeps the trailing whitespace.
+>
+> I'm using the `textwrap::WordSeparator` to find and iterate over the
+> words in the text, and then determine if the word fits in the current
+> line by using the passed max width variable. The `textwrap` crate itself
+> did not ship with a premade wrapping utility that would have preserved
+> the whitespace, at least, I did not find such utility.
+
+- [bf2c86d](https://github.com/erikjuhani/basalt/commit/bf2c86d9cc4791517364297dca2173e2a0cd2828) Add a simple viewport abstraction
+
+> The viewport abstraction wraps the ratatui layout structure Rect and
+> uses additional layout data structures like Size and Offset.
+
+- [5b83d5f](https://github.com/erikjuhani/basalt/commit/5b83d5ffd30892b89353329b0c224000fa1896a1) Add `chars` and `char_indices` methods to virtual span
+
+> These helper methods will allow easier access to the underlying chars
+> and their byte indices.
+
+### Changed
+
+- [ee4976f](https://github.com/erikjuhani/basalt/commit/ee4976f7734fc2ef67145195be3fa0f7f8fd3ecf) Replace old editor with new implementation by @erikjuhani
+
+> The old note editor variant was hard to maintain and was lacking proper
+> structure. Adding new ast nodes or elements was a cumbersome process.
+>
+> The new variant uses logical structures like virtual document and
+> separate rendering functions to achieve a more cohesive end result.
+>
+> The editor now requires to have a viewport in order to render anything
+> properly. This is a requirement for example to decide the correct
+> wrapping width for text elements.
+>
+> This change also introduces fix for scrolling. Now scrolling works
+> properly and cursor is always visible in the viewport. This fixes the
+> issue #104.
+>
+> The rendering is simplified drastically due to the use of more logical
+> structures.
+>
+> In this commit, only read mode is enabled and the edit mode support is
+> missing.
+
+- [88be5fa](https://github.com/erikjuhani/basalt/commit/88be5fa7e73b0165681db8f366db752cfdbc0075) Return a reference instead of owned RichText
+
+> No reason to not return a reference, and we avoid allocation.
+
+- [739704a](https://github.com/erikjuhani/basalt/commit/739704a371032b0ae4c985145694657315ab2ed4) In virtual span width() returns both content and synthetic width
+
+> Previously only content width was taken into account, however, this does
+> not work as intended as the synthetic width needs to be calculated as
+> well to find for example the correct offset for cursor column.
+
+- [fa59ed5](https://github.com/erikjuhani/basalt/commit/fa59ed566d7f504d9af0a635754fccc1c7b9207f) Remove unused methods from virtual line
+
+> Also simplified and improved the existing methods. For example virtual
+> spans now retuns a slice instead of owned Vec.
+
+- [d00f9d4](https://github.com/erikjuhani/basalt/commit/d00f9d41fa05274644a8250d2bd1684193da78af) Implement custom text editor
+
+> This custom implementation replaces tui-textarea with proper text
+> wrapping and better WYSIWYG experience. Also the custom implementation
+> allows for more granular control over how elements are, rendered and
+> positioned.
+>
+> I tried to mimic the previous functionality in a way so as little is
+> lost as possible feature wise, obviously, since this is made from
+> scratch the feature parity is far off still.
+>
+> Additionally there is some known issues, like cursor positioning is
+> incorrect with unicode symbols in source content. This can be observed
+> by wrong end position when moving the cursor to the right most end. The
+> cursor appears as if it is stuck, but that is due to wrong count
+> somewhere, which should be fixed, but in a different commit.
+>
+> For now the implementation is very limited and implements only a
+> restricted set of features: Editing markdown nodes, saving changes to
+> file, moving by words and scrolling by half pages.
+>
+> This commit has quite many changes, and, unfortunately the nature of how
+> this refactor was introduced, was difficult to separate the commits
+> atomically and cleanly to smaller pieces.
+>
+> But the most notable ones are:
+>
+> - Cursor changes, which include the cursor movement by columns and words
+>   and proper cursor positioning from the source offset location.
+>
+> - Editor state changes to allow insertion, deletion and saving of files,
+>   and source range shifting, which is related to the editor
+>   functionality, which essentially shifts the end of the source range,
+>   if the source ranges are not shifted properly and if the text buffer
+>   exceeds the range start of next node the text buffer would be
+>   replicated and rendered in-place of the next node.
+>
+> - Render changes, which introduce a new consolidated text wrapping and
+>   handling for newline characters in both visual and raw rendering
+>   modes. The new consolidated text wrapping uses the new whitespace
+>   preserving text wrap function. Additionally source offset for rendered
+>   virtual lines were fixed. Also added unicode-width dependency for
+>   accurate unicode character width calculations in render.
+
+### Dependencies
+
+- [2985a13](https://github.com/erikjuhani/basalt/commit/2985a13678b0783af61d9dbd16a74c2c1d639b87) Update Rust crate etcetera to 0.11.0 by @renovate-updater[bot]
+
+> | datasource | package  | from   | to     |
+> | ---------- | -------- | ------ | ------ |
+> | crate      | etcetera | 0.10.0 | 0.11.0 |
+
+### New Contributors
+* @erikjuhani made their first contribution in [#191](https://github.com/erikjuhani/basalt/pull/191)
+* @renovate-updater[bot] made their first contribution
+* @istudyatuni made their first contribution
+
+
+**Full Changelog**: https://github.com/erikjuhani/basalt/compare/basalt/v0.10.4...basalt/0.11.0
+
+
 ## 0.11.0 (Unreleased)
 
 This release adds new improved note editor with proper text wrapping for all markdown elements (excluding code blocks).
