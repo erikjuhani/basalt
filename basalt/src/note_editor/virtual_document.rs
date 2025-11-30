@@ -110,26 +110,12 @@ impl<'a> VirtualLine<'a> {
         }
     }
 
-    /// Synthetic spans are not calculated into line width
-    pub fn width(&self) -> usize {
-        self.spans.iter().map(|span| span.width()).sum()
-    }
-
-    pub fn contains_offset(&self, offset: usize) -> bool {
-        self.spans
-            .iter()
-            .any(|visual_span| visual_span.contains_offset(offset))
-    }
-
     pub fn spans(self) -> Vec<Span<'a>> {
-        self.spans
-            .into_iter()
-            .map(|visual_span| visual_span.into())
-            .collect()
+        self.spans.into_iter().map(|s| s.into()).collect()
     }
 
-    pub fn virtual_spans(self) -> Vec<VirtualSpan<'a>> {
-        self.spans
+    pub fn virtual_spans(&self) -> &[VirtualSpan<'a>] {
+        &self.spans
     }
 
     pub fn source_range(&self) -> Option<SourceRange<usize>> {
@@ -151,9 +137,7 @@ impl<'a> VirtualLine<'a> {
 
     pub fn has_content(&self) -> bool {
         // We short-circuit when we find content span
-        self.spans
-            .iter()
-            .any(|span| matches!(span, VirtualSpan::Content(..)))
+        self.spans.iter().any(|span| !span.is_synthetic())
     }
 }
 
@@ -177,10 +161,6 @@ impl<'a> VirtualBlock<'a> {
         }
     }
 
-    pub fn lines(&self) -> &[VirtualLine<'_>] {
-        &self.lines
-    }
-
     pub fn source_range(&self) -> &SourceRange<usize> {
         &self.source_range
     }
@@ -194,11 +174,7 @@ pub struct VirtualDocument<'a> {
     line_to_block: Vec<usize>,
 }
 
-impl VirtualDocument<'_> {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
+impl<'a> VirtualDocument<'a> {
     pub fn meta(&self) -> &[VirtualLine<'_>] {
         &self.meta
     }
