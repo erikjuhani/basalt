@@ -118,6 +118,11 @@ impl<'a> Parser<'a> {
                     text_segments.push(text_segment);
                 }
 
+                Event::SoftBreak => {
+                    let text_segment = TextSegment::empty_line();
+                    text_segments.push(text_segment);
+                }
+
                 Event::End(tag_end) if Self::tags_match(&tag, &tag_end) => {
                     let text = if !text_segments.is_empty() {
                         RichText::from(text_segments)
