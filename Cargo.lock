@@ -32,7 +32,6 @@ name = "basalt-tui"
 version = "0.11.0"
 dependencies = [
  "basalt-core",
- "basalt-widgets",
  "crossterm 0.29.0",
  "etcetera",
  "indoc",
@@ -44,7 +43,7 @@ dependencies = [
  "textwrap",
  "thiserror",
  "toml",
- "tui-textarea",
+ "unicode-width 0.2.0",
 ]
 
 [[package]]
@@ -879,17 +878,6 @@ name = "toml_writer"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df8b2b54733674ad286d16267dcfc7a71ed5c776e4ac7aa3c3e2561f7c637bf2"
-
-[[package]]
-name = "tui-textarea"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a5318dd619ed73c52a9417ad19046724effc1287fb75cdcc4eca1d6ac1acbae"
-dependencies = [
- "crossterm 0.28.1",
- "ratatui",
- "unicode-width 0.2.0",
-]
 
 [[package]]
 name = "unicase"

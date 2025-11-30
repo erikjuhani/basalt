@@ -130,11 +130,11 @@ impl Node {
         }
     }
 
-    pub fn rich_text(&self) -> Option<RichText> {
+    pub fn rich_text(&self) -> Option<&RichText> {
         match self {
             Self::Heading { text, .. }
             | Self::Paragraph { text, .. }
-            | Self::CodeBlock { text, .. } => Some(text.clone()),
+            | Self::CodeBlock { text, .. } => Some(text),
             _ => None,
         }
     }

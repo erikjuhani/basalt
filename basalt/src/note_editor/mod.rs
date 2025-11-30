@@ -4,21 +4,21 @@ pub mod editor;
 pub mod parser;
 mod render;
 mod rich_text;
-mod state;
+pub mod state;
 mod text_buffer;
+mod text_wrap;
+mod viewport;
 mod virtual_document;
 
 use ratatui::{
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
     layout::Size,
 };
-pub use state::EditorState;
-pub use text_buffer::TextBuffer;
 
 use crate::{
     app::{calc_scroll_amount, ActivePane, Message as AppMessage, ScrollAmount},
     explorer,
-    note_editor::editor::{EditMode, State, View},
+    note_editor::state::{EditMode, NoteEditorState, View},
     outline,
 };
 
@@ -42,45 +42,42 @@ pub enum Message {
     CursorDown,
     ScrollUp(ScrollAmount),
     ScrollDown(ScrollAmount),
-    SetRow(usize),
+    JumpToBlock(usize),
     Delete,
 }
 
+// FIXME: Add resize message to handle resize related updates like cursor positioning
 pub fn update<'a>(
     message: &Message,
     screen_size: Size,
-    state: &mut State,
+    state: &mut NoteEditorState,
 ) -> Option<AppMessage<'a>> {
     match message {
-        Message::CursorLeft => state.cursor_left(),
-        Message::CursorRight => state.cursor_right(),
-        // TODO: Commented until editor functionality works
-        // Message::CursorWordForward => state.cursor_word_forward(),
-        // Message::CursorWordBackward => state.cursor_word_backward(),
-        // Message::Delete => state.delete_char(),
-        // Message::SetRow(row) => state.set_row(*row),
+        Message::CursorLeft => state.cursor_left(1),
+        Message::CursorRight => state.cursor_right(1),
+        Message::JumpToBlock(idx) => state.cursor_jump(*idx),
         Message::CursorUp => {
             state.cursor_up(1);
             return Some(AppMessage::Outline(outline::Message::SelectAt(
-                state.current_row(),
+                state.current_block(),
             )));
         }
         Message::CursorDown => {
             state.cursor_down(1);
             return Some(AppMessage::Outline(outline::Message::SelectAt(
-                state.current_row(),
+                state.current_block(),
             )));
         }
         Message::ScrollUp(scroll_amount) => {
             state.cursor_up(calc_scroll_amount(scroll_amount, screen_size.height.into()));
             return Some(AppMessage::Outline(outline::Message::SelectAt(
-                state.current_row(),
+                state.current_block(),
             )));
         }
         Message::ScrollDown(scroll_amount) => {
             state.cursor_down(calc_scroll_amount(scroll_amount, screen_size.height.into()));
             return Some(AppMessage::Outline(outline::Message::SelectAt(
-                state.current_row(),
+                state.current_block(),
             )));
         }
         _ => {}
@@ -88,24 +85,35 @@ pub fn update<'a>(
 
     match state.view {
         View::Edit(..) => match message {
-            Message::ToggleView => state.set_view(View::Edit(EditMode::Source)),
-            // TODO: Commented until editor functionality works
-            //         Message::ScrollUp(_) => state.cursor_up(),
-            //         Message::ScrollDown(_) => state.cursor_down(),
-            //         Message::KeyEvent(key) => {
-            //             state.edit((*key).into());
-            //             return Some(AppMessage::UpdateSelectedNoteContent((
-            //                 state.content().to_string(),
-            //                 None,
-            //             )));
-            //         }
+            Message::CursorWordForward => state.cursor_word_forward(),
+            Message::CursorWordBackward => state.cursor_word_backward(),
+            Message::ToggleView => state.set_view(View::Read),
+            Message::KeyEvent(key) => {
+                match key.code {
+                    KeyCode::Char(c) => {
+                        state.insert_char(c);
+                    }
+                    KeyCode::Enter => {
+                        state.insert_char('\n');
+                    }
+                    _ => {}
+                }
+
+                return Some(AppMessage::UpdateSelectedNoteContent((
+                    state.content.to_string(),
+                    None,
+                )));
+            }
+            Message::Delete => {
+                state.delete_char();
+            }
             Message::Exit => {
-                // state.exit_insert();
+                state.exit_insert();
                 state.set_view(View::Read);
-                // return Some(AppMessage::UpdateSelectedNoteContent((
-                //     state.content().to_string(),
-                //     Some(state.nodes().to_vec()),
-                // )));
+                return Some(AppMessage::UpdateSelectedNoteContent((
+                    state.content.to_string(),
+                    Some(state.ast_nodes.clone()),
+                )));
             }
             _ => {}
         },
@@ -127,14 +135,14 @@ pub fn update<'a>(
                 state.set_active(false);
                 return Some(AppMessage::SetActivePane(ActivePane::Explorer));
             }
-            // TODO: Commented until editor functionality works
-            //         Message::Save => {
-            //             state.save();
-            //             return Some(AppMessage::UpdateSelectedNoteContent((
-            //                 state.content().to_string(),
-            //                 None,
-            //             )));
-            //         }
+            Message::Save => {
+                // FIXME: Implement proper error handling when toasts are available.
+                let _ = state.save_to_file();
+                return Some(AppMessage::UpdateSelectedNoteContent((
+                    state.content.to_string(),
+                    None,
+                )));
+            }
             _ => {}
         },
     }
@@ -146,6 +154,14 @@ pub fn handle_editing_event(key: &KeyEvent) -> Option<Message> {
     match key.code {
         KeyCode::Up => Some(Message::CursorUp),
         KeyCode::Down => Some(Message::CursorDown),
+        KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::ALT) => {
+            Some(Message::CursorWordForward)
+        }
+        KeyCode::Char('b') if key.modifiers.contains(KeyModifiers::ALT) => {
+            Some(Message::CursorWordBackward)
+        }
+        KeyCode::Left => Some(Message::CursorLeft),
+        KeyCode::Right => Some(Message::CursorRight),
         KeyCode::Esc => Some(Message::Exit),
         KeyCode::Backspace => Some(Message::Delete),
         KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => {
