@@ -1,8 +1,8 @@
-use std::{path::PathBuf, result};
+use std::{fs, ops::ControlFlow, path::PathBuf, result};
 
 use serde::{Deserialize, Deserializer};
 
-use super::vault_entry::VaultEntry;
+use crate::obsidian::{vault_entry::VaultEntry, Error, Note};
 
 /// Represents a single Obsidian vault.
 ///
@@ -50,6 +50,157 @@ impl Vault {
                 .collect(),
             _ => vec![],
         }
+    }
+
+    /// Creates a new empty note with the provided name.
+    ///
+    /// If a note with the given name already exists, a numbered suffix will be appended
+    /// (e.g., "Note 1", "Note 2", etc.) to find an available name.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - I/O operations fail (directory creation, file writing, or path checks)
+    /// - No available name is found after 999 attempts ([`Error::MaxAttemptsExceeded`])
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::fs;
+    /// use tempfile::tempdir;
+    /// use basalt_core::obsidian::{Vault, Note, Error};
+    ///
+    /// let tmp_dir = tempdir()?;
+    ///
+    /// let vault = Vault {
+    ///   path: tmp_dir.path().to_path_buf(),
+    ///   ..Default::default()
+    /// };
+    ///
+    /// let note = vault.create_note("Arbitrary Name")?;
+    /// assert_eq!(fs::exists(&note.path)?, true);
+    ///
+    /// # Ok::<(), Error>(())
+    /// ```
+    pub fn create_note(&self, name: &str) -> result::Result<Note, Error> {
+        let base_path = self.path.join(name).with_extension("md");
+        if let Some(parent_dir) = base_path.parent() {
+            // Create necessary directory structures if we pass dir separated name like
+            // /vault/notes/sub-notes/name.md
+            fs::create_dir_all(parent_dir)?;
+        }
+
+        let (name, path) = self.find_available_note_name(name)?;
+
+        fs::write(&path, "")?;
+
+        Ok(Note {
+            name: name.to_string(),
+            path,
+        })
+    }
+
+    /// Find available note name by incrementing number suffix at the end.
+    ///
+    /// Increments until we find a 'free' name e.g. if "Untitled 1" exists we will
+    /// try next "Untitled 2", and then "Untitled 3" and so on.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::MaxAttemptsExceeded`] if no available name is found after 999 attempts.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::fs;
+    /// use tempfile::tempdir;
+    /// use basalt_core::obsidian::{Vault, Note, Error};
+    ///
+    /// let tmp_dir = tempdir()?;
+    /// let tmp_path = tmp_dir.path();
+    ///
+    /// let vault = Vault {
+    ///   path: tmp_path.to_path_buf(),
+    ///   ..Default::default()
+    /// };
+    ///
+    /// let note_name = "Arbitrary Name";
+    /// fs::write(tmp_path.join(note_name).with_extension("md"), "")?;
+    ///
+    /// let (name, path) = vault.find_available_note_name(note_name)?;
+    /// assert_eq!(&name, "Arbitrary Name 1");
+    /// assert_eq!(fs::exists(&path)?, false);
+    ///
+    /// # Ok::<(), Error>(())
+    /// ```
+    pub fn find_available_note_name(&self, name: &str) -> result::Result<(String, PathBuf), Error> {
+        let path = self.path.join(name).with_extension("md");
+        if !fs::exists(&path)? {
+            return Ok((name.to_string(), path));
+        }
+
+        // Maximum number of iterations
+        const MAX: usize = 999;
+
+        let candidate = (1..=MAX)
+            .map(|n| format!("{name} {n}"))
+            .try_fold((), |_, name| {
+                let path = self.path.join(&name).with_extension("md");
+                match fs::exists(&path).map_err(Error::from) {
+                    Ok(false) => ControlFlow::Break(Ok((name, path))),
+                    Err(e) => ControlFlow::Break(Err(e)),
+                    _ => ControlFlow::Continue(()),
+                }
+            });
+
+        match candidate {
+            ControlFlow::Break(r) => r,
+            ControlFlow::Continue(..) => Err(Error::MaxAttemptsExceeded {
+                name: name.to_string(),
+                max_attempts: MAX,
+            }),
+        }
+    }
+
+    /// Creates a new empty note with name "Untitled" or "Untitled {n}".
+    ///
+    /// This is a convenience method that calls [`Vault::create_note`] with "Untitled" as the name.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - I/O operations fail (file writing or path checks)
+    /// - No available name is found after 999 attempts ([`Error::MaxAttemptsExceeded`])
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::{fs, result};
+    /// use tempfile::tempdir;
+    /// use basalt_core::obsidian::{Vault, Note, Error};
+    ///
+    /// let tmp_dir = tempdir()?;
+    ///
+    /// let vault = Vault {
+    ///   path: tmp_dir.path().to_path_buf(),
+    ///   ..Default::default()
+    /// };
+    ///
+    /// let note = vault.create_untitled_note()?;
+    /// assert_eq!(&note.name, "Untitled");
+    /// assert_eq!(fs::exists(&note.path)?, true);
+    ///
+    /// (1..=100).try_for_each(|n| -> result::Result<(), Error> {
+    ///   let note = vault.create_untitled_note()?;
+    ///   assert_eq!(note.name, format!("Untitled {n}"));
+    ///   assert_eq!(fs::exists(&note.path)?, true);
+    ///   Ok(())
+    /// })?;
+    ///
+    /// # Ok::<(), Error>(())
+    /// ```
+    pub fn create_untitled_note(&self) -> result::Result<Note, Error> {
+        self.create_note("Untitled")
     }
 }
 

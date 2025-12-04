@@ -65,4 +65,16 @@ pub enum Error {
     /// I/O error, from [`std::io::Error`].
     #[error("I/O error: {0}")]
     Io(#[from] io::Error),
+
+    /// Exceeded maximum attempts while searching for an available note name.
+    ///
+    /// This occurs when creating a note with a name that already exists, and all
+    /// numbered variants (e.g., "Name 1", "Name 2", ..., "Name 999") also exist.
+    #[error("Failed to find available name for '{name}' after {max_attempts} attempts")]
+    MaxAttemptsExceeded {
+        /// The base name that was attempted
+        name: String,
+        /// The maximum number of attempts made
+        max_attempts: usize,
+    },
 }
