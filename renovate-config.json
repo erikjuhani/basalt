@@ -14,6 +14,9 @@
   "requireConfig": "optional",
   "semanticCommits": "disabled",
   "prBodyTemplate": "{{{table}}}{{{warnings}}}{{{notes}}}{{{changelogs}}}",
+  "lockFileMaintenance": {
+    "enabled": true
+  },
   "customManagers": [
     {
       "customType": "regex",
@@ -59,6 +62,20 @@
         "rust"
       ],
       "commitMessageTopic": "Rust"
+    },
+    {
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchDepNames": [
+        "ghcr.io/renovatebot/renovate",
+        "renovatebot/github-action"
+      ],
+      "automerge": true
     }
   ]
 }
