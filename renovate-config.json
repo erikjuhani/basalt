@@ -75,6 +75,19 @@
         "ghcr.io/renovatebot/renovate"
       ],
       "automerge": true
+    },
+    {
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchDepNames": [
+        "renovatebot/github-action"
+      ],
+      "automerge": true
     }
   ]
 }
