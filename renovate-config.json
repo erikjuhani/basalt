@@ -72,8 +72,7 @@
         "custom.regex"
       ],
       "matchDepNames": [
-        "ghcr.io/renovatebot/renovate",
-        "renovatebot/github-action"
+        "ghcr.io/renovatebot/renovate"
       ],
       "automerge": true
     }
