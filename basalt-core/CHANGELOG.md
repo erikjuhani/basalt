@@ -1,5 +1,67 @@
 # Changelog
 
+## [0.6.2](https://github.com/erikjuhani/basalt/releases/tag/basalt-core/0.6.2) (Dec, 06 2025)
+
+### Added
+
+- [fa3d5de](https://github.com/erikjuhani/basalt/commit/fa3d5de3310447956f5b4f24af747fb9efad161c) Add note creation methods to Vault
+
+> Add create_note and create_untitled_note methods for creating notes in
+> Obsidian vaults. When a note with the given name already exists, a
+> numbered suffix is appended to find an available name, which correlates
+> with how Obsidian app functions when creating new notes, up to 999
+> attempts.
+>
+> The find_available_note_name method handles the name resolution by
+> checking if a path exists and incrementing the suffix until a free name
+> is found. A new `MaxAttemptsExceeded` error variant was added for when
+> all 999 attempts are exhausted. This prevents the need for infinity
+> loop since we have a relatively large breaking point.
+
+### Dependencies
+
+- [9a7e731](https://github.com/erikjuhani/basalt/commit/9a7e731f3e940fb52823b2939128e4ec97d11707) Bump thiserror from 2.0.12 to 2.0.15 by @dependabot[bot]
+
+> Bumps [thiserror](https://github.com/dtolnay/thiserror) from 2.0.12 to 2.0.15.
+> - [Release notes](https://github.com/dtolnay/thiserror/releases)
+> - [Commits](https://github.com/dtolnay/thiserror/compare/2.0.12...2.0.15)
+>
+> ---
+> updated-dependencies:
+> - dependency-name: thiserror
+>   dependency-version: 2.0.15
+>   dependency-type: direct:production
+>   update-type: version-update:semver-patch
+> ...
+>
+> Signed-off-by: dependabot[bot] <support@github.com>
+
+- [b66dd09](https://github.com/erikjuhani/basalt/commit/b66dd092c164cf6afe3be086fd72e0d1fb61fc14) Bump serde from 1.0.219 to 1.0.223 by @dependabot[bot]
+
+> Bumps [serde](https://github.com/serde-rs/serde) from 1.0.219 to 1.0.223.
+> - [Release notes](https://github.com/serde-rs/serde/releases)
+> - [Commits](https://github.com/serde-rs/serde/compare/v1.0.219...v1.0.223)
+>
+> ---
+> updated-dependencies:
+> - dependency-name: serde
+>   dependency-version: 1.0.223
+>   dependency-type: direct:production
+>   update-type: version-update:semver-patch
+> ...
+>
+> Signed-off-by: dependabot[bot] <support@github.com>
+
+- [5ad8ecc](https://github.com/erikjuhani/basalt/commit/5ad8ecc5a780a4027719b7e916b849bbe6110575) Update Rust crate pulldown-cmark to 0.13.0 by @renovate-updater[bot]
+
+
+### Fixed
+
+- [1a6e870](https://github.com/erikjuhani/basalt/commit/1a6e870a6687bb1149105777c7bb936b08a13e1a) Exhaust subscript and superscript pulldown-cmark tags by @erikjuhani
+
+> Fixes the compiler issue. Pattern match was not exhaustive as subscript
+> and superscript tags were added in 0.13.0 version of pulldown-cmark.
+
 ## 0.6.2 (Unreleased)
 
 ### markdown
