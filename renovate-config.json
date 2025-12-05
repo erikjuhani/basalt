@@ -14,6 +14,9 @@
   "requireConfig": "optional",
   "semanticCommits": "disabled",
   "prBodyTemplate": "{{{table}}}{{{warnings}}}{{{notes}}}{{{changelogs}}}",
+  "lockFileMaintenance": {
+    "enabled": true
+  },
   "customManagers": [
     {
       "customType": "regex",
