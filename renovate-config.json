@@ -78,6 +78,15 @@
     },
     {
       "matchUpdateTypes": [
+        "patch"
+      ],
+      "matchManagers": [
+        "github-actions"
+      ],
+      "automerge": true
+    },
+    {
+      "matchUpdateTypes": [
         "minor",
         "patch"
       ],
