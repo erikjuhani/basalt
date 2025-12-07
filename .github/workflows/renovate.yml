@@ -19,6 +19,7 @@ on:
           - warn
       repoCache:
         description: 'Repository cache mode'
+        required: false
         type: choice
         default: enabled
         options:
