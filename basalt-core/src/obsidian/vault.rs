@@ -213,7 +213,7 @@ impl<'de> Deserialize<'de> for Vault {
         struct Json {
             path: PathBuf,
             open: Option<bool>,
-            ts: u64,
+            ts: Option<u64>,
         }
 
         impl TryFrom<Json> for Vault {
@@ -228,7 +228,7 @@ impl<'de> Deserialize<'de> for Vault {
                     name,
                     path,
                     open: open.unwrap_or(false),
-                    ts,
+                    ts: ts.unwrap_or(0),
                 })
             }
         }
