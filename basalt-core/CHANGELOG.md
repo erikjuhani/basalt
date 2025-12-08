@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.3](https://github.com/erikjuhani/basalt/releases/tag/basalt-core/0.6.3) (Dec, 08 2025)
+
+### Fixed
+
+- [31700fc](https://github.com/erikjuhani/basalt/commit/31700fc1b1b767d1f5c21f6bbc26dd4aea7ba25d) Edit timestamp to be optionnal in json with fallback to 0 (#231) by @LeoWherle in [#231](https://github.com/erikjuhani/basalt/pull/231)
+
+
 ## [0.6.2](https://github.com/erikjuhani/basalt/releases/tag/basalt-core/0.6.2) (Dec, 06 2025)
 
 ### Added
