@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.11.1](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.11.1) (Dec, 08 2025)
+
+### Fixed
+
+- [63b5e9f](https://github.com/erikjuhani/basalt/commit/63b5e9f618aac66bf47f8b4160a959600dcab28d) Use basalt-core 0.6.3 version in basalt
+
+> basalt-core 0.6.3 fixes vault json deserializer for `ts` field and sets
+> it as optional. It was previously set as required. If the `ts` field was
+> missing it would crash basalt.
+
 ## [0.11.0](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.11.0) (Nov, 30 2025)
 
 Basalt author and maintainer here! Wanted to write a few words before the _regular_ changelog.
