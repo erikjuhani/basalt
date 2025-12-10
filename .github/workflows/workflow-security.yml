@@ -30,7 +30,7 @@ jobs:
             .github/workflows
 
       - name: actionlint
-        uses: raven-actions/actionlint@3a24062651993d40fed1019b58ac6fbdfbf276cc # v2.0.1
+        uses: raven-actions/actionlint@591b1dfdbabb809cef4c22b7b93f37cd994d9368 # v2.0.2
         with:
           flags: "-ignore SC2153" # Possible misspelling false flags
 
