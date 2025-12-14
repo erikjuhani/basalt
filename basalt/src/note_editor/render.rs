@@ -101,7 +101,11 @@ fn render_raw_line<'a>(
     max_width: usize,
 ) -> Vec<VirtualLine<'a>> {
     text_wrap_internal(
-        line,
+        // TODO: Replace with `»` as a synthetic symbol for tabs
+        // Tab characters need to be replaced to spaces or other characters as the tab characters
+        // will break the UI. Similarly the same issue that I was facing was solved by replacing
+        // the tab characters: https://github.com/ratatui/ratatui/issues/1606#issuecomment-3172769529
+        &line.replace("\t", "  "),
         Style::default(),
         prefix,
         source_range,

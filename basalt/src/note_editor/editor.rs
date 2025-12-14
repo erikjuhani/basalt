@@ -6,8 +6,8 @@ use ratatui::{
     style::{Color, Stylize},
     text::Line,
     widgets::{
-        Block, BorderType, Clear, Padding, Paragraph, Scrollbar, ScrollbarOrientation,
-        ScrollbarState, StatefulWidget, Widget,
+        Block, BorderType, Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+        StatefulWidget, Widget,
     },
 };
 
@@ -62,11 +62,6 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
         state.resize_viewport(inner_area.as_size());
 
         state.update_layout();
-
-        // Clear visual artifacts between read and edit mode
-        if matches!(state.view, View::Edit(..)) {
-            Clear.render(area, buf);
-        }
 
         let mut lines = state.virtual_document.meta().to_vec();
         lines.extend(state.virtual_document.lines().to_vec());
