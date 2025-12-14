@@ -443,9 +443,9 @@ mod tests {
                 Similarly, you can create a nested task list by indenting one or more list items:
 
                 - [ ] Task item 1
-                 - [ ] Subtask 1
+                  - [ ] Subtask 1
                 - [ ] Task item 2
-                 - [ ] Subtask 1
+                  - [ ] Subtask 1
                 "#},
             ),
             // TODO: Implement horizontal rule

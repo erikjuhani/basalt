@@ -6,9 +6,9 @@ expression: "format!(\"{}\\n ---\\n\\n{}\", text, ast::nodes_to_sexp(&from_str(t
 Similarly, you can create a nested task list by indenting one or more list items:
 
 - [ ] Task item 1
- - [ ] Subtask 1
+  - [ ] Subtask 1
 - [ ] Task item 2
- - [ ] Subtask 2
+  - [ ] Subtask 2
 
  ---
 
@@ -16,16 +16,18 @@ Similarly, you can create a nested task list by indenting one or more list items
   "Nesting task lists")
 (paragraph @22..104
   "Similarly, you can create a nested task list by indenting one or more list items:")
-(list @105..175
-  (task Unchecked @105..123
-    (paragraph @105..123
-      "Task item 1"))
-  (task Unchecked @123..140
-    (paragraph @123..140
-      "Subtask 1"))
-  (task Unchecked @140..158
-    (paragraph @140..158
-      "Task item 2"))
-  (task Unchecked @158..175
-    (paragraph @158..175
-      "Subtask 2")))
+(list @105..177
+  (task Unchecked @105..141
+    (paragraph @105..141
+      "Task item 1")
+    (list @125..141
+      (task Unchecked @125..141
+        (paragraph @125..141
+          "Subtask 1"))))
+  (task Unchecked @141..177
+    (paragraph @141..177
+      "Task item 2")
+    (list @161..177
+      (task Unchecked @161..177
+        (paragraph @161..177
+          "Subtask 2")))))
