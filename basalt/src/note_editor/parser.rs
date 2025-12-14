@@ -366,7 +366,7 @@ mod tests {
                 - [ ] Task item 1
                  - [ ] Subtask 1
                 - [ ] Task item 2
-                 - [ ] Subtask 1
+                 - [ ] Subtask 2
                 "#},
             ),
             // TODO: Implement horizontal rule
@@ -420,7 +420,11 @@ mod tests {
         tests.into_iter().for_each(|(name, text)| {
             assert_snapshot!(
                 name,
-                format!("{}\n ---\n\n{}", text, ast::nodes_to_sexp(&from_str(text)))
+                format!(
+                    "{}\n ---\n\n{}",
+                    text,
+                    ast::nodes_to_sexp(&from_str(text), 0)
+                )
             );
         });
     }
