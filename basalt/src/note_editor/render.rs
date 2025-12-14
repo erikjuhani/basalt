@@ -405,7 +405,10 @@ pub fn task<'a>(
     let lines = match option {
         RenderStyle::Raw => render_raw(content, source_range, max_width, prefix),
         RenderStyle::Visual => {
-            let Some(text) = nodes.first().and_then(|first| first.rich_text()) else {
+            let Some((text, rest)) = nodes.split_first().and_then(|(first, rest)| {
+                let text = first.rich_text()?;
+                Some((text, rest))
+            }) else {
                 return VirtualBlock::new(&[], source_range);
             };
 
@@ -423,14 +426,27 @@ pub fn task<'a>(
                 ),
             };
 
-            text_wrap(
+            let mut lines = text_wrap(
                 &text,
                 prefix.clone(),
                 source_range,
                 max_width,
                 Some(marker),
                 option,
-            )
+            );
+
+            lines.extend(rest.iter().flat_map(|node| {
+                render_node(
+                    content.to_string(),
+                    node,
+                    max_width,
+                    prefix.merge("  ".into()),
+                    option,
+                )
+                .lines
+            }));
+
+            lines
         }
     };
 

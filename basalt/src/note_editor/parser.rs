@@ -31,7 +31,7 @@ impl<'a> Iterator for Parser<'a> {
 
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct ParserState {
-    task_kind: Option<ast::TaskKind>,
+    task_kind: Vec<ast::TaskKind>,
     item_kind: Vec<ast::ItemKind>,
 }
 
@@ -98,7 +98,7 @@ impl<'a> Parser<'a> {
                 }
 
                 Event::TaskListMarker(checked) => {
-                    state.task_kind = Some(if checked {
+                    state.task_kind.push(if checked {
                         TaskKind::Checked
                     } else {
                         TaskKind::Unchecked
@@ -151,7 +151,7 @@ impl<'a> Parser<'a> {
                                 );
                             }
 
-                            let item = if let Some(kind) = state.task_kind.take() {
+                            let item = if let Some(kind) = state.task_kind.pop() {
                                 Some(Node::Task {
                                     kind,
                                     nodes,
@@ -178,6 +178,7 @@ impl<'a> Parser<'a> {
                         }
                         Tag::List(..) => {
                             state.item_kind.pop();
+
                             Some(Node::List {
                                 nodes,
                                 source_range,
@@ -364,9 +365,9 @@ mod tests {
                 Similarly, you can create a nested task list by indenting one or more list items:
 
                 - [ ] Task item 1
-                 - [ ] Subtask 1
+                  - [ ] Subtask 1
                 - [ ] Task item 2
-                 - [ ] Subtask 1
+                  - [ ] Subtask 2
                 "#},
             ),
             // TODO: Implement horizontal rule
@@ -420,7 +421,11 @@ mod tests {
         tests.into_iter().for_each(|(name, text)| {
             assert_snapshot!(
                 name,
-                format!("{}\n ---\n\n{}", text, ast::nodes_to_sexp(&from_str(text)))
+                format!(
+                    "{}\n ---\n\n{}",
+                    text,
+                    ast::nodes_to_sexp(&from_str(text), 0)
+                )
             );
         });
     }

@@ -140,15 +140,17 @@ impl Node {
     }
 }
 
-pub fn nodes_to_sexp(nodes: &[Node]) -> String {
+pub fn nodes_to_sexp(nodes: &[Node], indent_level: usize) -> String {
     nodes
         .iter()
-        .map(node_to_sexp)
+        .map(|node| node_to_sexp(node, indent_level))
         .collect::<Vec<_>>()
         .join("\n")
 }
 
-pub fn node_to_sexp(node: &Node) -> String {
+pub fn node_to_sexp(node: &Node, indent_level: usize) -> String {
+    let indent_increment = 2;
+
     match node {
         Node::Heading {
             level,
@@ -156,17 +158,21 @@ pub fn node_to_sexp(node: &Node) -> String {
             source_range,
         } => {
             format!(
-                "(heading {:?} @{:?}\n  {})",
+                "{:indent$}(heading {:?} @{:?}\n{})",
+                "",
                 level,
                 source_range,
-                rich_text_to_sexp(text)
+                rich_text_to_sexp(text, indent_level + indent_increment),
+                indent = indent_level
             )
         }
         Node::Paragraph { text, source_range } => {
             format!(
-                "(paragraph @{:?}\n  {})",
+                "{:indent$}(paragraph @{:?}\n{})",
+                "",
                 source_range,
-                rich_text_to_sexp(text)
+                rich_text_to_sexp(text, indent_level + indent_increment),
+                indent = indent_level
             )
         }
         Node::BlockQuote {
@@ -175,10 +181,12 @@ pub fn node_to_sexp(node: &Node) -> String {
             source_range,
         } => {
             format!(
-                "(blockquote {:?} @{:?}\n  {})",
+                "{:indent$}(blockquote {:?} @{:?}\n{})",
+                "",
                 kind,
                 source_range,
-                nodes_to_sexp(nodes)
+                nodes_to_sexp(nodes, indent_level + indent_increment),
+                indent = indent_level
             )
         }
         Node::CodeBlock {
@@ -187,17 +195,25 @@ pub fn node_to_sexp(node: &Node) -> String {
             source_range,
         } => {
             format!(
-                "(codeblock {} @{:?}\n  {})",
-                lang.clone().unwrap_or_default(),
+                "{:indent$}(codeblock {} @{:?}\n{})",
+                "",
+                lang.clone().unwrap_or(String::new()),
                 source_range,
-                rich_text_to_sexp(text)
+                rich_text_to_sexp(text, indent_level + indent_increment),
+                indent = indent_level,
             )
         }
         Node::List {
             nodes,
             source_range,
         } => {
-            format!("(list @{:?}\n  {})", source_range, nodes_to_sexp(nodes))
+            format!(
+                "{:indent$}(list @{:?}\n{})",
+                "",
+                source_range,
+                nodes_to_sexp(nodes, indent_level + indent_increment),
+                indent = indent_level
+            )
         }
         Node::Item {
             kind,
@@ -205,10 +221,12 @@ pub fn node_to_sexp(node: &Node) -> String {
             source_range,
         } => {
             format!(
-                "(item {:?} @{:?}\n  {})",
+                "{:indent$}(item {:?} @{:?}\n{})",
+                "",
                 kind,
                 source_range,
-                nodes_to_sexp(nodes)
+                nodes_to_sexp(nodes, indent_level + indent_increment),
+                indent = indent_level
             )
         }
         Node::Task {
@@ -217,23 +235,31 @@ pub fn node_to_sexp(node: &Node) -> String {
             source_range,
         } => {
             format!(
-                "(task {:?} @{:?}\n  {})",
+                "{:indent$}(task {:?} @{:?}\n{})",
+                "",
                 kind,
                 source_range,
-                nodes_to_sexp(nodes)
+                nodes_to_sexp(nodes, indent_level + indent_increment),
+                indent = indent_level
             )
         }
     }
 }
 
-pub fn rich_text_to_sexp(rich_text: &RichText) -> String {
+pub fn rich_text_to_sexp(rich_text: &RichText, indent_level: usize) -> String {
     rich_text
         .segments()
         .iter()
         .map(|segment| match &segment.style {
-            Some(style) => format!("({} \"{}\")", style, segment),
-            None => format!("\"{}\"", segment),
+            Some(style) => format!(
+                "{:indent$}({} \"{}\")",
+                "",
+                style,
+                segment,
+                indent = indent_level
+            ),
+            None => format!("{:indent$}\"{}\"", "", segment, indent = indent_level),
         })
         .collect::<Vec<_>>()
-        .join("\n  ")
+        .join("\n")
 }

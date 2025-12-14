@@ -1,6 +1,6 @@
 ---
 source: basalt/src/note_editor/parser.rs
-expression: "format!(\"{}\\n ---\\n\\n{}\", text, ast::nodes_to_sexp(&from_str(text)))"
+expression: "format!(\"{}\\n ---\\n\\n{}\", text, ast::nodes_to_sexp(&from_str(text), 0))"
 ---
 ## Lists
 You can create an unordered list by adding a `-`, `*`, or `+` before the text.
@@ -33,14 +33,14 @@ To create an ordered list, start each line with a number followed by a `.` or `)
   " before the text.")
 (list @89..145
   (item Unordered @89..107
-  (paragraph @89..107
-  "First list item"))
-(item Unordered @107..126
-  (paragraph @107..126
-  "Second list item"))
-(item Unordered @126..145
-  (paragraph @126..145
-  "Third list item")))
+    (paragraph @89..107
+      "First list item"))
+  (item Unordered @107..126
+    (paragraph @107..126
+      "Second list item"))
+  (item Unordered @126..145
+    (paragraph @126..145
+      "Third list item")))
 (paragraph @145..235
   "To create an ordered list, start each line with a number followed by a "
   (Code ".")
@@ -49,21 +49,21 @@ To create an ordered list, start each line with a number followed by a `.` or `)
   " symbol.")
 (list @236..295
   (item Ordered(1) @236..255
-  (paragraph @236..255
-  "First list item"))
-(item Ordered(2) @255..275
-  (paragraph @255..275
-  "Second list item"))
-(item Ordered(3) @275..295
-  (paragraph @275..295
-  "Third list item")))
+    (paragraph @236..255
+      "First list item"))
+  (item Ordered(2) @255..275
+    (paragraph @255..275
+      "Second list item"))
+  (item Ordered(3) @275..295
+    (paragraph @275..295
+      "Third list item")))
 (list @295..353
   (item Ordered(1) @295..314
-  (paragraph @295..314
-  "First list item"))
-(item Ordered(2) @314..334
-  (paragraph @314..334
-  "Second list item"))
-(item Ordered(3) @334..353
-  (paragraph @334..353
-  "Third list item")))
+    (paragraph @295..314
+      "First list item"))
+  (item Ordered(2) @314..334
+    (paragraph @314..334
+      "Second list item"))
+  (item Ordered(3) @334..353
+    (paragraph @334..353
+      "Third list item")))

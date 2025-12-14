@@ -1,6 +1,6 @@
 ---
 source: basalt/src/note_editor/parser.rs
-expression: "format!(\"{}\\n ---\\n\\n{}\", text, ast::nodes_to_sexp(&from_str(text)))"
+expression: "format!(\"{}\\n ---\\n\\n{}\", text, ast::nodes_to_sexp(&from_str(text), 0))"
 ---
 ## Lists with line breaks
 You can use line breaks within an ordered list without altering the numbering.
@@ -22,20 +22,20 @@ You can use line breaks within an ordered list without altering the numbering.
   "You can use line breaks within an ordered list without altering the numbering.")
 (list @106..224
   (item Ordered(1) @106..126
-  (paragraph @109..125
-  "First list item"))
-(item Ordered(2) @126..146
-  (paragraph @129..146
-  "Second list item"))
-(item Ordered(3) @146..166
-  (paragraph @149..165
-  "Third list item"))
-(item Ordered(4) @166..186
-  (paragraph @169..186
-  "Fourth list item"))
-(item Ordered(5) @186..205
-  (paragraph @189..205
-  "Fifth list item"))
-(item Ordered(6) @205..224
-  (paragraph @208..224
-  "Sixth list item")))
+    (paragraph @109..125
+      "First list item"))
+  (item Ordered(2) @126..146
+    (paragraph @129..146
+      "Second list item"))
+  (item Ordered(3) @146..166
+    (paragraph @149..165
+      "Third list item"))
+  (item Ordered(4) @166..186
+    (paragraph @169..186
+      "Fourth list item"))
+  (item Ordered(5) @186..205
+    (paragraph @189..205
+      "Fifth list item"))
+  (item Ordered(6) @205..224
+    (paragraph @208..224
+      "Sixth list item")))
