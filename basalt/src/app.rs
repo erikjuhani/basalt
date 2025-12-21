@@ -7,7 +7,7 @@ use ratatui::{
     DefaultTerminal,
 };
 
-use std::{cell::RefCell, fmt::Debug, io::Result, path::PathBuf};
+use std::{cell::RefCell, fmt::Debug, fs, io::Result, path::PathBuf};
 
 use crate::{
     command,
@@ -141,7 +141,7 @@ impl From<&Note> for SelectedNote {
         Self {
             name: value.name.clone(),
             path: value.path.clone(),
-            content: Note::read_to_string(value).unwrap_or_default(),
+            content: fs::read_to_string(&value.path).unwrap_or_default(),
         }
     }
 }

@@ -1,3 +1,4 @@
+//! This module provides functionality operating with Obsidian config.
 use dirs::{config_dir, home_dir};
 
 use serde::{Deserialize, Deserializer};
@@ -14,60 +15,60 @@ pub struct ObsidianConfig {
     vaults: BTreeMap<String, Vault>,
 }
 
+/// Attempts to locate and load the system's `obsidian.json` file as an [`ObsidianConfig`].
+///
+/// Returns an [`Error`] if the file path doesn't exist or JSON parsing failed.
+pub fn load() -> Result<ObsidianConfig> {
+    let config_locations = obsidian_global_config_locations();
+    let existing_config_locations = config_locations
+        .iter()
+        .filter(|path| path.is_dir())
+        .collect::<Vec<_>>();
+
+    if let Some(config_dir) = existing_config_locations.first() {
+        load_from(config_dir)
+    } else {
+        Err(Error::PathNotFound(format!(
+            "Obsidian config directory was not found from these locations: {}",
+            config_locations
+                .iter()
+                .map(|path| path.to_string_lossy())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )))
+    }
+}
+
+/// Attempts to load `obsidian.json` file as an [`ObsidianConfig`] from the given directory
+/// [`Path`].
+///
+/// Returns an [`Error`] if the file path doesn't exist or JSON parsing failed.
+///
+/// # Examples
+///
+/// ```
+/// use std::path::Path;
+/// use basalt_core::obsidian;
+///
+/// _ = obsidian::config::load_from(Path::new("./dir-with-config-file"));
+/// ```
+pub fn load_from(config_path: &Path) -> Result<ObsidianConfig> {
+    let obsidian_json_path = config_path.join("obsidian.json");
+
+    if obsidian_json_path.try_exists()? {
+        let contents = fs::read_to_string(obsidian_json_path)?;
+        serde_json::from_str(&contents).map_err(Error::Json)
+    } else {
+        // TODO: Maybe a different error should be propagated in this case. E.g. 'unreadable'
+        // file.
+        Err(Error::PathNotFound(
+            obsidian_json_path.to_string_lossy().to_string(),
+        ))
+    }
+}
+
 impl ObsidianConfig {
-    /// Attempts to locate and load the system's `obsidian.json` file as an [`ObsidianConfig`].
-    ///
-    /// Returns an [`Error`] if the file path doesn't exist or JSON parsing failed.
-    pub fn load() -> Result<Self> {
-        let config_locations = obsidian_global_config_locations();
-        let existing_config_locations = config_locations
-            .iter()
-            .filter(|path| path.is_dir())
-            .collect::<Vec<_>>();
-
-        if let Some(config_dir) = existing_config_locations.first() {
-            ObsidianConfig::load_from(config_dir)
-        } else {
-            Err(Error::PathNotFound(format!(
-                "Obsidian config directory was not found from these locations: {}",
-                config_locations
-                    .iter()
-                    .map(|path| path.to_string_lossy())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            )))
-        }
-    }
-
-    /// Attempts to load `obsidian.json` file as an [`ObsidianConfig`] from the given directory
-    /// [`Path`].
-    ///
-    /// Returns an [`Error`] if the file path doesn't exist or JSON parsing failed.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use basalt_core::obsidian::ObsidianConfig;
-    /// use std::path::Path;
-    ///
-    /// _ = ObsidianConfig::load_from(Path::new("./dir-with-config-file"));
-    /// ```
-    pub fn load_from(config_path: &Path) -> Result<Self> {
-        let obsidian_json_path = config_path.join("obsidian.json");
-
-        if obsidian_json_path.try_exists()? {
-            let contents = fs::read_to_string(obsidian_json_path)?;
-            serde_json::from_str(&contents).map_err(Error::Json)
-        } else {
-            // TODO: Maybe a different error should be propagated in this case. E.g. 'unreadable'
-            // file.
-            Err(Error::PathNotFound(
-                obsidian_json_path.to_string_lossy().to_string(),
-            ))
-        }
-    }
-
-    /// Returns an iterator over the vaults in the configuration.
+    /// Returns a vec of vaults in the configuration.
     ///
     /// # Examples
     ///
@@ -87,68 +88,9 @@ impl ObsidianConfig {
     pub fn vaults(&self) -> Vec<&Vault> {
         self.vaults.values().collect()
     }
-
-    /// Finds a vault by name, returning a reference if it exists.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use basalt_core::obsidian::{ObsidianConfig, Vault};
-    ///
-    /// let config = ObsidianConfig::from([
-    ///     ("Obsidian", Vault::default()),
-    ///     ("Work", Vault::default()),
-    /// ]);
-    ///
-    /// _ = config.get_vault_by_name("Obsidian");
-    /// ```
-    pub fn get_vault_by_name(&self, name: &str) -> Option<&Vault> {
-        self.vaults.get(name)
-    }
-
-    /// Gets the currently opened vault marked by Obsidian.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use basalt_core::obsidian::{ObsidianConfig, Vault};
-    ///
-    /// let config = ObsidianConfig::from([
-    ///     (
-    ///         "Obsidian",
-    ///         Vault {
-    ///             open: true,
-    ///             ..Vault::default()
-    ///         },
-    ///     ),
-    ///     ("Work", Vault::default()),
-    /// ]);
-    ///
-    /// _ = config.get_open_vault();
-    /// ```
-    pub fn get_open_vault(&self) -> Option<&Vault> {
-        self.vaults.values().find(|vault| vault.open)
-    }
 }
 
 impl<const N: usize> From<[(&str, Vault); N]> for ObsidianConfig {
-    /// # Examples
-    ///
-    /// ```
-    /// use basalt_core::obsidian::{ObsidianConfig, Vault};
-    ///
-    /// let config_1 = ObsidianConfig::from([
-    ///   ("Obsidian", Vault::default()),
-    ///   ("My Vault", Vault::default()),
-    /// ]);
-    ///
-    /// let config_2: ObsidianConfig = [
-    ///   ("Obsidian", Vault::default()),
-    ///   ("My Vault", Vault::default()),
-    /// ].into();
-    ///
-    /// assert_eq!(config_1, config_2);
-    /// ```
     fn from(arr: [(&str, Vault); N]) -> Self {
         Self {
             vaults: BTreeMap::from(arr.map(|(name, vault)| (name.to_owned(), vault))),
@@ -157,23 +99,6 @@ impl<const N: usize> From<[(&str, Vault); N]> for ObsidianConfig {
 }
 
 impl<const N: usize> From<[(String, Vault); N]> for ObsidianConfig {
-    /// # Examples
-    ///
-    /// ```
-    /// use basalt_core::obsidian::{ObsidianConfig, Vault};
-    ///
-    /// let config_1 = ObsidianConfig::from([
-    ///   (String::from("Obsidian"), Vault::default()),
-    ///   (String::from("My Vault"), Vault::default()),
-    /// ]);
-    ///
-    /// let config_2: ObsidianConfig = [
-    ///   (String::from("Obsidian"), Vault::default()),
-    ///   (String::from("My Vault"), Vault::default()),
-    /// ].into();
-    ///
-    /// assert_eq!(config_1, config_2);
-    /// ```
     fn from(arr: [(String, Vault); N]) -> Self {
         Self {
             vaults: BTreeMap::from(arr),

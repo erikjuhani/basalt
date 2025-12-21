@@ -11,6 +11,19 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 [[package]]
 name = "basalt-core"
 version = "0.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ddb394048714bf8dbde2d91dfb101de747f58e42ce37025d1ca13063829583f8"
+dependencies = [
+ "dirs",
+ "pulldown-cmark",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "basalt-core"
+version = "0.7.0"
 dependencies = [
  "dirs",
  "indoc",
@@ -24,9 +37,9 @@ dependencies = [
 
 [[package]]
 name = "basalt-tui"
-version = "0.11.1"
+version = "0.11.2"
 dependencies = [
- "basalt-core",
+ "basalt-core 0.7.0",
  "crossterm 0.29.0",
  "etcetera",
  "indoc",
@@ -45,7 +58,7 @@ dependencies = [
 name = "basalt-widgets"
 version = "0.1.1"
 dependencies = [
- "basalt-core",
+ "basalt-core 0.6.3",
  "ratatui",
 ]
 
