@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.11.2](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.11.2) (Dec, 21 2025)
+
+### Changed
+
+- [88ec357](https://github.com/erikjuhani/basalt/commit/88ec3577ef32f31e2277050bfe572d8fe18506cf) Update basalt-core version to 0.7.0
+
+> Use direct definitions in the respective crates instead of using
+> workspace dependencies for basalt-core and basalt-widgets.
+
+### Fixed
+
+- [8744562](https://github.com/erikjuhani/basalt/commit/8744562b37d04d5522ac81b13914d605e31a053a) Fix nested task list rendering to properly indent subtasks by @erikjuhani
+
+> The parser now correctly nests subtasks within their parent task nodes
+> rather than treating them as siblings. The task_kind field changed from
+> Option to Vec to track nested task states, similar to item_kind.
+>
+> Nested task lists are now properly rendered following the same
+> implementation as in the list items code.
+
+- [5b54928](https://github.com/erikjuhani/basalt/commit/5b54928c66133f6755c82ac34ce9cbc5fa8b7026) Fixes 'sticky' symbols when switching between read and edit by @erikjuhani
+
+> The sticky key effect was visible for example with task lists when tasks
+> were intended with tabs in the source. These tab characters would never
+> replace the existing symbols from the buffer. The sticky symbols issue
+> was fixed by replacing the tab characters with two spaces.
+
 ## [0.11.1](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.11.1) (Dec, 08 2025)
 
 ### Fixed
