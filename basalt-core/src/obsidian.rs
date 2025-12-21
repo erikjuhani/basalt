@@ -1,7 +1,7 @@
 //! This module provides functionality operating with Obsidian. It lets you read and manipulate
 //! Obsidian's configuration, vaults, and notes.
 //!
-//! Currently supports reading vaults, notes, and writing to note path.
+//! Currently supports reading vaults and notes within the vault.
 //!
 //! # Example
 //!
@@ -16,7 +16,7 @@
 use std::{io, path::PathBuf, result};
 
 pub mod config;
-mod note;
+pub mod note;
 mod vault;
 mod vault_entry;
 
