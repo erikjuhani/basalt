@@ -12,19 +12,17 @@
 //!   ("Obsidian", Vault::default()),
 //!   ("My Vault", Vault::default()),
 //! ]);
-//!
-//! _ = config.get_vault_by_name("Obsidian");
 //! ```
 use std::{io, path::PathBuf, result};
 
-mod config;
+pub mod config;
 mod note;
 mod vault;
 mod vault_entry;
 
 pub use config::ObsidianConfig;
 pub use note::Note;
-pub use vault::Vault;
+pub use vault::*;
 pub use vault_entry::FindNote;
 pub use vault_entry::VaultEntry;
 
@@ -37,10 +35,9 @@ pub use vault_entry::VaultEntry;
 ///
 /// ```
 /// use std::path::Path;
-/// use basalt_core::obsidian::{ObsidianConfig, Error};
+/// use basalt_core::obsidian;
 ///
-///
-/// let config_result = ObsidianConfig::load_from(Path::new("./nonexistent"));
+/// let config_result = obsidian::config::load_from(Path::new("./nonexistent"));
 /// assert_eq!(config_result.is_err(), true);
 /// ```
 pub type Result<T> = result::Result<T, Error>;

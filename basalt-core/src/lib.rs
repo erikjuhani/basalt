@@ -4,9 +4,9 @@
 //! # Example
 //!
 //! ```
-//! use basalt_core::obsidian::{ObsidianConfig, Error};
+//! use basalt_core::obsidian;
 //!
-//! let config = ObsidianConfig::load();
+//! let config = obsidian::config::load();
 //! ```
 //!
 //! This crate also provides a markdown parser that produces a custom AST using the
