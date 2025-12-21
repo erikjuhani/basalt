@@ -1,5 +1,5 @@
 use std::{
-    fs::read_dir,
+    fs,
     path::{Path, PathBuf},
 };
 
@@ -43,7 +43,7 @@ impl TryFrom<&Path> for VaultEntry {
             Ok(VaultEntry::Directory {
                 name,
                 path: value.to_path_buf(),
-                entries: read_dir(value)
+                entries: fs::read_dir(value)
                     .into_iter()
                     .flatten()
                     .filter_map(|entry| {

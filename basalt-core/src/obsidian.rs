@@ -17,7 +17,7 @@ use std::{io, path::PathBuf, result};
 
 pub mod config;
 pub mod note;
-mod vault;
+pub mod vault;
 mod vault_entry;
 
 pub use config::ObsidianConfig;
