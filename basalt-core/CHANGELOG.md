@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.7.0](https://github.com/erikjuhani/basalt/releases/tag/basalt-core/0.7.0) (Dec, 21 2025)
+
+### Breaking
+
+- [058c251](https://github.com/erikjuhani/basalt/commit/058c2512ad4e96a4043d7e4741fe6ded02a6542a) Refactor basalt-core obsidian API structure
+
+> Move config loading functions from `ObsidianConfig` methods to
+> module-level functions in the obsidian config module. This change better
+> separates data from functionality and follows the more idiomatic Rust
+> pattern, similar to the approach used in the standard fs module.
+>
+> Removed `ObsidianConfig` methods `get_vault_by_name` and
+> `get_open_vault`. These methods were not in use in basalt, removed as
+> obsolete.
+
+- [712f586](https://github.com/erikjuhani/basalt/commit/712f586904ea860f9f6a69dcbefc3804724fa865) Remove Note I/O methods `read_to_string` and `write`
+
+> Removed `Note::read_to_string` and `Note::write` methods as they were
+> thin wrappers around std::fs functions. Using the `fs` module directly
+> is more practical for the current use and reduces maintenance burden.
+
+- [81ef2a2](https://github.com/erikjuhani/basalt/commit/81ef2a24ed520b0222fd3749da61d54c7d0bf7b4) Move Vault note creation functions to module-level
+
+> Move `create_note`, `create_untitled_note`, and
+> `find_available_note_name` from Vault methods to module-level functions
+> in the obsidian vault module.
+
 ## [0.6.3](https://github.com/erikjuhani/basalt/releases/tag/basalt-core/0.6.3) (Dec, 08 2025)
 
 ### Fixed
