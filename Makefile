@@ -31,5 +31,4 @@ json-fmt-check:
 changelog:
 	@if [ -z "$(crate)" ]; then echo "Error: crate parameter is required (e.g., CRATE=basalt-core)"; exit 1; fi
 	@if [ -z "$(version)" ]; then echo "Error: version parameter is required (e.g., VERSION=0.1.0)"; exit 1; fi
-	git-cliff -u --include-path "$(crate)/**" --tag "$(crate)/$(version)" --topo-order --count-tags "$(crate)/v*" --prepend $(crate)/CHANGELOG.md
-
+	git-cliff -u --include-path "$(crate)/**" --tag "$(crate)/$(version)" --count-tags "$(crate)/v*" --prepend $(crate)/CHANGELOG.md
