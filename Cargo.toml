@@ -1,11 +1,8 @@
 [workspace]
-members = ["basalt", "basalt-core", "basalt-widgets"]
+members = ["basalt", "basalt-*"]
 resolver = "2"
 
 [workspace.dependencies]
-basalt = { path = "basalt" }
-basalt-core = { path = "basalt-core" }
-basalt-widgets = { path = "basalt-widgets", version = "0.1.1" }
 similar-asserts = "1.7.0"
 
 [profile.ci]
