@@ -16,6 +16,7 @@
 use std::{io, path::PathBuf, result};
 
 pub mod config;
+pub mod directory;
 pub mod note;
 pub mod vault;
 mod vault_entry;
@@ -50,6 +51,10 @@ pub enum Error {
     /// Expected resource behind a path was not found.
     #[error("Path not found: {0}")]
     PathNotFound(String),
+
+    /// Failed to extract a valid name from the path.
+    #[error("Invalid path name: {0}")]
+    InvalidPathName(PathBuf),
 
     /// Filename was empty
     #[error("Empty filename for path: {0}")]

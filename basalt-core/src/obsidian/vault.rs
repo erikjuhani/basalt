@@ -1,9 +1,14 @@
 //! This module provides functionality operating with Obsidian vaults.
-use std::{fs, ops::ControlFlow, path::PathBuf, result};
+use std::{
+    fs,
+    ops::ControlFlow,
+    path::{self, Path, PathBuf},
+    result,
+};
 
 use serde::{Deserialize, Deserializer};
 
-use crate::obsidian::{vault_entry::VaultEntry, Error, Note};
+use crate::obsidian::{directory::Directory, vault_entry::VaultEntry, Error, Note};
 
 /// Represents a single Obsidian vault.
 ///
@@ -23,6 +28,88 @@ pub struct Vault {
     pub ts: u64,
 }
 
+fn basename(path: &Path, extension: Option<&str>) -> result::Result<String, Error> {
+    match extension {
+        Some(_) => path.file_stem(),
+        None => path.file_name(),
+    }
+    .and_then(|os_str| os_str.to_str().map(|str| str.to_string()))
+    .ok_or_else(|| Error::InvalidPathName(path.to_path_buf()))
+}
+
+/// Creates a new empty directory with the provided name.
+///
+/// If a directory with the given name already exists, a numbered suffix will be appended
+/// (e.g., "Dir 1", "Dir 2", etc.) to find an available name.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - I/O operations fail (directory creation, path checks)
+/// - No available name is found after 999 attempts ([`Error::MaxAttemptsExceeded`])
+///
+/// # Examples
+///
+/// ```
+/// # use std::fs;
+/// # use tempfile::tempdir;
+/// # use basalt_core::obsidian::{self, Vault, Note, Error};
+/// #
+/// # let tmp_dir = tempdir()?;
+///
+/// let vault = Vault { path: tmp_dir.path().to_path_buf(), ..Default::default() };
+/// let dir = obsidian::vault::create_dir(&vault, "/sub-dir/Arbitrary.Name")?;
+/// # assert_eq!(dir.name, "Arbitrary.Name");
+/// # assert_eq!(dir.path.is_dir(), true);
+/// # assert_eq!(fs::exists(&dir.path)?, true);
+/// # Ok::<(), Error>(())
+/// ```
+pub fn create_dir(vault: &Vault, name: &str) -> result::Result<Directory, Error> {
+    let (name, path) = find_available_path_name(vault, name, None)?;
+    fs::create_dir_all(&path)?;
+    Ok(Directory { name, path })
+}
+
+/// Creates a new empty directory with name "Untitled" or "Untitled {n}".
+///
+/// This is a convenience method that calls [`Vault::create_dir`] with "Untitled" as the name.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - I/O operations fail (file writing or path checks)
+/// - No available name is found after 999 attempts ([`Error::MaxAttemptsExceeded`])
+///
+/// # Examples
+///
+/// ```
+/// # use std::{fs, result};
+/// # use tempfile::tempdir;
+/// # use basalt_core::obsidian::{self, Vault, Note, Error};
+/// #
+/// # let tmp_dir = tempdir()?;
+/// # let tmp_path = tmp_dir.path();
+/// #
+/// let vault = Vault { path: tmp_path.to_path_buf(), ..Default::default() };
+/// let dir = obsidian::vault::create_untitled_dir(&vault)?;
+///
+/// assert_eq!(&dir.name, "Untitled");
+/// assert_eq!(fs::exists(&dir.path)?, true);
+/// assert_eq!(dir.path.is_dir(), true);
+/// #
+/// # (1..=100).try_for_each(|n| -> result::Result<(), Error> {
+/// #   let dir = obsidian::vault::create_untitled_dir(&vault)?;
+/// #   assert_eq!(dir.name, format!("Untitled {n}"));
+/// #   assert_eq!(fs::exists(&dir.path)?, true);
+/// #   assert_eq!(dir.path.is_dir(), true);
+/// #   Ok(())
+/// # })?;
+/// # Ok::<(), Error>(())
+/// ```
+pub fn create_untitled_dir(vault: &Vault) -> result::Result<Directory, Error> {
+    create_dir(vault, "Untitled")
+}
+
 /// Creates a new empty note with the provided name.
 ///
 /// If a note with the given name already exists, a numbered suffix will be appended
@@ -37,23 +124,23 @@ pub struct Vault {
 /// # Examples
 ///
 /// ```
-/// use std::fs;
-/// use tempfile::tempdir;
-/// use basalt_core::obsidian::{self, Vault, Note, Error};
-///
-/// let tmp_dir = tempdir()?;
-///
-/// let vault = Vault {
-///   path: tmp_dir.path().to_path_buf(),
-///   ..Default::default()
-/// };
-///
-/// let note = obsidian::vault::create_note(&vault, "Arbitrary Name")?;
+/// # use std::fs;
+/// # use tempfile::tempdir;
+/// # use basalt_core::obsidian::{self, Vault, Note, Error};
+/// #
+/// # let tmp_dir = tempdir()?;
+/// # let tmp_path = tmp_dir.path();
+/// #
+/// let vault = Vault { path: tmp_path.to_path_buf(), ..Default::default() };
+/// let note = obsidian::vault::create_note(&vault, "/notes/Arbitrary Name")?;
+/// assert_eq!(&note.name, "Arbitrary Name");
+/// assert_eq!(note.path, tmp_path.join("notes/Arbitrary Name.md"));
 /// assert_eq!(fs::exists(&note.path)?, true);
-///
 /// # Ok::<(), Error>(())
 /// ```
 pub fn create_note(vault: &Vault, name: &str) -> result::Result<Note, Error> {
+    let name = name.trim_start_matches(path::MAIN_SEPARATOR);
+
     let base_path = vault.path.join(name).with_extension("md");
     if let Some(parent_dir) = base_path.parent() {
         // Create necessary directory structures if we pass dir separated name like
@@ -61,7 +148,7 @@ pub fn create_note(vault: &Vault, name: &str) -> result::Result<Note, Error> {
         fs::create_dir_all(parent_dir)?;
     }
 
-    let (name, path) = find_available_note_name(vault, name)?;
+    let (name, path) = find_available_path_name(vault, name, Some("md"))?;
 
     fs::write(&path, "")?;
 
@@ -84,35 +171,31 @@ pub fn create_note(vault: &Vault, name: &str) -> result::Result<Note, Error> {
 /// # Examples
 ///
 /// ```
-/// use std::{fs, result};
-/// use tempfile::tempdir;
-/// use basalt_core::obsidian::{self, Vault, Note, Error};
-///
-/// let tmp_dir = tempdir()?;
-///
-/// let vault = Vault {
-///   path: tmp_dir.path().to_path_buf(),
-///   ..Default::default()
-/// };
-///
+/// # use std::{fs, result};
+/// # use tempfile::tempdir;
+/// # use basalt_core::obsidian::{self, Vault, Note, Error};
+/// #
+/// # let tmp_dir = tempdir()?;
+/// # let tmp_path = tmp_dir.path();
+/// #
+/// let vault = Vault { path: tmp_path.to_path_buf(), ..Default::default() };
 /// let note = obsidian::vault::create_untitled_note(&vault)?;
 /// assert_eq!(&note.name, "Untitled");
 /// assert_eq!(fs::exists(&note.path)?, true);
-///
-/// (1..=100).try_for_each(|n| -> result::Result<(), Error> {
-///   let note = obsidian::vault::create_untitled_note(&vault)?;
-///   assert_eq!(note.name, format!("Untitled {n}"));
-///   assert_eq!(fs::exists(&note.path)?, true);
-///   Ok(())
-/// })?;
-///
+/// #
+/// # (1..=100).try_for_each(|n| -> result::Result<(), Error> {
+/// #   let note = obsidian::vault::create_untitled_note(&vault)?;
+/// #   assert_eq!(note.name, format!("Untitled {n}"));
+/// #   assert_eq!(fs::exists(&note.path)?, true);
+/// #   Ok(())
+/// # })?;
 /// # Ok::<(), Error>(())
 /// ```
 pub fn create_untitled_note(vault: &Vault) -> result::Result<Note, Error> {
     create_note(vault, "Untitled")
 }
 
-/// Find available note name by incrementing number suffix at the end.
+/// Find available path name by incrementing number suffix at the end.
 ///
 /// Increments until we find a 'free' name e.g. if "Untitled 1" exists we will
 /// try next "Untitled 2", and then "Untitled 3" and so on.
@@ -123,35 +206,58 @@ pub fn create_untitled_note(vault: &Vault) -> result::Result<Note, Error> {
 ///
 /// # Examples
 ///
+/// ## Markdown filename
 /// ```
-/// use std::fs;
-/// use tempfile::tempdir;
-/// use basalt_core::obsidian::{self, Vault, Note, Error};
-///
-/// let tmp_dir = tempdir()?;
-/// let tmp_path = tmp_dir.path();
-///
-/// let vault = Vault {
-///   path: tmp_path.to_path_buf(),
-///   ..Default::default()
-/// };
-///
+/// # use std::fs;
+/// # use tempfile::tempdir;
+/// # use basalt_core::obsidian::{self, Vault, Note, Error};
+/// #
+/// # let tmp_dir = tempdir()?;
+/// # let tmp_path = tmp_dir.path();
+/// #
+/// let vault = Vault { path: tmp_path.to_path_buf(), ..Default::default() };
 /// let note_name = "Arbitrary Name";
-/// fs::write(tmp_path.join(note_name).with_extension("md"), "")?;
+/// # fs::write(tmp_path.join(note_name).with_extension("md"), "")?;
 ///
-/// let (name, path) = obsidian::vault::find_available_note_name(&vault, note_name)?;
+/// let (name, path) = obsidian::vault::find_available_path_name(&vault, note_name, Some("md"))?;
 /// assert_eq!(&name, "Arbitrary Name 1");
 /// assert_eq!(fs::exists(&path)?, false);
-///
 /// # Ok::<(), Error>(())
 /// ```
-pub fn find_available_note_name(
+///
+/// ## Directory name
+/// ```
+/// # use std::fs;
+/// # use tempfile::tempdir;
+/// # use basalt_core::obsidian::{self, Vault, Note, Error};
+/// #
+/// # let tmp_dir = tempdir()?;
+/// # let tmp_path = tmp_dir.path();
+/// #
+/// let vault = Vault { path: tmp_path.to_path_buf(), ..Default::default() };
+/// let dir_name = "Arbitrary.Dir";
+/// # fs::create_dir_all(tmp_path.join(dir_name))?;
+///
+/// let (name, path) = obsidian::vault::find_available_path_name(&vault, dir_name, None)?;
+/// assert_eq!(&name, "Arbitrary.Dir 1");
+/// assert_eq!(fs::exists(&path)?, false);
+/// # Ok::<(), Error>(())
+/// ```
+pub fn find_available_path_name(
     vault: &Vault,
     name: &str,
+    extension: Option<&str>,
 ) -> result::Result<(String, PathBuf), Error> {
-    let path = vault.path.join(name).with_extension("md");
+    let name = name.trim_start_matches(path::MAIN_SEPARATOR);
+
+    let name_to_path = |name: &str| match extension {
+        Some(ext) => vault.path.join(name).with_extension(ext),
+        None => vault.path.join(name),
+    };
+
+    let path = name_to_path(name);
     if !fs::exists(&path)? {
-        return Ok((name.to_string(), path));
+        return Ok((basename(&path, extension)?, path));
     }
 
     // Maximum number of iterations
@@ -160,9 +266,11 @@ pub fn find_available_note_name(
     let candidate = (1..=MAX)
         .map(|n| format!("{name} {n}"))
         .try_fold((), |_, name| {
-            let path = vault.path.join(&name).with_extension("md");
+            let path = name_to_path(&name);
             match fs::exists(&path).map_err(Error::from) {
-                Ok(false) => ControlFlow::Break(Ok((name, path))),
+                Ok(false) => {
+                    ControlFlow::Break(basename(&path, extension).map(|name| (name, path)))
+                }
                 Err(e) => ControlFlow::Break(Err(e)),
                 _ => ControlFlow::Continue(()),
             }
@@ -234,10 +342,7 @@ impl<'de> Deserialize<'de> for Vault {
         impl TryFrom<Json> for Vault {
             type Error = String;
             fn try_from(Json { path, open, ts }: Json) -> result::Result<Self, Self::Error> {
-                let name = path
-                    .file_name()
-                    .map(|file_name| file_name.to_string_lossy().to_string())
-                    .ok_or("unable to retrieve vault name")?;
+                let name = basename(&path, None).map_err(|e| e.to_string())?;
 
                 Ok(Vault {
                     name,
