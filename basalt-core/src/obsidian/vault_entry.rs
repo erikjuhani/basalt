@@ -20,7 +20,8 @@ impl VaultEntry {
     #[allow(missing_docs)]
     pub fn name(&self) -> &str {
         match self {
-            Self::Directory { name, .. } | Self::File(Note { name, .. }) => name.as_str(),
+            Self::Directory { name, .. } => name,
+            Self::File(note) => note.name(),
         }
     }
 }
@@ -35,10 +36,8 @@ impl TryFrom<&Path> for VaultEntry {
             .ok_or_else(|| Error::EmptyFileName(value.to_path_buf()))?;
 
         if value.is_file() {
-            Ok(VaultEntry::File(Note {
-                name,
-                path: value.to_path_buf(),
-            }))
+            let note = Note::try_from((name, value.to_path_buf()))?;
+            Ok(VaultEntry::File(note))
         } else {
             Ok(VaultEntry::Directory {
                 name,
@@ -74,7 +73,7 @@ impl FindNote for Vec<VaultEntry> {
 impl FindNote for VaultEntry {
     fn find_note<'a>(&'a self, path: &Path) -> Option<&'a Note> {
         match self {
-            VaultEntry::File(note) if note.path == path => Some(note),
+            VaultEntry::File(note) if note.path() == path => Some(note),
             VaultEntry::Directory {
                 entries,
                 path: dir_path,

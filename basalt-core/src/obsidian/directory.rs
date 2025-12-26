@@ -1,13 +1,43 @@
 //! This module provides functionality operating with Obsidian vault folders.
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+use crate::obsidian::Error;
 
 /// Represents a directory within the vault.
-/// TODO: Needs try_from or the like to make sure the path is a directory when creating this struct
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Directory {
-    /// The directory name without the parent path.
-    pub name: String,
+    name: String,
+    path: PathBuf,
+}
 
+impl Directory {
     /// The complete filesystem path to the directory.
-    pub path: PathBuf,
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// The directory name without the parent path.
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl TryFrom<(&str, PathBuf)> for Directory {
+    type Error = Error;
+    fn try_from((name, path): (&str, PathBuf)) -> Result<Self, Self::Error> {
+        match path.is_dir() {
+            true => Ok(Self {
+                name: name.to_string(),
+                path,
+            }),
+            false => Err(Error::Io(std::io::ErrorKind::NotADirectory.into())),
+        }
+    }
+}
+
+impl TryFrom<(String, PathBuf)> for Directory {
+    type Error = Error;
+    fn try_from((name, path): (String, PathBuf)) -> Result<Self, Self::Error> {
+        Self::try_from((name.as_str(), path))
+    }
 }

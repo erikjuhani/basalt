@@ -139,9 +139,9 @@ pub struct SelectedNote {
 impl From<&Note> for SelectedNote {
     fn from(value: &Note) -> Self {
         Self {
-            name: value.name.clone(),
-            path: value.path.clone(),
-            content: fs::read_to_string(&value.path).unwrap_or_default(),
+            name: value.name().to_string(),
+            path: value.path().to_path_buf(),
+            content: fs::read_to_string(value.path()).unwrap_or_default(),
         }
     }
 }

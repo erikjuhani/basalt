@@ -37,6 +37,76 @@ fn basename(path: &Path, extension: Option<&str>) -> result::Result<String, Erro
     .ok_or_else(|| Error::InvalidPathName(path.to_path_buf()))
 }
 
+/// Moves the note to the given directory.
+///
+/// # Examples
+///
+/// ```
+/// # use std::fs;
+/// # use tempfile::tempdir;
+/// # use basalt_core::obsidian::{self, Vault, Note, Error};
+/// #
+/// # let tmp_dir = tempdir()?;
+/// # let tmp_path = tmp_dir.path();
+/// #
+/// let vault = Vault { path: tmp_path.to_path_buf(), ..Default::default() };
+/// let note = obsidian::vault::create_note(&vault, "/notes/Arbitrary Name")?;
+/// let dir = obsidian::vault::create_dir(&vault, "/archive")?;
+/// let note = obsidian::vault::move_note_to(note, dir)?;
+///
+/// assert_eq!(note.name(), "Arbitrary Name");
+/// assert_eq!(note.path(), tmp_path.join("archive/Arbitrary Name.md"));
+/// assert_eq!(fs::exists(note.path())?, true);
+/// # Ok::<(), Error>(())
+/// ```
+pub fn move_note_to(note: Note, directory: Directory) -> result::Result<Note, Error> {
+    let name = basename(note.path(), None)?;
+
+    let new_path = directory.path().join(name);
+    if fs::exists(&new_path)? {
+        return Err(Error::Io(std::io::ErrorKind::AlreadyExists.into()));
+    }
+
+    fs::rename(note.path(), &new_path)?;
+
+    Note::try_from((note.name(), new_path))
+}
+
+/// Moves directory to the given directory.
+///
+/// # Examples
+///
+/// ```
+/// # use std::fs;
+/// # use tempfile::tempdir;
+/// # use basalt_core::obsidian::{self, Vault, Note, Error};
+/// #
+/// # let tmp_dir = tempdir()?;
+/// # let tmp_path = tmp_dir.path();
+/// #
+/// let vault = Vault { path: tmp_path.to_path_buf(), ..Default::default() };
+/// let dir_a = obsidian::vault::create_dir(&vault, "/notes")?;
+/// let dir_b = obsidian::vault::create_dir(&vault, "/archive")?;
+/// let dir = obsidian::vault::move_dir_to(dir_a, dir_b)?;
+///
+/// assert_eq!(dir.name(), "notes");
+/// assert_eq!(dir.path(), tmp_path.join("archive/notes"));
+/// assert_eq!(fs::exists(dir.path())?, true);
+/// # Ok::<(), Error>(())
+/// ```
+pub fn move_dir_to(from: Directory, to: Directory) -> result::Result<Directory, Error> {
+    let name = basename(from.path(), None)?;
+
+    let new_path = to.path().join(&name);
+    if fs::exists(&new_path)? {
+        return Err(Error::Io(std::io::ErrorKind::AlreadyExists.into()));
+    }
+
+    fs::rename(from.path(), &new_path)?;
+
+    Directory::try_from((from.name(), new_path))
+}
+
 /// Creates a new empty directory with the provided name.
 ///
 /// If a directory with the given name already exists, a numbered suffix will be appended
@@ -59,15 +129,15 @@ fn basename(path: &Path, extension: Option<&str>) -> result::Result<String, Erro
 ///
 /// let vault = Vault { path: tmp_dir.path().to_path_buf(), ..Default::default() };
 /// let dir = obsidian::vault::create_dir(&vault, "/sub-dir/Arbitrary.Name")?;
-/// # assert_eq!(dir.name, "Arbitrary.Name");
-/// # assert_eq!(dir.path.is_dir(), true);
-/// # assert_eq!(fs::exists(&dir.path)?, true);
+/// # assert_eq!(dir.name(), "Arbitrary.Name");
+/// # assert_eq!(dir.path().is_dir(), true);
+/// # assert_eq!(fs::exists(dir.path())?, true);
 /// # Ok::<(), Error>(())
 /// ```
 pub fn create_dir(vault: &Vault, name: &str) -> result::Result<Directory, Error> {
     let (name, path) = find_available_path_name(vault, name, None)?;
     fs::create_dir_all(&path)?;
-    Ok(Directory { name, path })
+    Directory::try_from((name, path))
 }
 
 /// Creates a new empty directory with name "Untitled" or "Untitled {n}".
@@ -93,15 +163,15 @@ pub fn create_dir(vault: &Vault, name: &str) -> result::Result<Directory, Error>
 /// let vault = Vault { path: tmp_path.to_path_buf(), ..Default::default() };
 /// let dir = obsidian::vault::create_untitled_dir(&vault)?;
 ///
-/// assert_eq!(&dir.name, "Untitled");
-/// assert_eq!(fs::exists(&dir.path)?, true);
-/// assert_eq!(dir.path.is_dir(), true);
+/// assert_eq!(dir.name(), "Untitled");
+/// assert_eq!(fs::exists(dir.path())?, true);
+/// assert_eq!(dir.path().is_dir(), true);
 /// #
 /// # (1..=100).try_for_each(|n| -> result::Result<(), Error> {
 /// #   let dir = obsidian::vault::create_untitled_dir(&vault)?;
-/// #   assert_eq!(dir.name, format!("Untitled {n}"));
-/// #   assert_eq!(fs::exists(&dir.path)?, true);
-/// #   assert_eq!(dir.path.is_dir(), true);
+/// #   assert_eq!(dir.name(), format!("Untitled {n}"));
+/// #   assert_eq!(fs::exists(dir.path())?, true);
+/// #   assert_eq!(dir.path().is_dir(), true);
 /// #   Ok(())
 /// # })?;
 /// # Ok::<(), Error>(())
@@ -133,9 +203,9 @@ pub fn create_untitled_dir(vault: &Vault) -> result::Result<Directory, Error> {
 /// #
 /// let vault = Vault { path: tmp_path.to_path_buf(), ..Default::default() };
 /// let note = obsidian::vault::create_note(&vault, "/notes/Arbitrary Name")?;
-/// assert_eq!(&note.name, "Arbitrary Name");
-/// assert_eq!(note.path, tmp_path.join("notes/Arbitrary Name.md"));
-/// assert_eq!(fs::exists(&note.path)?, true);
+/// assert_eq!(note.name(), "Arbitrary Name");
+/// assert_eq!(note.path(), tmp_path.join("notes/Arbitrary Name.md"));
+/// assert_eq!(fs::exists(note.path())?, true);
 /// # Ok::<(), Error>(())
 /// ```
 pub fn create_note(vault: &Vault, name: &str) -> result::Result<Note, Error> {
@@ -152,10 +222,7 @@ pub fn create_note(vault: &Vault, name: &str) -> result::Result<Note, Error> {
 
     fs::write(&path, "")?;
 
-    Ok(Note {
-        name: name.to_string(),
-        path,
-    })
+    Note::try_from((name, path))
 }
 
 /// Creates a new empty note with name "Untitled" or "Untitled {n}".
@@ -180,13 +247,13 @@ pub fn create_note(vault: &Vault, name: &str) -> result::Result<Note, Error> {
 /// #
 /// let vault = Vault { path: tmp_path.to_path_buf(), ..Default::default() };
 /// let note = obsidian::vault::create_untitled_note(&vault)?;
-/// assert_eq!(&note.name, "Untitled");
-/// assert_eq!(fs::exists(&note.path)?, true);
+/// assert_eq!(note.name(), "Untitled");
+/// assert_eq!(fs::exists(note.path())?, true);
 /// #
 /// # (1..=100).try_for_each(|n| -> result::Result<(), Error> {
 /// #   let note = obsidian::vault::create_untitled_note(&vault)?;
-/// #   assert_eq!(note.name, format!("Untitled {n}"));
-/// #   assert_eq!(fs::exists(&note.path)?, true);
+/// #   assert_eq!(note.name(), format!("Untitled {n}"));
+/// #   assert_eq!(fs::exists(note.path())?, true);
 /// #   Ok(())
 /// # })?;
 /// # Ok::<(), Error>(())

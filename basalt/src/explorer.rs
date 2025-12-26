@@ -10,7 +10,6 @@ pub use state::Visibility;
 
 use std::{marker::PhantomData, path::PathBuf};
 
-use basalt_core::obsidian::Note;
 use ratatui::{
     buffer::Buffer,
     layout::{Alignment, Constraint, Layout, Rect},
@@ -105,7 +104,10 @@ impl Explorer<'_> {
                 Span::raw("  ".repeat(*depth)).black()
             };
             match item {
-                Item::File(Note { path, name }) => {
+                Item::File(note) => {
+                    let name = note.name();
+                    let path = note.path();
+
                     let is_selected = selected_path
                         .as_ref()
                         .is_some_and(|selected| selected == path);
@@ -194,8 +196,10 @@ impl<'a> StatefulWidget for Explorer<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
     use super::*;
-    use basalt_core::obsidian::VaultEntry;
+    use basalt_core::obsidian::{Note, VaultEntry};
     use insta::assert_snapshot;
     use ratatui::{backend::TestBackend, Terminal};
 
@@ -204,45 +208,36 @@ mod tests {
         let tests = [
             [].to_vec(),
             [
-                VaultEntry::File(Note {
-                    name: "Test".into(),
-                    path: "test.md".into(),
-                }),
-                VaultEntry::File(Note {
-                    name: "Andesite".into(),
-                    path: "andesite.md".into(),
-                }),
+                VaultEntry::File(Note::new_unchecked("Test", Path::new("Test.md"))),
+                VaultEntry::File(Note::new_unchecked("Andesite", Path::new("Andesite.md"))),
             ]
             .to_vec(),
             [VaultEntry::Directory {
                 name: "TestDir".into(),
-                path: "test_dir".into(),
+                path: "TestDir".into(),
                 entries: vec![],
             }]
             .to_vec(),
             [VaultEntry::Directory {
                 name: "TestDir".into(),
-                path: "test_dir".into(),
+                path: "TestDir".into(),
                 entries: vec![
-                    VaultEntry::File(Note {
-                        name: "Andesite".into(),
-                        path: "test_dir/andesite.md".into(),
-                    }),
+                    VaultEntry::File(Note::new_unchecked("Andesite", Path::new("Andesite.md"))),
                     VaultEntry::Directory {
                         name: "Notes".into(),
-                        path: "test_dir/notes".into(),
-                        entries: vec![VaultEntry::File(Note {
-                            name: "Pathing".into(),
-                            path: "test_dir/notes/pathing.md".into(),
-                        })],
+                        path: "TestDir/Notes".into(),
+                        entries: vec![VaultEntry::File(Note::new_unchecked(
+                            "Pathing",
+                            Path::new("TestDir/Notes/Pathing.md"),
+                        ))],
                     },
                     VaultEntry::Directory {
                         name: "Amber Specs".into(),
-                        path: "test_dir/amber_specs".into(),
-                        entries: vec![VaultEntry::File(Note {
-                            name: "Spec_01".into(),
-                            path: "test_dir/amber_specs/spec_01.md".into(),
-                        })],
+                        path: "TestDir/Amber Specs".into(),
+                        entries: vec![VaultEntry::File(Note::new_unchecked(
+                            "Spec_01",
+                            Path::new("TestDir/Amber Specs/Spec_01.md"),
+                        ))],
                     },
                 ],
             }]
