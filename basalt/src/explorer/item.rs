@@ -16,7 +16,8 @@ pub enum Item {
 impl Item {
     pub(crate) fn name(&self) -> &str {
         match self {
-            Self::Directory { name, .. } | Self::File(Note { name, .. }) => name.as_str(),
+            Self::Directory { name, .. } => name.as_str(),
+            Self::File(note) => note.name(),
         }
     }
 

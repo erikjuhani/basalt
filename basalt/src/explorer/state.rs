@@ -254,7 +254,7 @@ impl<'a> ExplorerState<'a> {
             (Item::File(note), _) => {
                 self.selected_note = Some(note.clone());
                 self.selected_item_index = Some(selected_item_index);
-                self.selected_item_path = Some(note.path.clone());
+                self.selected_item_path = Some(note.path().to_path_buf());
             }
         }
     }
