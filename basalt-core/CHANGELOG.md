@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.8.0](https://github.com/erikjuhani/basalt/releases/tag/basalt-core/0.8.0) (Dec, 26 2025)
+
+### Added
+
+- [affec53](https://github.com/erikjuhani/basalt/commit/affec53f2b16100007dfe7a237a8058c151b7c8f) Add rename_note function for renaming notes in vault
+
+> Implements `rename_note` function that renames a note within its current
+> directory. The function handles both plain names and names with .md
+> extensions, and will strip the extension suffix internally if provided.
+
+### Breaking
+
+- [851733c](https://github.com/erikjuhani/basalt/commit/851733c17dcfa87766b08bc9b8da62bd8df8a165) Add functions for creating folders under obsidian vault
+
+> Introduces directory creation functions to the vault API with
+> `create_dir` and `create_untitled_dir`. The `find_available_note_name`
+> was changed to work with any kind of paths and was renamed to
+> `find_available_path_name`.
+>
+> Add new error variant `InvalidPathName` to represents error cases where
+> the path is invalid. This currently happens for example if the OsStr is
+> not valid unicode.
+
+- [90ded80](https://github.com/erikjuhani/basalt/commit/90ded80019d4336d8062e0311c5d7d10d4f65ab0) Add move functions for notes and directories in vault
+
+> Implements `move_note_to` and `move_dir_to` functions for relocating vault
+> filesystem entries between directories.
+>
+> Add TryFrom implementations for Note and Directory structs to validate
+> that paths correspond to their expected filesystem types when
+> constructing these structs and changed the visibility of the struct
+> fields to ensure correctness related to filesystem type. Is it a dir or
+> file, which is now governed by the TryFrom implementation.
+>
+> The name and path fields can now be accessed by the corresponding name()
+> and path() accessor methods.
+
 ## [0.7.0](https://github.com/erikjuhani/basalt/releases/tag/basalt-core/0.7.0) (Dec, 21 2025)
 
 ### Breaking
