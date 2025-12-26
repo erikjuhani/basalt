@@ -37,6 +37,59 @@ fn basename(path: &Path, extension: Option<&str>) -> result::Result<String, Erro
     .ok_or_else(|| Error::InvalidPathName(path.to_path_buf()))
 }
 
+/// Rename note with the given name.
+///
+/// # Examples
+///
+/// ```
+/// # use std::fs;
+/// # use tempfile::tempdir;
+/// # use basalt_core::obsidian::{self, Vault, Note, Error};
+/// #
+/// # let tmp_dir = tempdir()?;
+/// # let tmp_path = tmp_dir.path();
+/// #
+/// let vault = Vault { path: tmp_path.to_path_buf(), ..Default::default() };
+/// let note = obsidian::vault::create_note(&vault, "Arbitrary Name")?;
+///
+/// let note = obsidian::vault::rename_note(note, "New Name.md")?;
+/// assert_eq!(note.name(), "New Name");
+/// assert_eq!(note.path(), tmp_path.join("New Name.md"));
+/// assert_eq!(fs::exists(note.path())?, true);
+///
+/// let note = obsidian::vault::rename_note(note, "Renamed")?;
+/// assert_eq!(note.name(), "Renamed");
+/// assert_eq!(note.path(), tmp_path.join("Renamed.md"));
+/// assert_eq!(fs::exists(note.path())?, true);
+/// # Ok::<(), Error>(())
+/// ```
+pub fn rename_note(note: Note, new_name: &str) -> result::Result<Note, Error> {
+    if new_name.is_empty() {
+        return Err(Error::EmptyFileName(PathBuf::default()));
+    }
+
+    let path = note.path();
+    let parent = path
+        .parent()
+        .ok_or(Error::EmptyFileName(path.to_path_buf()))?;
+
+    let new_name = new_name.trim_end_matches(".md");
+    let new_path = parent.join(new_name).with_extension("md");
+
+    if fs::exists(&new_path)? {
+        return Err(Error::Io(std::io::ErrorKind::AlreadyExists.into()));
+    }
+
+    // FIXME: After checking for invalid filenames
+    if let Some(path) = new_path.parent() {
+        fs::create_dir_all(path)?
+    }
+
+    fs::rename(path, &new_path)?;
+
+    Note::try_from((new_name, new_path))
+}
+
 /// Moves the note to the given directory.
 ///
 /// # Examples
