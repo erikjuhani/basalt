@@ -103,7 +103,7 @@ jobs:
           RENOVATE_REPOSITORIES: ${{ github.repository }}
           LOG_LEVEL: ${{ github.event.inputs.log_level || 'info' }}
         with:
-          renovate-version: 42.66.8
+          renovate-version: 42.66.9
           configurationFile: renovate-config.json
           token: '${{ steps.app-token.outputs.token }}'
 
