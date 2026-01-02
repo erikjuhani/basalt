@@ -10,19 +10,6 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
 name = "basalt-core"
-version = "0.6.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ddb394048714bf8dbde2d91dfb101de747f58e42ce37025d1ca13063829583f8"
-dependencies = [
- "dirs",
- "pulldown-cmark",
- "serde",
- "serde_json",
- "thiserror",
-]
-
-[[package]]
-name = "basalt-core"
 version = "0.8.0"
 dependencies = [
  "dirs",
@@ -32,6 +19,19 @@ dependencies = [
  "serde_json",
  "similar-asserts",
  "tempfile",
+ "thiserror",
+]
+
+[[package]]
+name = "basalt-core"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "89c1246a2323334ebe81b96e158fd1a6bb4380ef74e94b064efece0fdacd1187"
+dependencies = [
+ "dirs",
+ "pulldown-cmark",
+ "serde",
+ "serde_json",
  "thiserror",
 ]
 
@@ -58,7 +58,7 @@ dependencies = [
 name = "basalt-widgets"
 version = "0.1.1"
 dependencies = [
- "basalt-core 0.6.3",
+ "basalt-core 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "ratatui",
 ]
 
@@ -253,7 +253,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -290,7 +290,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -679,7 +679,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.11.0",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -875,7 +875,7 @@ dependencies = [
  "getrandom 0.3.4",
  "once_cell",
  "rustix 1.1.2",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
