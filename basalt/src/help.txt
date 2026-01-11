@@ -74,6 +74,7 @@ INTERFACE
       ‹k / j›     Move selection up / down
       ‹↑ / ↓›     Move selection up / down
       ‹s›         Toggle note sorting
+      ‹r›         Rename selected note or directory
       ‹t›         Toggle explorer panel visibility
       ‹← / h›     Hide explorer panel
       ‹→ / l›     Expand explorer panel
@@ -189,6 +190,31 @@ INTERFACE
         • No line/word deletion commands
         • No jumping to start/end of line or document
 
+  INPUT MODAL
+
+    The input modal appears when renaming notes or directories. It provides
+    a text input field with basic editing capabilities.
+
+    DEFAULT KEY BINDINGS
+
+      ‹Esc›       Cancel and close modal without saving
+      ‹↩ Enter›   Accept changes and save
+      ‹i›         Enter edit mode for typing
+      ‹h / l›     Move cursor left / right
+      ‹← / →›     Move cursor left / right
+      ‹Alt+F›     Move cursor forward by word
+      ‹Alt+B›     Move cursor backward by word
+      ‹Backspace› Delete character before cursor
+
+    USAGE
+
+      When renaming a note or directory from the explorer:
+      1. Press ‹r› on the selected item
+      2. The input modal will appear with the current name
+      3. Press ‹i› to enter edit mode
+      4. Modify the name as needed
+      5. Press ‹Enter› to save or ‹Esc› to cancel
+
 ────────────────────────────────────────────────────────────────────────────
 
 CONFIGURATION
@@ -211,8 +237,9 @@ CONFIGURATION
 
   EXPLORER COMMANDS:
     explorer_up, explorer_down, explorer_open, explorer_sort, explorer_toggle,
-    explorer_switch_pane, explorer_scroll_up_one, explorer_scroll_down_one,
-    explorer_scroll_up_half_page, explorer_scroll_down_half_page
+    explorer_toggle_input_rename, explorer_switch_pane, explorer_scroll_up_one,
+    explorer_scroll_down_one, explorer_scroll_up_half_page,
+    explorer_scroll_down_half_page
 
   OUTLINE COMMANDS:
     outline_up, outline_down, outline_toggle, outline_toggle_explorer,
@@ -231,6 +258,11 @@ CONFIGURATION
     note_editor_experimental_cursor_word_forward,
     note_editor_experimental_cursor_word_backward
 
+  INPUT MODAL COMMANDS:
+    input_modal_edit_mode, input_modal_accept, input_modal_cancel,
+    input_modal_left, input_modal_right, input_modal_word_forward,
+    input_modal_word_backward
+
   MODAL COMMANDS:
     help_modal_toggle, help_modal_close, help_modal_scroll_up_one,
     help_modal_scroll_down_one, help_modal_scroll_up_half_page,
@@ -248,6 +280,8 @@ FEATURES
   • View markdown notes in a readable, custom styled format
   • Toggle between focused note reading and vault exploration
   • Sort notes alphabetically
+  • Rename notes and directories from the explorer
+  • Input modal with text editing for interactive operations
   • Experimental editor mode for note modification (when enabled)
   • Multiple editor modes: View mode for reading, Edit mode for changes
   • Basic text editing capabilities in Edit mode (custom implementation)
