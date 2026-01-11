@@ -13,7 +13,7 @@ Basalt user interface is divided into different panes; modals and components.
 
 Explorer is shown on the left side and displays the folders and notes under the selected vault.
 
-In the future explorer will support creating folders, notes and renaming or moving them.
+The explorer supports renaming both notes and directories using the input modal. Select an item and press <kbd>r</kbd> to open the rename dialog.
 
 ### Note editor
 
@@ -40,3 +40,10 @@ Help modal can be accessed by pressing <kbd>?</kbd>. Help modal contains the ess
 ### Vault Selector Modal
 
 Vault selector modal can be accessed by pressing <kbd>Ctrl+g</kbd>, which lets you select another vault from the list of available vaults.
+
+### Input Modal
+
+The input modal provides text input capabilities for interactive operations like renaming notes and directories. It features a custom text editor with cursor navigation and word-based movement. Access it by pressing <kbd>r</kbd> on a selected item in the explorer.
+
+> [!CAUTION]
+> The rename operation does not currently update wiki-links. If you rename a note that is referenced by wiki-links, those links will be broken and need to be manually corrected. Automatic wiki-link updating will be implemented in a future release.

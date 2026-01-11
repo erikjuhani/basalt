@@ -1,0 +1,9 @@
+---
+source: basalt/src/input/mod.rs
+expression: terminal.backend()
+---
+"╭ Input: ────────────────────╮"
+"│ Bslt                       │"
+"╰ Editing* ──────────────────╯"
+"                              "
+"                              "
