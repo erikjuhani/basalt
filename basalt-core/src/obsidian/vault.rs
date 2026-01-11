@@ -37,6 +37,61 @@ fn basename(path: &Path, extension: Option<&str>) -> result::Result<String, Erro
     .ok_or_else(|| Error::InvalidPathName(path.to_path_buf()))
 }
 
+/// Rename directory with the given name.
+///
+/// # Examples
+///
+/// ```
+/// # use std::fs;
+/// # use tempfile::tempdir;
+/// # use basalt_core::obsidian::{self, Vault, Note, Error};
+/// #
+/// # let tmp_dir = tempdir()?;
+/// # let tmp_path = tmp_dir.path();
+/// #
+/// let vault = Vault { path: tmp_path.to_path_buf(), ..Default::default() };
+/// let directory = obsidian::vault::create_dir(&vault, "Arbitrary Name")?;
+///
+/// let directory = obsidian::vault::rename_dir(directory, "/New Name.md")?;
+/// assert_eq!(directory.name(), "New Name.md");
+/// assert_eq!(directory.path(), tmp_path.join("New Name.md"));
+/// assert_eq!(fs::exists(directory.path())?, true);
+/// assert_eq!(directory.path().is_dir(), true);
+///
+/// let directory = obsidian::vault::rename_dir(directory, "Renamed")?;
+/// assert_eq!(directory.name(), "Renamed");
+/// assert_eq!(directory.path(), tmp_path.join("Renamed"));
+/// assert_eq!(fs::exists(directory.path())?, true);
+/// # Ok::<(), Error>(())
+/// ```
+pub fn rename_dir(directory: Directory, new_name: &str) -> result::Result<Directory, Error> {
+    if new_name.is_empty() {
+        return Err(Error::EmptyFileName(PathBuf::default()));
+    }
+
+    let new_name = new_name.trim_start_matches(path::MAIN_SEPARATOR);
+
+    let path = directory.path();
+    let parent = path
+        .parent()
+        .ok_or(Error::EmptyFileName(path.to_path_buf()))?;
+
+    let new_path = parent.join(new_name);
+
+    if fs::exists(&new_path)? {
+        return Err(Error::Io(std::io::ErrorKind::AlreadyExists.into()));
+    }
+
+    // FIXME: After checking for invalid filenames
+    if let Some(path) = new_path.parent() {
+        fs::create_dir_all(path)?
+    }
+
+    fs::rename(path, &new_path)?;
+
+    Directory::try_from((new_name, new_path))
+}
+
 /// Rename note with the given name.
 ///
 /// # Examples
@@ -73,7 +128,9 @@ pub fn rename_note(note: Note, new_name: &str) -> result::Result<Note, Error> {
         .parent()
         .ok_or(Error::EmptyFileName(path.to_path_buf()))?;
 
-    let new_name = new_name.trim_end_matches(".md");
+    let new_name = new_name
+        .trim_start_matches(path::MAIN_SEPARATOR)
+        .trim_end_matches(".md");
     let new_path = parent.join(new_name).with_extension("md");
 
     if fs::exists(&new_path)? {
