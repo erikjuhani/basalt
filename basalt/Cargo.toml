@@ -10,7 +10,7 @@ version = "0.11.2"
 edition = "2021"
 
 [dependencies]
-basalt-core = { path = "../basalt-core", version = "0.8.0" }
+basalt-core = { path = "../basalt-core", version = "0.8.1" }
 ratatui = { version = "0.29.0", features = ["unstable-widget-ref"] }
 crossterm = "0.29.0"
 pulldown-cmark = "0.13.0"
