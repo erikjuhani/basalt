@@ -37,7 +37,7 @@ dependencies = [
 
 [[package]]
 name = "basalt-tui"
-version = "0.11.2"
+version = "0.12.0"
 dependencies = [
  "basalt-core 0.8.1",
  "crossterm 0.29.0",
