@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.12.0](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.0) (Jan, 18 2026)
+
+### Added
+
+- [342fbd6](https://github.com/erikjuhani/basalt/commit/342fbd6f9bd91e595aba95c7c0dd050873e5e205) Add input modal with note and directory rename functionality
+
+> > [!CAUTION]
+> > BEWARE! This rename implementation does not cover updating the
+> > wiki-links. If you use the rename on notes that are referenced as
+> > wiki-links—these links will be broken after and needs to be manually
+> > corrected.
+>
+> Add an input modal that provides dynamic modal text editing. The modal
+> features a text input widget and cursor navigation, which supports
+> character-by-character and word-based movement. The vim-like modes are
+> limited. Only aforementioned movement and text editing.
+>
+> The modal is integrated with the explorer pane, and is available by
+> pressing 'r' (default key binding) on the selected item. The rename
+> operation leverages the `rename_note` and `rename_dir` functions added
+> in affec53 and a347325, the vault is 'reloaded' after rename.
+
 ## [0.11.2](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.11.2) (Dec, 21 2025)
 
 ### Changed
