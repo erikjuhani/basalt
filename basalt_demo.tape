@@ -28,6 +28,22 @@ Type "j"
 Sleep 3s
 Enter
 Sleep 3s
+Type "r"
+Sleep 3s
+Backspace
+Sleep 1s
+Backspace
+Sleep 2s
+Backspace
+Sleep 0.5s
+Backspace
+Sleep 1s
+Backspace
+Sleep 3s
+Type@500ms "Main"
+Sleep 2s
+Enter
+Sleep 3s
 Tab         # Move to editor pane
 Sleep 2.5s
 Type "t"    # Close explorer pane
