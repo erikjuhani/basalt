@@ -119,6 +119,14 @@ impl<'a> NoteEditorState<'a> {
         self.text_buffer = None;
     }
 
+    pub fn set_filename(&mut self, name: &str) {
+        self.filename = name.to_string();
+    }
+
+    pub fn set_filepath(&mut self, path: &Path) {
+        self.filepath = path.to_path_buf();
+    }
+
     pub fn insert_char(&mut self, c: char) {
         if let Some(buffer) = &mut self.text_buffer {
             let insertion_offset = self.cursor.source_offset();

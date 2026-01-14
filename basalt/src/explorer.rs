@@ -1,7 +1,9 @@
 mod item;
 mod state;
 
+use basalt_core::obsidian::directory::Directory;
 pub use item::Item;
+use ratatui::layout::Position;
 use ratatui::layout::Size;
 use ratatui::widgets::Borders;
 pub use state::ExplorerState;
@@ -21,6 +23,8 @@ use ratatui::{
 use crate::app::{
     calc_scroll_amount, ActivePane, Message as AppMessage, ScrollAmount, SelectedNote,
 };
+use crate::input;
+use crate::input::InputModalConfig;
 use crate::outline;
 
 const SORT_SYMBOL_ASC: &str = "↑𝌆";
@@ -34,6 +38,7 @@ pub enum Message {
     Sort,
     Toggle,
     ToggleOutline,
+    ToggleInputRename,
     HidePane,
     ExpandPane,
     SwitchPaneNext,
@@ -70,6 +75,29 @@ pub fn update<'a>(
         }
         Message::ToggleOutline => {
             return Some(AppMessage::Outline(outline::Message::Toggle));
+        }
+        Message::ToggleInputRename => {
+            if let Some(current_item) = state.current_item() {
+                let selected_index = state.list_state.selected().unwrap_or(0);
+                let (label, input, callback) = match current_item {
+                    Item::File(note) => {
+                        let input = note.name();
+                        ("Rename", input, input::Callback::RenameNote(note.clone()))
+                    }
+                    Item::Directory { name, path, .. } => (
+                        "Rename Directory",
+                        name.as_str(),
+                        input::Callback::RenameDir(Directory::new(name, path)),
+                    ),
+                };
+                return Some(AppMessage::Input(input::Message::Open(InputModalConfig {
+                    // Offset of 2 is used to move the area two rows down so that the original row is visible.
+                    position: Position::from((2, selected_index as u16 + 2)),
+                    label: label.to_string(),
+                    initial_input: input.to_string(),
+                    callback,
+                })));
+            }
         }
         Message::Open => {
             state.select();
@@ -132,7 +160,7 @@ impl Explorer<'_> {
 }
 
 impl<'a> StatefulWidget for Explorer<'a> {
-    type State = ExplorerState<'a>;
+    type State = ExplorerState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         let block = Block::bordered()

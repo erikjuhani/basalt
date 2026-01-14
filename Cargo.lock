@@ -23,7 +23,7 @@ dependencies = [
 
 [[package]]
 name = "basalt-core"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "dirs",
  "indoc",
@@ -37,9 +37,9 @@ dependencies = [
 
 [[package]]
 name = "basalt-tui"
-version = "0.11.2"
+version = "0.12.0"
 dependencies = [
- "basalt-core 0.8.0",
+ "basalt-core 0.8.1",
  "crossterm 0.29.0",
  "etcetera",
  "indoc",

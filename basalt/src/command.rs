@@ -10,7 +10,7 @@ use std::{io::stdout, process};
 
 use crate::{
     app::{Message, ScrollAmount},
-    explorer, help_modal, note_editor, outline, splash_modal, vault_selector_modal,
+    explorer, help_modal, input, note_editor, outline, splash_modal, vault_selector_modal,
 };
 
 trait ReplaceVar {
@@ -36,6 +36,7 @@ pub(crate) enum Command {
     ExplorerOpen,
     ExplorerSort,
     ExplorerToggle,
+    ExplorerToggleInputRename,
     ExplorerToggleOutline,
     ExplorerSwitchPaneNext,
     ExplorerSwitchPanePrevious,
@@ -89,6 +90,14 @@ pub(crate) enum Command {
     VaultSelectorModalOpen,
     VaultSelectorModalToggle,
 
+    InputModalWordForward,
+    InputModalWordBackward,
+    InputModalLeft,
+    InputModalRight,
+    InputModalCancel,
+    InputModalAccept,
+    InputModalEditMode,
+
     Exec(String),
     Spawn(String),
 }
@@ -107,6 +116,7 @@ fn str_to_command(s: &str) -> Option<Command> {
         "explorer_sort" => Some(Command::ExplorerSort),
         "explorer_toggle" => Some(Command::ExplorerToggle),
         "explorer_toggle_outline" => Some(Command::ExplorerToggleOutline),
+        "explorer_toggle_input_rename" => Some(Command::ExplorerToggleInputRename),
         "explorer_switch_pane_next" => Some(Command::ExplorerSwitchPaneNext),
         "explorer_hide_pane" => Some(Command::ExplorerHidePane),
         "explorer_expand_pane" => Some(Command::ExplorerExpandPane),
@@ -115,6 +125,14 @@ fn str_to_command(s: &str) -> Option<Command> {
         "explorer_scroll_down_one" => Some(Command::ExplorerScrollDownOne),
         "explorer_scroll_up_half_page" => Some(Command::ExplorerScrollUpHalfPage),
         "explorer_scroll_down_half_page" => Some(Command::ExplorerScrollDownHalfPage),
+
+        "input_modal_word_forward" => Some(Command::InputModalWordForward),
+        "input_modal_word_backward" => Some(Command::InputModalWordBackward),
+        "input_modal_left" => Some(Command::InputModalLeft),
+        "input_modal_right" => Some(Command::InputModalRight),
+        "input_modal_cancel" => Some(Command::InputModalCancel),
+        "input_modal_accept" => Some(Command::InputModalAccept),
+        "input_modal_edit_mode" => Some(Command::InputModalEditMode),
 
         "outline_up" => Some(Command::OutlineUp),
         "outline_down" => Some(Command::OutlineDown),
@@ -220,6 +238,9 @@ impl From<Command> for Message<'_> {
             Command::ExplorerSort => Message::Explorer(explorer::Message::Sort),
             Command::ExplorerToggle => Message::Explorer(explorer::Message::Toggle),
             Command::ExplorerToggleOutline => Message::Explorer(explorer::Message::ToggleOutline),
+            Command::ExplorerToggleInputRename => {
+                Message::Explorer(explorer::Message::ToggleInputRename)
+            }
             Command::ExplorerHidePane => Message::Explorer(explorer::Message::HidePane),
             Command::ExplorerExpandPane => Message::Explorer(explorer::Message::ExpandPane),
             Command::ExplorerSwitchPaneNext => Message::Explorer(explorer::Message::SwitchPaneNext),
@@ -238,6 +259,14 @@ impl From<Command> for Message<'_> {
             Command::ExplorerScrollDownHalfPage => {
                 Message::Explorer(explorer::Message::ScrollDown(ScrollAmount::HalfPage))
             }
+
+            Command::InputModalEditMode => Message::Input(input::Message::EditMode),
+            Command::InputModalAccept => Message::Input(input::Message::Accept),
+            Command::InputModalCancel => Message::Input(input::Message::Cancel),
+            Command::InputModalLeft => Message::Input(input::Message::CursorLeft),
+            Command::InputModalRight => Message::Input(input::Message::CursorRight),
+            Command::InputModalWordForward => Message::Input(input::Message::CursorWordForward),
+            Command::InputModalWordBackward => Message::Input(input::Message::CursorWordBackward),
 
             Command::OutlineUp => Message::Outline(outline::Message::Up),
             Command::OutlineDown => Message::Outline(outline::Message::Down),
@@ -291,6 +320,7 @@ impl From<Command> for Message<'_> {
             Command::NoteEditorToggleOutline => {
                 Message::NoteEditor(note_editor::Message::ToggleOutline)
             }
+
             // Experimental
             Command::NoteEditorExperimentalToggleView => {
                 Message::NoteEditor(note_editor::Message::ToggleView)
@@ -315,6 +345,7 @@ impl From<Command> for Message<'_> {
             Command::NoteEditorExperimentalCursorRight => {
                 Message::NoteEditor(note_editor::Message::CursorRight)
             }
+
             Command::VaultSelectorModalClose => {
                 Message::VaultSelectorModal(vault_selector_modal::Message::Close)
             }
@@ -330,6 +361,7 @@ impl From<Command> for Message<'_> {
             Command::VaultSelectorModalOpen => {
                 Message::VaultSelectorModal(vault_selector_modal::Message::Select)
             }
+
             Command::Exec(command) => Message::Exec(command),
             Command::Spawn(command) => Message::Spawn(command),
         }

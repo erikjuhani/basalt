@@ -11,6 +11,14 @@ pub struct Directory {
 }
 
 impl Directory {
+    /// Create a new directory structure
+    pub fn new(name: &str, path: &Path) -> Self {
+        Self {
+            name: name.to_string(),
+            path: path.to_path_buf(),
+        }
+    }
+
     /// The complete filesystem path to the directory.
     pub fn name(&self) -> &str {
         &self.name

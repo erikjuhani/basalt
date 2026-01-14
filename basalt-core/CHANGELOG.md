@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.8.1](https://github.com/erikjuhani/basalt/releases/tag/basalt-core/0.8.1) (Jan, 14 2026)
+
+### Added
+
+- [ceb2099](https://github.com/erikjuhani/basalt/commit/ceb2099f5423244261a8e8c0ee58cef8326bf689) Add constructor `new` method to Directory
+
+- [a347325](https://github.com/erikjuhani/basalt/commit/a347325a6cc4ee354c73a3cc4ae5ec8208ae6752) Add `rename_dir` function for renaming directories in vault
+
+> The rename_dir function is constrained with the given Directory struct,
+> and will always us the parent path as the base directory location.
+
 ## [0.8.0](https://github.com/erikjuhani/basalt/releases/tag/basalt-core/0.8.0) (Dec, 26 2025)
 
 ### Added
