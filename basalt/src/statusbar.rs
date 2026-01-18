@@ -5,7 +5,7 @@ use ratatui::{
     layout::{Constraint, Flex, Layout, Rect},
     style::{Color, Stylize},
     text::{Line, Span, Text},
-    widgets::{StatefulWidgetRef, Widget},
+    widgets::{StatefulWidget, Widget},
 };
 
 #[derive(Default, Clone, PartialEq)]
@@ -30,10 +30,10 @@ pub struct StatusBar<'a> {
     _lifetime: PhantomData<&'a ()>,
 }
 
-impl<'a> StatefulWidgetRef for StatusBar<'a> {
+impl<'a> StatefulWidget for StatusBar<'a> {
     type State = StatusBarState<'a>;
 
-    fn render_ref(&self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
+    fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         let [left, right] = Layout::horizontal([Constraint::Fill(1), Constraint::Length(28)])
             .flex(Flex::SpaceBetween)
             .areas(area);
