@@ -430,7 +430,7 @@ impl<'a> App<'a> {
     }
 
     fn render_splash(&self, area: Rect, buf: &mut Buffer, state: &mut SplashModalState<'a>) {
-        SplashModal::default().render_ref(area, buf, state)
+        SplashModal::default().render(area, buf, state)
     }
 
     fn render_main(&self, area: Rect, buf: &mut Buffer, state: &mut AppState<'a>) {

@@ -4,7 +4,7 @@ use basalt_core::obsidian::Vault;
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Flex, Layout, Rect},
-    widgets::{Clear, ScrollbarState, StatefulWidget, StatefulWidgetRef, Widget},
+    widgets::{Clear, ScrollbarState, StatefulWidget, Widget},
 };
 
 use crate::{
@@ -115,7 +115,7 @@ impl<'a> StatefulWidget for VaultSelectorModal<'a> {
     {
         let area = self.modal_area(area);
         Widget::render(Clear, area, buf);
-        VaultSelector::default().render_ref(area, buf, &mut state.vault_selector_state);
+        VaultSelector::default().render(area, buf, &mut state.vault_selector_state);
     }
 }
 

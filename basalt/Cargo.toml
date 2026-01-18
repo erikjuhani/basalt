@@ -11,7 +11,7 @@ edition = "2021"
 
 [dependencies]
 basalt-core = { path = "../basalt-core", version = "0.8.1" }
-ratatui = { version = "0.30.0", features = ["unstable-widget-ref"] }
+ratatui = { version = "0.30.0" }
 crossterm = "0.29.0"
 pulldown-cmark = "0.13.0"
 textwrap = "0.16.2"
