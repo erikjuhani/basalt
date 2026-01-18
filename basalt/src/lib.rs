@@ -3,6 +3,7 @@ pub mod command;
 pub mod config;
 pub mod explorer;
 pub mod help_modal;
+pub mod input;
 pub mod note_editor;
 pub mod outline;
 pub mod splash_modal;

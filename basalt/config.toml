@@ -20,9 +20,10 @@
 # explorer_up: moves selector up
 # explorer_down: moves selector down
 # explorer_open: opens the selected note in note viewer
-# explorer_sort: toggles note and folder sorting between A-z and Z-a 
+# explorer_sort: toggles note and folder sorting between A-z and Z-a
 # explorer_toggle: toggles explorer pane
 # explorer_toggle_outline: toggles outline pane
+# explorer_toggle_input_rename: opens input modal to rename selected note or directory
 # explorer_hide_pane: hides pane by steps, from full-width to regular width, to hidden
 # explorer_expand_pane: explands pane by steps, from hiddent to regular width, to full-width
 # explorer_switch_pane_next: switches focus to next pane
@@ -64,6 +65,16 @@
 # note_editor_experimental_cursor_right: moves cursor right
 # note_editor_experimental_cursor_word_forward: moves cursor forward by a word
 # note_editor_experimental_cursor_word_backward: moves cursor backwards by a word
+#
+# Input modal commands:
+#
+# input_modal_edit_mode: enter edit mode for typing
+# input_modal_accept: accept changes and close modal
+# input_modal_cancel: cancel and close modal without saving
+# input_modal_left: move cursor left
+# input_modal_right: move cursor right
+# input_modal_word_forward: move cursor forward by word
+# input_modal_word_backward: move cursor backward by word
 #
 # Help modal commands:
 #
@@ -115,6 +126,7 @@ key_bindings = [
  { key = "left", command = "explorer_hide_pane" },
  { key = "right", command = "explorer_expand_pane" },
  { key = "s", command = "explorer_sort" },
+ { key = "r", command = "explorer_toggle_input_rename" },
  { key = "tab", command = "explorer_switch_pane_next" },
  { key = "shift+backtab", command = "explorer_switch_pane_previous" },
  { key = "enter", command = "explorer_open" },
@@ -167,6 +179,21 @@ key_bindings = [
  { key = "alt+f", command = "note_editor_experimental_cursor_word_forward" },
  # 'b' translates to arrow key left
  { key = "alt+b", command = "note_editor_experimental_cursor_word_backward" },
+]
+
+[input_modal]
+key_bindings = [
+ { key = "esc", command = "input_modal_cancel" },
+ { key = "enter", command = "input_modal_accept" },
+ { key = "i", command = "input_modal_edit_mode" },
+ { key = "h", command = "input_modal_left" },
+ { key = "l", command = "input_modal_right" },
+ { key = "left", command = "input_modal_left" },
+ { key = "right", command = "input_modal_right" },
+ # 'f' translates to arrow key right
+ { key = "alt+f", command = "input_modal_word_forward" },
+ # 'b' translates to arrow key left
+ { key = "alt+b", command = "input_modal_word_backward" },
 ]
 
 [help_modal]

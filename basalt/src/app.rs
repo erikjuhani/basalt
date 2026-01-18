@@ -12,8 +12,9 @@ use std::{cell::RefCell, fmt::Debug, fs, io::Result, path::PathBuf};
 use crate::{
     command,
     config::{self, Config},
-    explorer::{self, Explorer, ExplorerState, Visibility},
+    explorer::{self, Explorer, ExplorerState, Item, Visibility},
     help_modal::{self, HelpModal, HelpModalState},
+    input::{self, Input, InputModalState},
     note_editor::{
         self, ast,
         editor::NoteEditor,
@@ -47,21 +48,27 @@ pub fn calc_scroll_amount(scroll_amount: &ScrollAmount, height: usize) -> usize 
 
 #[derive(Default, Clone)]
 pub struct AppState<'a> {
+    vault: Vault,
     screen_size: Size,
     is_running: bool,
 
     active_pane: ActivePane,
-    explorer: ExplorerState<'a>,
+    explorer: ExplorerState,
     note_editor: NoteEditorState<'a>,
     outline: OutlineState,
     selected_note: Option<SelectedNote>,
 
+    input_modal: InputModalState,
     splash_modal: SplashModalState<'a>,
     help_modal: HelpModalState,
     vault_selector_modal: VaultSelectorModalState<'a>,
 }
 
 impl<'a> AppState<'a> {
+    pub fn vault(&self) -> &Vault {
+        &self.vault
+    }
+
     pub fn active_component(&self) -> ActivePane {
         if self.help_modal.visible {
             return ActivePane::HelpModal;
@@ -93,10 +100,14 @@ pub enum Message<'a> {
     Spawn(String),
     Resize(Size),
     SetActivePane(ActivePane),
+    /// (original_path, new_path) TODO: Use tuple struct instead to be explicit
+    RefreshVault(Option<(PathBuf, PathBuf)>),
+    RefreshSelectedNote,
     OpenVault(&'a Vault),
     SelectNote(SelectedNote),
     UpdateSelectedNoteContent((String, Option<Vec<ast::Node>>)),
 
+    Input(input::Message),
     Splash(splash_modal::Message),
     Explorer(explorer::Message),
     NoteEditor(note_editor::Message),
@@ -112,6 +123,7 @@ pub enum ActivePane {
     Explorer,
     NoteEditor,
     Outline,
+    Input,
     HelpModal,
     VaultSelectorModal,
 }
@@ -123,6 +135,7 @@ impl From<ActivePane> for &str {
             ActivePane::Explorer => "Explorer",
             ActivePane::NoteEditor => "Note Editor",
             ActivePane::Outline => "Outline",
+            ActivePane::Input => "Input",
             ActivePane::HelpModal => "Help",
             ActivePane::VaultSelectorModal => "Vault Selector",
         }
@@ -233,6 +246,13 @@ impl<'a> App<'a> {
             ActivePane::Outline => config.outline.key_to_message(key.into()),
             ActivePane::HelpModal => config.help_modal.key_to_message(key.into()),
             ActivePane::VaultSelectorModal => config.vault_selector_modal.key_to_message(key.into()),
+            ActivePane::Input => {
+                if state.input_modal.is_editing() {
+                    input::handle_editing_event(key).map(Message::Input)
+                } else {
+                    config.input_modal.key_to_message(key.into())
+                }
+            },
             ActivePane::NoteEditor => {
                     if state.note_editor.is_editing() {
                         note_editor::handle_editing_event(key).map(Message::NoteEditor)
@@ -250,7 +270,7 @@ impl<'a> App<'a> {
     ) -> Option<Message<'a>> {
         let global_message = config.global.key_to_message(key.into());
 
-        let is_editing = state.note_editor.is_editing();
+        let is_editing = state.note_editor.is_editing() || state.input_modal.is_editing();
 
         if global_message.is_some() && !is_editing {
             return global_message;
@@ -269,6 +289,27 @@ impl<'a> App<'a> {
         match message? {
             Message::Quit => state.is_running = false,
             Message::Resize(size) => state.screen_size = size,
+            Message::RefreshVault(rename) => {
+                state.explorer.with_entries(state.vault.entries(), rename);
+                return Some(Message::RefreshSelectedNote);
+            }
+            Message::RefreshSelectedNote => {
+                if state
+                    .explorer
+                    .list_state
+                    .selected()
+                    .zip(state.explorer.selected_item_index)
+                    .is_some_and(|(a, b)| a == b)
+                {
+                    if let Some(Item::File(note)) = state.explorer.current_item() {
+                        state.note_editor.set_filepath(note.path());
+                        state.note_editor.set_filename(note.name());
+                        state.note_editor.update_layout();
+                        state.explorer.select();
+                    }
+                }
+                return Some(Message::SetActivePane(ActivePane::Explorer));
+            }
             Message::SetActivePane(active_pane) => match active_pane {
                 ActivePane::Explorer => {
                     state.active_pane = active_pane;
@@ -288,9 +329,13 @@ impl<'a> App<'a> {
                     // TODO: use event/message
                     state.outline.set_active(true);
                 }
+                ActivePane::Input => {
+                    state.active_pane = active_pane;
+                }
                 _ => {}
             },
             Message::OpenVault(vault) => {
+                state.vault = vault.clone();
                 state.explorer = ExplorerState::new(&vault.name, vault.entries());
                 state.note_editor = NoteEditorState::default();
                 return Some(Message::SetActivePane(ActivePane::Explorer));
@@ -307,8 +352,6 @@ impl<'a> App<'a> {
                     &selected_note.name,
                     &selected_note.path,
                 );
-
-                state.note_editor.set_active(true);
 
                 if !config.experimental_editor {
                     state.note_editor.view = View::Read;
@@ -341,7 +384,7 @@ impl<'a> App<'a> {
                 return command::sync_command(
                     terminal,
                     command,
-                    state.explorer.title,
+                    &state.explorer.title,
                     note_name,
                     &note_path,
                 );
@@ -356,7 +399,7 @@ impl<'a> App<'a> {
 
                 return command::spawn_command(
                     command,
-                    state.explorer.title,
+                    &state.explorer.title,
                     note_name,
                     &note_path,
                 );
@@ -380,6 +423,7 @@ impl<'a> App<'a> {
             Message::NoteEditor(message) => {
                 return note_editor::update(&message, state.screen_size, &mut state.note_editor);
             }
+            Message::Input(message) => return input::update(&message, &mut state.input_modal),
         };
 
         None
@@ -414,6 +458,7 @@ impl<'a> App<'a> {
         Explorer::new().render(explorer_pane, buf, &mut state.explorer);
         NoteEditor::default().render(note, buf, &mut state.note_editor);
         Outline.render(outline, buf, &mut state.outline);
+        Input.render(area, buf, &mut state.input_modal);
 
         let (_, counts) = state
             .selected_note

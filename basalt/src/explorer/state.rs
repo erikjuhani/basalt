@@ -24,8 +24,8 @@ pub enum Visibility {
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
-pub struct ExplorerState<'a> {
-    pub(crate) title: &'a str,
+pub struct ExplorerState {
+    pub(crate) title: String,
     pub(crate) selected_note: Option<Note>,
     pub(crate) selected_item_index: Option<usize>,
     pub(crate) selected_item_path: Option<PathBuf>,
@@ -35,6 +35,8 @@ pub struct ExplorerState<'a> {
     pub(crate) active: bool,
     pub(crate) sort: Sort,
     pub(crate) list_state: ListState,
+
+    pub(crate) editing: bool,
 }
 
 /// Calculates the vertical offset of list items in rows.
@@ -112,13 +114,13 @@ fn sort_items_by(sort: Sort) -> impl Fn(&Item, &Item) -> Ordering {
     }
 }
 
-impl<'a> ExplorerState<'a> {
-    pub fn new(title: &'a str, items: Vec<VaultEntry>) -> Self {
+impl ExplorerState {
+    pub fn new(title: &str, items: Vec<VaultEntry>) -> Self {
         let items: Vec<Item> = items.into_iter().map(|entry| entry.into()).collect();
         let sort = Sort::default();
 
         let mut state = ExplorerState {
-            title,
+            title: title.to_string(),
             sort,
             active: true,
             visibility: Visibility::Visible,
@@ -135,6 +137,64 @@ impl<'a> ExplorerState<'a> {
 
     pub fn set_active(&mut self, active: bool) {
         self.active = active;
+    }
+
+    fn map_to_item(&self, entry: VaultEntry) -> Item {
+        match entry {
+            VaultEntry::Directory {
+                name,
+                path,
+                entries,
+            } => {
+                let expanded = self
+                    .flat_items
+                    .iter()
+                    .find_map(|(item, _)| match item {
+                        Item::Directory {
+                            path: item_path,
+                            expanded,
+                            ..
+                        } if &path == item_path => Some(*expanded),
+                        _ => None,
+                    })
+                    .unwrap_or(false);
+
+                Item::Directory {
+                    name,
+                    path,
+                    expanded,
+                    items: entries
+                        .into_iter()
+                        .map(|entry| self.map_to_item(entry))
+                        .collect(),
+                }
+            }
+            _ => entry.into(),
+        }
+    }
+
+    pub fn with_entries(&mut self, entries: Vec<VaultEntry>, rename: Option<(PathBuf, PathBuf)>) {
+        let items: Vec<Item> = entries
+            .into_iter()
+            .map(|entry| self.map_to_item(entry))
+            .collect();
+
+        self.flatten_with_items(&items);
+
+        if let Some((original_path, new_path)) = rename {
+            if let Some(index) = self.flat_items.iter().position(|(item, _)| match item {
+                Item::File(note) => note.path() == new_path,
+                Item::Directory { path: dir_path, .. } => dir_path == &new_path,
+            }) {
+                self.list_state.select(Some(index));
+
+                // Only update selection if the renamed item was the previously selected item
+                if self.selected_item_path.as_ref() == Some(&original_path) {
+                    self.selected_item_index = Some(index);
+                    self.selected_item_path = Some(new_path);
+                }
+            }
+        }
     }
 
     pub fn hide_pane(&mut self) {
@@ -257,6 +317,13 @@ impl<'a> ExplorerState<'a> {
                 self.selected_item_path = Some(note.path().to_path_buf());
             }
         }
+    }
+
+    pub fn current_item(&self) -> Option<&Item> {
+        let selected_item_index = self.list_state.selected()?;
+        self.flat_items
+            .get(selected_item_index)
+            .map(|(item, _)| item)
     }
 
     pub fn selected_path(&self) -> Option<PathBuf> {
