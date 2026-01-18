@@ -4,7 +4,7 @@
 
 ### Added
 
-- [342fbd6](https://github.com/erikjuhani/basalt/commit/342fbd6f9bd91e595aba95c7c0dd050873e5e205) Add input modal with note and directory rename functionality
+- [342fbd6](https://github.com/erikjuhani/basalt/commit/342fbd6f9bd91e595aba95c7c0dd050873e5e205) Add input modal with note and directory rename functionality by @erikjuhani
 
 > > [!CAUTION]
 > > BEWARE! This rename implementation does not cover updating the
@@ -21,6 +21,24 @@
 > pressing 'r' (default key binding) on the selected item. The rename
 > operation leverages the `rename_note` and `rename_dir` functions added
 > in affec53 and a347325, the vault is 'reloaded' after rename.
+
+### Dependencies
+
+- [0b7e9ab](https://github.com/erikjuhani/basalt/commit/0b7e9ab2ac648a982de13c395b4d33a23a85bcd3) Update Rust crate ratatui to 0.30.0 by @renovate-updater[bot]
+
+> | datasource | package | from   | to     |
+> | ---------- | ------- | ------ | ------ |
+> | crate      | ratatui | 0.29.0 | 0.30.0 |
+
+### Fixed
+
+- [5f9d342](https://github.com/erikjuhani/basalt/commit/5f9d34224a498ae3d7d010adf887fdcdb07317c9) Fix sorting to match Obsidian sorting
+
+> Fixes #69. Previously, when user sorted the vault items the folders
+> would also be sorted according to the same rules as notes, however, this
+> is not how obsidian sorts. Obsidian sorts only files by default, not
+> directories. Directories are initially sorted A-z, and then kept in that
+> order when sorting files.
 
 ## [0.11.2](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.11.2) (Dec, 21 2025)
 

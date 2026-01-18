@@ -103,6 +103,7 @@ fn sort_items_by(sort: Sort) -> impl Fn(&Item, &Item) -> Ordering {
     move |a, b| match (a.is_dir(), b.is_dir()) {
         (true, false) => Ordering::Less,
         (false, true) => Ordering::Greater,
+        (true, true) => Ordering::Equal,
         _ => {
             let a = a.name().to_lowercase();
             let b = b.name().to_lowercase();
