@@ -3,7 +3,7 @@ use ratatui::{
     buffer::Buffer,
     crossterm::event::{self, Event, KeyEvent, KeyEventKind},
     layout::{Constraint, Layout, Rect, Size},
-    widgets::{StatefulWidget, StatefulWidgetRef},
+    widgets::StatefulWidget,
     DefaultTerminal,
 };
 
@@ -218,7 +218,7 @@ impl<'a> App<'a> {
         terminal.draw(move |frame| {
             let area = frame.area();
             let buf = frame.buffer_mut();
-            self.render_ref(area, buf, state);
+            self.render(area, buf, state);
         })?;
 
         Ok(())
@@ -481,7 +481,7 @@ impl<'a> App<'a> {
         );
 
         let status_bar = StatusBar::default();
-        status_bar.render_ref(statusbar, buf, &mut status_bar_state);
+        status_bar.render(statusbar, buf, &mut status_bar_state);
 
         self.render_modals(area, buf, state)
     }
@@ -501,10 +501,10 @@ impl<'a> App<'a> {
     }
 }
 
-impl<'a> StatefulWidgetRef for App<'a> {
+impl<'a> StatefulWidget for &App<'a> {
     type State = AppState<'a>;
 
-    fn render_ref(&self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
+    fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         self.render_main(area, buf, state);
     }
 }
