@@ -3,7 +3,7 @@ use std::ops::ControlFlow;
 use ratatui::{
     buffer::Buffer,
     layout::{Offset, Rect},
-    style::{Style, Stylize},
+    style::Style,
     widgets::StatefulWidget,
 };
 use unicode_width::UnicodeWidthChar;

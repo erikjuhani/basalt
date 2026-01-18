@@ -5,7 +5,7 @@ use ratatui::{
     buffer::Buffer,
     layout::Rect,
     style::{Color, Style, Stylize},
-    widgets::{Block, BorderType, List, ListItem, ListState, StatefulWidgetRef},
+    widgets::{Block, BorderType, List, ListItem, ListState, StatefulWidget},
 };
 
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -59,10 +59,10 @@ pub struct VaultSelector<'a> {
     _lifetime: PhantomData<&'a ()>,
 }
 
-impl<'a> StatefulWidgetRef for VaultSelector<'a> {
+impl<'a> StatefulWidget for VaultSelector<'a> {
     type State = VaultSelectorState<'a>;
 
-    fn render_ref(&self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
+    fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         let items: Vec<ListItem> = state
             .items
             .iter()
@@ -86,6 +86,6 @@ impl<'a> StatefulWidgetRef for VaultSelector<'a> {
             .fg(Color::default())
             .highlight_style(Style::new().reversed().dark_gray())
             .highlight_symbol(" ")
-            .render_ref(area, buf, &mut state.list_state);
+            .render(area, buf, &mut state.list_state);
     }
 }

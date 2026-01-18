@@ -6,7 +6,7 @@ use ratatui::{
     layout::{Constraint, Flex, Layout, Rect},
     style::Stylize,
     text::Text,
-    widgets::{Clear, StatefulWidgetRef, Widget},
+    widgets::{Clear, StatefulWidget, Widget},
 };
 
 use crate::{
@@ -125,10 +125,10 @@ pub struct SplashModal<'a> {
     _lifetime: PhantomData<&'a ()>,
 }
 
-impl<'a> StatefulWidgetRef for SplashModal<'a> {
+impl<'a> StatefulWidget for SplashModal<'a> {
     type State = SplashModalState<'a>;
 
-    fn render_ref(&self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
+    fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         Clear.render(area, buf);
 
         let [_, center, _] = Layout::horizontal([
@@ -184,6 +184,6 @@ impl<'a> StatefulWidgetRef for SplashModal<'a> {
             .centered()
             .render(help, buf);
 
-        VaultSelector::default().render_ref(bottom, buf, &mut state.vault_selector_state);
+        VaultSelector::default().render(bottom, buf, &mut state.vault_selector_state);
     }
 }
