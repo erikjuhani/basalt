@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.12.1](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.1) (Jan, 20 2026)
+
+### Changed
+
+- [3f81196](https://github.com/erikjuhani/basalt/commit/3f811966f359cb3ebd162478ebb5b95093e0afc7) Swap the sort symbol to a more common one
+
+> The previous 𝌆 tetragram for centre symbol had multiple issues between
+> different terminal emulators and recently the update of unicode-width
+> that changed classification on some symbols making the width differ,
+> from the previous version.
+>
+> Without this change I cannot update to newer version of unicode-width.
+
 ## [0.12.0](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.0) (Jan, 18 2026)
 
 ### Added
