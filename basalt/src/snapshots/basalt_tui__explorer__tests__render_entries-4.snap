@@ -2,7 +2,7 @@
 source: basalt/src/explorer.rs
 expression: terminal.backend()
 ---
-"┏ Test ━━━━━━━━━━━━━━━━ ↓𝌆 ◀ ┓"
+"┏ Test ━━━━━━━━━━━━━━━━ ↓≡ ◀ ┓"
 "┃ ▾ TestDir                  ┃"
 "┃ │ ▸ Notes                  ┃"
 "┃ │ ▸ Amber Specs            ┃"

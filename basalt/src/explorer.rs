@@ -27,8 +27,8 @@ use crate::input;
 use crate::input::InputModalConfig;
 use crate::outline;
 
-const SORT_SYMBOL_ASC: &str = "↑𝌆";
-const SORT_SYMBOL_DESC: &str = "↓𝌆";
+const SORT_SYMBOL_ASC: &str = "↑≡";
+const SORT_SYMBOL_DESC: &str = "↓≡";
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Message {
