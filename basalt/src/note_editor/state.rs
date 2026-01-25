@@ -132,11 +132,18 @@ impl<'a> NoteEditorState<'a> {
             let insertion_offset = self.cursor.source_offset();
             buffer.insert_char(c, insertion_offset);
 
-            // Shift source ranges of all nodes after the insertion point
-            self.shift_source_ranges(insertion_offset, 1);
+            // Shift source ranges of all nodes after the insertion point by the character's byte length
+            let char_byte_len = c.len_utf8();
+            self.shift_source_ranges(insertion_offset, char_byte_len as isize);
 
             self.update_layout();
-            self.cursor_right(1);
+
+            // Jump cursor to position after the inserted character
+            self.cursor.update(
+                cursor::Message::Jump(insertion_offset + char_byte_len),
+                self.virtual_document.lines(),
+                &self.text_buffer,
+            );
         }
     }
 
@@ -149,13 +156,20 @@ impl<'a> NoteEditorState<'a> {
                 // Create new text buffer that has merged the previous and current blocks
             } else {
                 let deletion_offset = self.cursor.source_offset();
-                buffer.delete_char(deletion_offset);
+                if let Some(char_byte_len) = buffer.delete_char(deletion_offset) {
+                    // We shift by the negative character byte length to move ranges backwards
+                    self.shift_source_ranges(deletion_offset, -(char_byte_len as isize));
 
-                // We shift by -1 (saturating subtraction) to move ranges backwards
-                self.shift_source_ranges(deletion_offset, -1);
+                    self.update_layout();
 
-                self.update_layout();
-                self.cursor_left(1);
+                    // Position cursor at where the deleted character was.
+                    let new_cursor_pos = deletion_offset.saturating_sub(char_byte_len);
+                    self.cursor.update(
+                        cursor::Message::Jump(new_cursor_pos),
+                        self.virtual_document.lines(),
+                        &self.text_buffer,
+                    );
+                }
             }
         }
     }

@@ -58,7 +58,7 @@ fn text_wrap_internal<'a>(
         .iter()
         .enumerate()
         .map(|(i, line)| {
-            let line_byte_len = line.width();
+            let line_byte_len = line.len();
 
             let line_source_range =
                 current_range_start..(current_range_start + line_byte_len).min(source_range.end);
@@ -224,7 +224,7 @@ pub fn render_raw<'a>(
         .lines()
         .flat_map(|line| {
             // TODO: Make sure that the line cannot exceed the source range end
-            let line_range = line_range(current_range_start, line.width(), true);
+            let line_range = line_range(current_range_start, line.len(), true);
             current_range_start = line_range.end;
 
             if line.is_empty() {
@@ -260,7 +260,7 @@ pub fn paragraph<'a>(
                 .to_string()
                 .lines()
                 .flat_map(|line| {
-                    let line_range = line_range(current_range_start, line.width(), true);
+                    let line_range = line_range(current_range_start, line.len(), true);
                     current_range_start = line_range.end;
 
                     text_wrap(
@@ -303,7 +303,7 @@ pub fn code_block<'a>(
             let mut lines = content
                 .lines()
                 .map(|line| {
-                    let line_range = line_range(current_range_start, line.width(), true);
+                    let line_range = line_range(current_range_start, line.len(), true);
                     current_range_start = line_range.end;
 
                     virtual_line!([

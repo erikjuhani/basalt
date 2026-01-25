@@ -25,6 +25,7 @@ pub enum Message {
     Jump(usize),
     SwitchMode(CursorMode),
 }
+
 #[derive(Clone, Debug, Default)]
 pub enum CursorMode {
     #[default]
@@ -66,11 +67,11 @@ pub fn virtual_position_to_source_offset<'a>(
 
     // If we've processed all spans and still haven't reached the target column,
     // we're at the end of the line. For empty lines or when col is 0, use start.
-    // Otherwise use end-1 to avoid placing cursor on the newline character.
+    // Otherwise use end to position cursor after the last character.
     if col == 0 || cur_col == 0 {
         return Some(source_range.start);
     }
-    Some(source_range.end.saturating_sub(1))
+    Some(source_range.end)
 }
 
 pub fn source_offset_to_virtual_line<'a>(
@@ -106,11 +107,13 @@ pub fn source_offset_to_virtual_column<'a>(offset: usize, line: &VirtualLine<'a>
             .filter(|span_range| offset >= span_range.start && offset <= span_range.end)
         {
             Some(source_range) => {
-                let idx = offset.saturating_sub(source_range.start);
+                let byte_offset = offset.saturating_sub(source_range.start);
+
                 let n = span
-                    .chars()
-                    .take(idx)
-                    .map(|c| c.width().unwrap_or(0))
+                    .char_indices()
+                    .map_while(|(byte_idx, c)| {
+                        (byte_idx < byte_offset).then(|| c.width().unwrap_or(0))
+                    })
                     .sum::<usize>();
 
                 ControlFlow::Break(acc + n)
@@ -157,22 +160,37 @@ impl Cursor {
         match message {
             MoveLeft(amount) => {
                 if let Some(text_buffer) = text_buffer {
-                    self.source_offset = self
+                    let byte_idx = self
                         .source_offset
-                        .saturating_sub(amount)
-                        .max(text_buffer.source_range.start);
+                        .saturating_sub(text_buffer.source_range.start);
 
+                    let bytes_amount = text_buffer.content[..byte_idx]
+                        .chars()
+                        .rev()
+                        .take(amount)
+                        .map(|c| c.len_utf8())
+                        .sum::<usize>();
+
+                    self.source_offset = self.source_offset.saturating_sub(bytes_amount);
                     self.update_virtual_position(lines);
                 }
             }
 
             MoveRight(amount) => {
                 if let Some(text_buffer) = text_buffer {
-                    self.source_offset = self
+                    let byte_idx = self
                         .source_offset
-                        .saturating_add(amount)
-                        .min(text_buffer.source_range.end.saturating_sub(1));
+                        .saturating_sub(text_buffer.source_range.start);
 
+                    let bytes_amount = text_buffer.content[byte_idx..]
+                        .chars()
+                        .take_while(|&c| c != '\n')
+                        .take(amount)
+                        .map(|c| c.len_utf8())
+                        .sum::<usize>();
+
+                    self.source_offset =
+                        (self.source_offset + bytes_amount).min(text_buffer.source_range.end);
                     self.update_virtual_position(lines);
                 }
             }
@@ -388,5 +406,219 @@ impl StatefulWidget for CursorWidget {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ratatui::text::Span;
+
+    use super::*;
+    use crate::note_editor::{
+        parser,
+        render::{render_node, RenderStyle},
+        text_buffer::TextBuffer,
+    };
+
+    fn render_lines(content: &str) -> Vec<VirtualLine<'static>> {
+        parser::from_str(content)
+            .into_iter()
+            .flat_map(|node| {
+                render_node(
+                    content.to_string(),
+                    &node,
+                    80,
+                    Span::default(),
+                    &RenderStyle::Raw,
+                )
+                .lines
+            })
+            .collect()
+    }
+
+    /// Renders content with cursor shown as █ at the given byte offset.
+    fn render_cursor(content: &str, cursor_offset: usize) -> String {
+        use crate::note_editor::virtual_document::VirtualSpan;
+        use unicode_width::UnicodeWidthChar;
+
+        let lines = render_lines(content);
+        let mut cursor = Cursor::new(cursor_offset);
+        cursor.mode = CursorMode::Edit;
+        cursor.update_virtual_position(&lines);
+
+        let line_text: String = lines[cursor.virtual_row]
+            .virtual_spans()
+            .iter()
+            .map(|span| match span {
+                VirtualSpan::Content(s, _) | VirtualSpan::Synthetic(s) => s.content.to_string(),
+            })
+            .collect();
+
+        let (result, final_col) = line_text
+            .chars()
+            .fold((String::new(), 0), |(mut s, col), ch| {
+                s.push(if col == cursor.virtual_column {
+                    '█'
+                } else {
+                    ch
+                });
+                (s, col + ch.width().unwrap_or(0))
+            });
+
+        if final_col == cursor.virtual_column {
+            result + "█"
+        } else {
+            result
+        }
+    }
+
+    #[test]
+    fn test_cursor_visual_positions() {
+        let test_cases = [
+            // (content, cursor_offset, expected)
+            ("Hello 😀😀 world", 0, "█ello 😀😀 world"),
+            ("Hello 😀😀 world", 6, "Hello █😀 world"),
+            ("Hello 😀😀 world", 10, "Hello 😀█ world"),
+            ("Hello 😀😀 world", 15, "Hello 😀😀 █orld"),
+            ("Hello 😀😀 lorem ipsum\nWhat a day", 27, "█hat a day"),
+            ("Hello 😀😀 lorem ipsum\nWhat a day", 32, "What █ day"),
+            ("Hello 😀😀 lorem ipsum\nWhat a day", 36, "What a da█"),
+            ("Hello world\nSecond line", 0, "█ello world"),
+            ("Hello world\nSecond line", 12, "█econd line"),
+        ];
+
+        test_cases
+            .into_iter()
+            .for_each(|(content, cursor_offset, expected)| {
+                assert_eq!(render_cursor(content, cursor_offset), expected)
+            })
+    }
+
+    #[test]
+    fn test_virtual_position_to_source_offset() {
+        let test_cases = [
+            // (content, virtual_position (row, col), expected_byte_offset)
+            ("", (0, 0), None),
+            ("Hello 😀😀 world", (0, 0), Some(0)),
+            ("Hello 😀😀 world", (0, 6), Some(6)),
+            ("Hello 😀😀 world", (0, 8), Some(10)),
+            ("Hello 😀😀 world", (0, 10), Some(14)),
+            ("Hello", (0, 5), Some(5)),
+            ("Hello", (0, 6), Some(5)),
+            ("Hello\nWhat a day", (1, 0), Some(6)),
+            ("Hello😀\nWhat a day", (1, 0), Some(10)),
+            ("Hello\nWhat a day", (1, 4), Some(10)),
+            ("Hello\nWhat a day", (1, 16), Some(16)),
+            ("Hello\nWhat a day", (2, 0), None),
+        ];
+
+        test_cases
+            .into_iter()
+            .for_each(|(content, virtual_position, expected)| {
+                assert_eq!(
+                    virtual_position_to_source_offset(virtual_position, &render_lines(content)),
+                    expected
+                )
+            });
+    }
+
+    #[test]
+    fn test_source_offset_to_virtual_column() {
+        let test_cases = [
+            // (content, byte_offset, expected_virtual_column)
+            ("Hello 😀😀 world", 0, Some(0)),
+            ("Hello 😀😀 world", 6, Some(6)),
+            ("Hello 😀😀 world", 10, Some(8)),
+            ("Hello 😀😀 world", 14, Some(10)),
+            ("Hello", 5, Some(5)),
+            ("Hello", 6, None),
+        ];
+
+        test_cases
+            .into_iter()
+            .for_each(|(content, byte_offset, expected)| {
+                assert_eq!(
+                    source_offset_to_virtual_column(byte_offset, &render_lines(content)[0]),
+                    expected
+                )
+            });
+    }
+
+    #[test]
+    fn test_move_right_ascii() {
+        let content = "Hello";
+        let lines = render_lines(content);
+        let text_buffer = TextBuffer::new(content, 0..5);
+        let mut cursor = Cursor::new(0);
+        cursor.update(Message::MoveRight(1), &lines, &Some(text_buffer));
+        assert_eq!(cursor.source_offset, 1);
+    }
+
+    #[test]
+    fn test_move_right_over_emoji() {
+        // "AB😀CD" - emoji at bytes 2-5
+        let content = "AB😀CD";
+        let lines = render_lines(content);
+        let text_buffer = TextBuffer::new(content, 0..10);
+        let mut cursor = Cursor::new(2);
+
+        cursor.update(Message::MoveRight(1), &lines, &Some(text_buffer));
+        assert_eq!(cursor.source_offset, 6);
+    }
+
+    #[test]
+    fn test_move_left_ascii() {
+        let content = "Hello";
+        let lines = render_lines(content);
+        let text_buffer = TextBuffer::new(content, 0..5);
+        let mut cursor = Cursor::new(3);
+
+        cursor.update(Message::MoveLeft(1), &lines, &Some(text_buffer));
+        assert_eq!(cursor.source_offset, 2);
+    }
+
+    #[test]
+    fn test_move_left_over_emoji() {
+        // "AB😀CD" - emoji at bytes 2-5, C at byte 6
+        let content = "AB😀CD";
+        let lines = render_lines(content);
+        let text_buffer = TextBuffer::new(content, 0..10);
+        let mut cursor = Cursor::new(6);
+
+        cursor.update(Message::MoveLeft(1), &lines, &Some(text_buffer));
+        assert_eq!(cursor.source_offset, 2);
+    }
+
+    #[test]
+    fn test_move_right_clamped_at_end() {
+        let content = "Hello";
+        let lines = render_lines(content);
+        let text_buffer = TextBuffer::new(content, 0..5);
+        let mut cursor = Cursor::new(5);
+
+        cursor.update(Message::MoveRight(1), &lines, &Some(text_buffer));
+        assert_eq!(cursor.source_offset, 5);
+    }
+
+    #[test]
+    fn test_move_left_clamped_at_start() {
+        let content = "Hello";
+        let lines = render_lines(content);
+        let text_buffer = TextBuffer::new(content, 0..5);
+        let mut cursor = Cursor::new(0);
+
+        cursor.update(Message::MoveLeft(1), &lines, &Some(text_buffer));
+        assert_eq!(cursor.source_offset, 0);
+    }
+
+    #[test]
+    fn test_move_multiple_characters() {
+        let content = "Hello world";
+        let lines = render_lines(content);
+        let text_buffer = TextBuffer::new(content, 0..11);
+        let mut cursor = Cursor::new(0);
+
+        cursor.update(Message::MoveRight(5), &lines, &Some(text_buffer));
+        assert_eq!(cursor.source_offset, 5);
     }
 }
