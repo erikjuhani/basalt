@@ -338,10 +338,8 @@ pub fn code_block<'a>(
 
             let mut lines = vec![padding_line.clone()];
             lines.extend(text.lines().map(|line| {
-                let line_byte_len = line.len();
-                let source_range = current_range_start
-                    ..(current_range_start + line_byte_len).min(source_range.end);
-                current_range_start += line_byte_len;
+                let source_range = line_range(current_range_start, line.len(), true);
+                current_range_start = source_range.end;
 
                 virtual_line!([
                     synthetic_span!(prefix.clone()),

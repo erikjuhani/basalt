@@ -48,6 +48,8 @@ pub fn virtual_position_to_source_offset<'a>(
     let line = lines.get(row).filter(|line| line.has_content())?;
     let source_range = line.source_range()?;
     let mut cur_col = 0;
+    // track span width (0 for empty content lines)
+    let mut content_col = 0;
 
     for span in line.virtual_spans() {
         match span.source_range() {
@@ -59,6 +61,7 @@ pub fn virtual_position_to_source_offset<'a>(
 
                     let char_width = ch.width().unwrap_or(0);
                     cur_col += char_width;
+                    content_col += char_width;
                 }
             }
             _ => cur_col += span.width(),
@@ -66,9 +69,10 @@ pub fn virtual_position_to_source_offset<'a>(
     }
 
     // If we've processed all spans and still haven't reached the target column,
-    // we're at the end of the line. For empty lines or when col is 0, use start.
-    // Otherwise use end to position cursor after the last character.
-    if col == 0 || cur_col == 0 {
+    // we're at the end of the line. For empty lines (no content characters) or
+    // when col is 0, use start. Otherwise use end to position cursor after the
+    // last character.
+    if col == 0 || content_col == 0 {
         return Some(source_range.start);
     }
     Some(source_range.end)
@@ -620,5 +624,81 @@ mod tests {
 
         cursor.update(Message::MoveRight(5), &lines, &Some(text_buffer));
         assert_eq!(cursor.source_offset, 5);
+    }
+
+    #[test]
+    fn test_move_up_empty_line_in_code_block() {
+        // Code block: "```rust\nline1\n\nline3\n```"
+        // Line 3 (line3) starts at byte 15, empty line at byte 14
+        let content = "```rust\nline1\n\nline3\n```";
+        let lines = render_lines(content);
+        let text_buffer = TextBuffer::new(content, 0..content.len());
+
+        let mut cursor = Cursor::new(15);
+        cursor.mode = CursorMode::Edit;
+        cursor.update_virtual_position(&lines);
+        assert_eq!(cursor.virtual_row, 3);
+
+        // Move up to empty line
+        cursor.update(Message::MoveUp(1), &lines, &Some(text_buffer.clone()));
+        assert_eq!(cursor.virtual_row, 2);
+        // Source offset should be within empty line's range (14..15)
+        assert_eq!(cursor.source_offset, 14);
+
+        // Move up to line1
+        cursor.update(Message::MoveUp(1), &lines, &Some(text_buffer));
+        assert_eq!(cursor.virtual_row, 1);
+    }
+
+    #[test]
+    fn test_move_up_from_empty_line() {
+        let content = "```rust\nline1\n\nline3\n```";
+        let lines = render_lines(content);
+        let text_buffer = TextBuffer::new(content, 0..content.len());
+
+        // Start on empty line (byte 14)
+        let mut cursor = Cursor::new(14);
+        cursor.mode = CursorMode::Edit;
+        cursor.update_virtual_position(&lines);
+        assert_eq!(cursor.virtual_row, 2);
+
+        cursor.update(Message::MoveUp(1), &lines, &Some(text_buffer));
+        assert_eq!(cursor.virtual_row, 1);
+    }
+
+    fn render_lines_visual(content: &str) -> Vec<VirtualLine<'static>> {
+        parser::from_str(content)
+            .into_iter()
+            .flat_map(|node| {
+                render_node(
+                    content.to_string(),
+                    &node,
+                    80,
+                    Span::default(),
+                    &RenderStyle::Visual,
+                )
+                .lines
+            })
+            .collect()
+    }
+
+    #[test]
+    fn test_move_up_empty_line_visual_mode() {
+        // Visual mode has padding lines, so structure differs from raw
+        let content = "```rust\nline1\n\nline3\n```";
+        let lines = render_lines_visual(content);
+
+        // In visual mode: line 0 = padding, line 1 = line1, line 2 = empty, line 3 = line3
+        // Source ranges: line1 = 0..6, empty = 6..7, line3 = 7..13
+        let mut cursor = Cursor::new(7); // Start of line3 in visual source ranges
+        cursor.mode = CursorMode::Read;
+        cursor.update_virtual_position(&lines);
+        assert_eq!(cursor.virtual_row, 3);
+
+        cursor.update(Message::MoveUp(1), &lines, &None);
+        assert_eq!(cursor.virtual_row, 2);
+
+        cursor.update(Message::MoveUp(1), &lines, &None);
+        assert_eq!(cursor.virtual_row, 1);
     }
 }
