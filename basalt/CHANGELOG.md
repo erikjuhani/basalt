@@ -15,7 +15,7 @@
 
 ### Fixed
 
-- [001fe3e](https://github.com/erikjuhani/basalt/commit/001fe3e6d0cab7cb85bc77c588ad0c6de2691dab) Fix cursor movement for multi-byte unicode characters
+- [001fe3e](https://github.com/erikjuhani/basalt/commit/001fe3e6d0cab7cb85bc77c588ad0c6de2691dab) Fix cursor movement for multi-byte unicode characters by @erikjuhani
 
 > The cursor now correctly handles multi-byte characters (emojis, unicode
 > symbols) when moving left/right and when calculating visual positions.
@@ -32,6 +32,22 @@
 >   char indices
 >
 > Fixes #314
+
+- [225184b](https://github.com/erikjuhani/basalt/commit/225184b9e69147162ae171836fe322f420be3014) Fix cursor movement through empty lines in code blocks
+
+> The cursor could not move upwards past empty lines in code blocks in both
+> edit and read modes.
+>
+> In edit mode, `virtual_position_to_source_offset` incorrectly returned
+> `source_range.end` for empty lines because `cur_col` included synthetic
+> span widths. Added `content_col` to track only content character widths.
+>
+> In read mode, the Visual rendering of code blocks didn't account for
+> newlines when calculating source ranges, causing empty lines to have
+> empty ranges (e.g., 5..5). Now uses `line_range()` which properly adds 1
+> for newlines.
+>
+> Fixes #321
 
 ## [0.12.0](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.0) (Jan, 18 2026)
 
