@@ -1,10 +1,10 @@
 # Changelog
 
-## [0.12.1](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.1) (Jan, 20 2026)
+## [0.12.1](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.1) (Unreleased)
 
 ### Changed
 
-- [3f81196](https://github.com/erikjuhani/basalt/commit/3f811966f359cb3ebd162478ebb5b95093e0afc7) Swap the sort symbol to a more common one
+- [3f81196](https://github.com/erikjuhani/basalt/commit/3f811966f359cb3ebd162478ebb5b95093e0afc7) Swap the sort symbol to a more common one by @erikjuhani
 
 > The previous 𝌆 tetragram for centre symbol had multiple issues between
 > different terminal emulators and recently the update of unicode-width
@@ -12,6 +12,26 @@
 > from the previous version.
 >
 > Without this change I cannot update to newer version of unicode-width.
+
+### Fixed
+
+- [001fe3e](https://github.com/erikjuhani/basalt/commit/001fe3e6d0cab7cb85bc77c588ad0c6de2691dab) Fix cursor movement for multi-byte unicode characters
+
+> The cursor now correctly handles multi-byte characters (emojis, unicode
+> symbols) when moving left/right and when calculating visual positions.
+> Previously, the editor assumed 1 byte per character, causing the cursor
+> to land in the middle of multi-byte sequences.
+>
+> Key changes:
+>
+> - Use byte lengths instead of character counts for source range tracking
+> - Convert between byte offsets and character boundaries properly
+> - Update `insert_char` and `delete_char` to account for variable byte
+>   widths
+> - Fix `source_offset_to_virtual_column` to use byte indices instead of
+>   char indices
+>
+> Fixes #314
 
 ## [0.12.0](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.0) (Jan, 18 2026)
 
