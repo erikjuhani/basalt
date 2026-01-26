@@ -180,7 +180,7 @@ impl<'a> App<'a> {
     }
 
     pub fn start(terminal: DefaultTerminal, vaults: Vec<&Vault>) -> Result<()> {
-        let version = stylized_text::stylize(&format!("{VERSION}~beta"), FontStyle::Script);
+        let version = stylized_text::stylize(VERSION, FontStyle::Script);
         let size = terminal.size()?;
 
         let state = AppState {
