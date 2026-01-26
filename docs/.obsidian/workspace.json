@@ -11,10 +11,14 @@
             "id": "29458dac1350a42f",
             "type": "leaf",
             "state": {
-              "type": "empty",
-              "state": {},
+              "type": "markdown",
+              "state": {
+                "file": "User Interface.md",
+                "mode": "source",
+                "source": false
+              },
               "icon": "lucide-file",
-              "title": "New tab"
+              "title": "User Interface"
             }
           }
         ]
@@ -153,6 +157,7 @@
   },
   "left-ribbon": {
     "hiddenItems": {
+      "bases:Create new base": false,
       "switcher:Open quick switcher": false,
       "graph:Open graph view": false,
       "canvas:Create new canvas": false,
@@ -163,6 +168,7 @@
   },
   "active": "29458dac1350a42f",
   "lastOpenFiles": [
+    "Configuration.md",
     "index.md",
     "User Interface.md",
     "Editor (experimental).md",
@@ -170,7 +176,6 @@
     "Installation.md",
     "Tasks.md",
     "Basalt.md",
-    "Configuration.md",
     "WYSIWYG.md",
     "Editor/Modes.md",
     "Create a vault.md",

@@ -33,7 +33,65 @@ Open an issue first so we can chat about the feature work or claim an existing i
 
 If you find mistakes in the documentation or need simple code fixes, please go ahead and open a pull request with the changes!
 
-### Changelog Trailers
+## Development
+
+### Setup
+
+Clone the repository and build:
+
+```sh
+git clone https://github.com/erikjuhani/basalt.git
+cd basalt
+cargo build
+```
+
+The project uses Rust 1.92.0 (specified in `rust-toolchain.toml`). Rustup will automatically use the correct version.
+
+### Running Locally
+
+```sh
+cargo run
+```
+
+### Code Style
+
+Format your code before committing:
+
+```sh
+make fmt
+```
+
+### Running Checks
+
+Run the full CI check suite locally:
+
+```sh
+make check
+```
+
+This runs formatting checks, clippy, tests, and build verification.
+
+### Git Pre-push Hook
+
+There's a useful pre-push git hook under `scripts`, which you can enable by running the following command:
+
+```sh
+cp scripts/pre-push .git/hooks/
+```
+
+The script runs the same test commands as in the `test.yml` workflow.
+
+### Pinact
+
+To pin GitHub Action dependencies, you can use [pinact](https://github.com/suzuki-shunsuke/pinact).
+
+Install it using [`shm`](https://github.com/erikjuhani/shm?tab=readme-ov-file#installation):
+
+```sh
+shm get --bin suzuki-shunsuke/pinact
+```
+
+## Changelog Trailers
 
 When making changes that should appear in the changelog, add a `Changelog:` trailer to your commit message. This helps automatically categorize your changes when generating release notes.
 
@@ -61,21 +119,35 @@ Changelog: added
 
 If your change doesn't need to appear in the changelog (typo fixes, internal refactoring, etc.), simply omit the `Changelog:` trailer.
 
-### Git Pre-push Hook
-
-There's a useful pre-push git hook under `scripts`, which you can enable by running the following command:
-
-```sh
-cp scripts/pre-push .git/hooks/
-```
-
-The script runs the same test commands as in the `test.yml` workflow.
-
 ## CI
 
-> [!CAUTION]
->
-> This section is unfinished. It should explain roughly what is being run in the CI and what is required for CI to actually run on a PR opened from a fork.
+Pull requests and pushes to `main` trigger the following CI workflows:
+
+### Test Workflow (`test.yml`)
+
+The primary CI workflow runs on every pull request and push to main:
+
+| Step | Description |
+|------|-------------|
+| **Format check** | Verifies code formatting with `make fmt-check` |
+| **Cargo check** | Validates the code compiles without errors |
+| **Clippy** | Runs the Rust linter with warnings treated as errors |
+| **Tests** | Executes the full test suite across the workspace |
+| **Build & Package** | Builds the binary and verifies it can be packaged |
+
+### Workflow Security (`workflow-security.yml`)
+
+A security-focused workflow that checks the GitHub Actions configuration:
+
+- **actionlint**: Validates workflow syntax and best practices
+- **pinact**: Ensures action versions are pinned to specific commits
+- **zizmor**: Scans for security issues in workflow definitions
+
+### Pull Requests from Forks
+
+For security reasons, GitHub requires maintainer approval before workflows run on pull requests from first-time contributors. If your PR shows "Waiting for approval", a maintainer will review and approve the workflow run.
+
+Once you've had a PR approved and merged, future PRs will run workflows automatically.
 
 ## Creating a Release
 
@@ -119,6 +191,3 @@ The tag must follow the pattern `basalt/vX.Y.Z` (e.g., `basalt/v0.4.0`) to trigg
 
 The GitHub Actions workflow will automatically build binaries for multiple platforms. Once the artifacts are uploaded, create a GitHub release manually through the GitHub UI and copy the relevant section from the generated CHANGELOG.md.
 
----
-
-_I will create proper contribution guidelines later, with more details on certain operational aspects of this project._

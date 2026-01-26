@@ -22,6 +22,41 @@ The goal of basalt is not to replace the Obsidian app. Basalt is to fill and cat
 
 ## Architecture
 
-> [!CAUTION]
->
-> TBD (Elm)
+Basalt follows an **Elm-inspired architecture**, a functional programming pattern that emphasizes unidirectional data flow and explicit state management. This architecture consists of three core concepts:
+
+### Model (State)
+
+The application state is represented by immutable data structures. The central `AppState` holds all application state, with each UI component (Explorer, Note Editor, Outline, etc.) maintaining its own sub-state. State is never mutated directly—instead, changes flow through the update cycle.
+
+### Messages
+
+User actions and events are represented as typed **messages**. Each component defines its own message enum (e.g., `explorer::Message::Select`, `note_editor::Message::CursorUp`). Messages describe _what happened_, not _how to handle it_.
+
+### Update
+
+The **update** function is the heart of the architecture. It takes the current state and a message, then returns the new state (and optionally a new message to process). This creates a predictable cycle:
+
+```
+Event → Message → Update → State → Render → Event...
+```
+
+Messages can cascade: when one component's update returns a message for another component, the cycle continues until no new messages are produced.
+
+### Benefits
+
+This architecture provides several advantages:
+
+- **Predictability**: Given the same state and message, the update function always produces the same result
+- **Traceability**: All state changes flow through explicit message passing, making debugging straightforward
+- **Testability**: Update functions are pure and can be tested without rendering the UI
+- **Modularity**: Components are isolated and communicate only through messages
+
+### Crate Structure
+
+Basalt is organized as a Rust workspace with three crates:
+
+| Crate | Purpose |
+|-------|---------|
+| `basalt-core` | Domain logic and Obsidian integration (vault, note, markdown parsing). No UI dependencies. |
+| `basalt-widgets` | Reusable [ratatui](https://ratatui.rs) widgets for the TUI |
+| `basalt` (basalt-tui) | The main TUI application, combining core logic with the user interface |
