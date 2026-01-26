@@ -1,6 +1,6 @@
 //! This module provides functionality operating with Obsidian vaults.
 use std::{
-    fs,
+    fs, io,
     ops::ControlFlow,
     path::{self, Path, PathBuf},
     result,
@@ -35,6 +35,110 @@ fn basename(path: &Path, extension: Option<&str>) -> result::Result<String, Erro
     }
     .and_then(|os_str| os_str.to_str().map(|str| str.to_string()))
     .ok_or_else(|| Error::InvalidPathName(path.to_path_buf()))
+}
+
+/// Creates link replacement patterns for updating links when renaming a note or directory.
+///
+/// Returns a vector of (old_pattern, new_pattern) tuples for:
+/// - Simple wikilinks: `[[note]]`, `[[note|`, `[[note#`
+fn wiki_link_replacements(old_name: &str, new_name: &str) -> [(String, String); 3] {
+    [
+        (format!("[[{old_name}]]"), format!("[[{new_name}]]")),
+        (format!("[[{old_name}|"), format!("[[{new_name}|")),
+        (format!("[[{old_name}#"), format!("[[{new_name}#")),
+    ]
+}
+
+/// Replaces all occurrences of patterns in content.
+fn replace_content(content: &str, replacements: &[(String, String)]) -> String {
+    replacements
+        .iter()
+        .fold(content.to_string(), |content, (old, new)| {
+            content.replace(old, new)
+        })
+}
+
+/// Updates wiki-links for the given path across all notes in the vault with the new path.
+///
+/// Handles simple links (`[[name]]`), links with aliases (`[[name|alias]]`), and links with
+/// headings (`[[name#heading]]`). No updates are performed if the name is unchanged.
+///
+/// # Examples
+///
+/// ```
+/// # use std::fs;
+/// # use tempfile::tempdir;
+/// # use basalt_core::obsidian::{self, Vault, Note, Error};
+/// #
+/// # let tmp_dir = tempdir()?;
+/// let vault = Vault { path: tmp_dir.path().to_path_buf(), ..Default::default() };
+/// let note_a = obsidian::vault::create_note(&vault, "Note A")?;
+/// let note_b = obsidian::vault::create_note(&vault, "Note B")?;
+/// fs::write(note_a.path(), "A link to [[Note B]]")?;
+/// fs::write(note_b.path(), "A link to [[Note A]]")?;
+/// # assert_eq!(fs::read_to_string(note_a.path())?, "A link to [[Note B]]");
+/// # assert_eq!(fs::read_to_string(note_b.path())?, "A link to [[Note A]]");
+///
+/// let old_path = note_b.path();
+/// let note_b = obsidian::vault::rename_note(note_b.clone(), "Renamed B")?;
+/// obsidian::vault::update_wiki_links(&vault, old_path, note_b.path())?;
+///
+/// let content_a = fs::read_to_string(note_a.path());
+/// let content_b = fs::read_to_string(note_b.path());
+/// assert_eq!(fs::read_to_string(note_a.path())?, "A link to [[Renamed B]]");
+/// assert_eq!(fs::read_to_string(note_b.path())?, "A link to [[Note A]]");
+/// # Ok::<(), Error>(())
+/// ```
+pub fn update_wiki_links(
+    vault: &Vault,
+    old_path: &Path,
+    new_path: &Path,
+) -> result::Result<(), Error> {
+    let old_ext = old_path.extension().and_then(|ext| ext.to_str());
+    let old_name = basename(old_path, old_ext)?;
+
+    let new_ext = new_path.extension().and_then(|ext| ext.to_str());
+    let new_name = basename(new_path, new_ext)?;
+
+    if old_name == new_name {
+        return Ok(());
+    }
+
+    let replacements = wiki_link_replacements(&old_name, &new_name);
+
+    fn replace_wiki_link<'a>(
+        replacements: &'a [(String, String)],
+    ) -> impl Fn(Note) -> io::Result<()> + 'a {
+        |note| {
+            let content = fs::read_to_string(note.path())?;
+            let updated_content = replace_content(&content, replacements);
+
+            if content != updated_content {
+                fs::write(note.path(), updated_content)?;
+            }
+
+            Ok(())
+        }
+    }
+
+    fn entry_to_note<'a>(new_path: &'a Path) -> impl Fn(VaultEntry) -> Vec<Note> + 'a {
+        move |entry| match entry {
+            VaultEntry::File(note) if note.path() != new_path => vec![note],
+            VaultEntry::Directory { entries, .. } => entries
+                .into_iter()
+                .flat_map(entry_to_note(new_path))
+                .collect(),
+            _ => vec![],
+        }
+    }
+
+    vault
+        .entries()
+        .into_iter()
+        .flat_map(entry_to_note(new_path))
+        .try_for_each(replace_wiki_link(&replacements))?;
+
+    Ok(())
 }
 
 /// Rename directory with the given name.
