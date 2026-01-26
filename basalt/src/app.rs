@@ -1,4 +1,4 @@
-use basalt_core::obsidian::{Note, Vault};
+use basalt_core::obsidian::{self, Note, Vault};
 use ratatui::{
     buffer::Buffer,
     crossterm::event::{self, Event, KeyEvent, KeyEventKind},
@@ -180,7 +180,7 @@ impl<'a> App<'a> {
     }
 
     pub fn start(terminal: DefaultTerminal, vaults: Vec<&Vault>) -> Result<()> {
-        let version = stylized_text::stylize(&format!("{VERSION}~beta"), FontStyle::Script);
+        let version = stylized_text::stylize(VERSION, FontStyle::Script);
         let size = terminal.size()?;
 
         let state = AppState {
@@ -290,6 +290,10 @@ impl<'a> App<'a> {
             Message::Quit => state.is_running = false,
             Message::Resize(size) => state.screen_size = size,
             Message::RefreshVault(rename) => {
+                if let Some((old, new)) = &rename {
+                    // FIXME: Handle error propagation when wiki link update fails
+                    let _ = obsidian::vault::update_wiki_links(state.vault(), old, new);
+                }
                 state.explorer.with_entries(state.vault.entries(), rename);
                 return Some(Message::RefreshSelectedNote);
             }
@@ -302,11 +306,21 @@ impl<'a> App<'a> {
                     .is_some_and(|(a, b)| a == b)
                 {
                     if let Some(Item::File(note)) = state.explorer.current_item() {
-                        state.note_editor.set_filepath(note.path());
-                        state.note_editor.set_filename(note.name());
-                        state.note_editor.update_layout();
-                        state.explorer.select();
+                        state.note_editor = NoteEditorState::new(
+                            &fs::read_to_string(note.path()).ok()?,
+                            note.name(),
+                            note.path(),
+                        );
                     }
+                } else {
+                    let note = state.selected_note.clone()?;
+                    // FIXME: keep scroll state
+                    state.note_editor = NoteEditorState::new(
+                        &fs::read_to_string(&note.path).ok()?,
+                        &note.name,
+                        &note.path,
+                    );
+                    state.note_editor.update_layout();
                 }
                 return Some(Message::SetActivePane(ActivePane::Explorer));
             }

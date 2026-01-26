@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.12.1](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.1) (Unreleased)
+## [0.12.1](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.1) (Jan, 26 2026)
 
 ### Changed
 
@@ -12,6 +12,11 @@
 > from the previous version.
 >
 > Without this change I cannot update to newer version of unicode-width.
+
+- [9716042](https://github.com/erikjuhani/basalt/commit/97160424a5186e9615ec2e8e40f12a68254ec24a) Remove ~beta suffix from version string
+
+> Obsolete feature as the 0. major version should tell enough about the
+> instability of this application.
 
 ### Fixed
 
@@ -33,7 +38,7 @@
 >
 > Fixes #314
 
-- [225184b](https://github.com/erikjuhani/basalt/commit/225184b9e69147162ae171836fe322f420be3014) Fix cursor movement through empty lines in code blocks
+- [225184b](https://github.com/erikjuhani/basalt/commit/225184b9e69147162ae171836fe322f420be3014) Fix cursor movement through empty lines in code blocks by @erikjuhani
 
 > The cursor could not move upwards past empty lines in code blocks in both
 > edit and read modes.
@@ -48,6 +53,18 @@
 > for newlines.
 >
 > Fixes #321
+
+- [3f31151](https://github.com/erikjuhani/basalt/commit/3f31151e2566495b51353202d820f8c0bb4da970) Update all wiki-links in notes after rename
+
+> Now all wiki-links will be updated after renaming a note in basalt.
+> We call `update_wiki_links` in the RefreshVault message handler to
+> automatically update links across the vault when a note is renamed.
+>
+> Also refreshed the note editor content after rename to reflect any
+> wiki-link changes in the currently open note, otherwise the content
+> would not be refreshed properly.
+>
+> Fixes #307
 
 ## [0.12.0](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.0) (Jan, 18 2026)
 

@@ -43,7 +43,4 @@ Vault selector modal can be accessed by pressing <kbd>Ctrl+g</kbd>, which lets y
 
 ### Input Modal
 
-The input modal provides text input capabilities for interactive operations like renaming notes and directories. It features a custom text editor with cursor navigation and word-based movement. Access it by pressing <kbd>r</kbd> on a selected item in the explorer.
-
-> [!CAUTION]
-> The rename operation does not currently update wiki-links. If you rename a note that is referenced by wiki-links, those links will be broken and need to be manually corrected. Automatic wiki-link updating will be implemented in a future release.
+The input modal provides text input capabilities for interactive operations like renaming notes and directories. It features a custom text editor with cursor navigation and word-based movement. Access it by pressing <kbd>r</kbd> on a selected item in the explorer. When renaming a note, all wiki-links referencing that note are automatically updated across the vault.

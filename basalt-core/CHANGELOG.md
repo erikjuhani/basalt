@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.8.2](https://github.com/erikjuhani/basalt/releases/tag/basalt-core/0.8.2) (Jan, 26 2026)
+
+### Added
+
+- [adf1fa9](https://github.com/erikjuhani/basalt/commit/adf1fa986fabc2ef7580c21c158bd51b47a79bf3) Add `update_wiki_links` to update links in notes
+
+> Add vault function to update wiki-links across all notes. Handles simple
+> links `([[name]])`, links with aliases `([[name|alias]])`, and links
+> with headings `([[name#heading]])`.
+
 ## [0.8.1](https://github.com/erikjuhani/basalt/releases/tag/basalt-core/0.8.1) (Jan, 18 2026)
 
 ### Added
