@@ -69,7 +69,7 @@ dependencies = [
 name = "basalt-tui"
 version = "0.12.1"
 dependencies = [
- "basalt-core 0.8.1",
+ "basalt-core 0.8.2",
  "crossterm",
  "etcetera",
  "indoc",
