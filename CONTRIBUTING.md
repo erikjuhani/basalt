@@ -1,6 +1,6 @@
-[[Basalt]] is ***open for code contributions***, but _primarily_ for bug fixes. Why? Feature work can bring long-term maintenance overhead, and I'd like to keep that to a minimum. One big reason for limiting feature work is that I want to build features myself, as this is a _fun_ side project alongside work, and I would like to keep it that way—to an extent.
+Basalt is **open for code contributions**, primarily for bug fixes. Feature work can bring long-term maintenance overhead, and I'd like to keep that to a minimum. One reason for limiting feature work is that I want to build features myself, as this is a fun side project—and I would like to keep it that way.
 
-However, I do realize that open source projects usually flourish with multiple contributors. Thus, I won't say no if you would like to contribute feature work, but please open an issue first so we can discuss it. This way we can avoid unnecessary effort or bikeshedding over architectural or stylistic choices. I have my own opinions and ideas on how certain things should be written in this project.
+That said, open source projects flourish with multiple contributors. I won't say no to feature work, but please open an issue first so we can discuss it. This avoids unnecessary effort or bikeshedding over architectural or stylistic choices.
 
 > [!INFO]
 >

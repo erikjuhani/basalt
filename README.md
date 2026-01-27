@@ -7,9 +7,9 @@ TUI Application to manage Obsidian vaults and notes directly from the terminal â
 
 ![Demo](https://raw.githubusercontent.com/erikjuhani/basalt/refs/heads/main/assets/basalt_demo.gif)
 
-Basalt is a TUI (Terminal User Interface) application to manage Obsidian vaults and notes from the terminal. Basalt is cross-platform and can be installed and run in the major operating systems on Windows, macOS; and Linux.
+Basalt is a cross-platform TUI (Terminal User Interface) for managing Obsidian vaults and notes. It runs on Windows, macOS, and Linux.
 
-Basalt is not a complete or comprehensive replacement for Obsidian, but instead a minimalist approach for note management in terminal with a readable markdown rendering and [WYSIWYG](https://en.wikipedia.org/wiki/WYSIWYG) experience.
+Basalt is not a replacement for Obsidian. Instead, it provides a minimalist terminal interface with readable markdown rendering and a [WYSIWYG](https://en.wikipedia.org/wiki/WYSIWYG) experience.
 
 ## Vision
 
@@ -31,17 +31,13 @@ Or use the precompiled binaries from the latest basalt release.
 
 ## Background
 
-This is something that has been brewing in my head for quite some time. There has been different incarnations over the years, however, nothing as substantial as this.
+Basalt was created to bridge the gap between terminal-based workflows and Obsidian's visual note-taking experience. While tools like [obsidian.nvim](https://github.com/epwalsh/obsidian.nvim) provide Obsidian integration within Neovim, Basalt takes a different approach: a dedicated TUI that renders markdown visually while keeping you in the terminal.
 
-I have been using Neovim and the official Obsidian app. However, I wanted to have something dedicated that offers the same writing experience as Neovim, but has more WYSIWYG experience as in the official Obsidian app. I'm fully aware of [obsidian.nvim](https://github.com/epwalsh/obsidian.nvim), which many people use and find more than sufficient. However, I want to see images, beautified text, note graphs, etc. I want it to be a bit more.
-
-The problem for me personally is that when I leave the terminal, my flow breaks, especially if I'm writing. Using an entirely different app disrupts that flow, and it _annoys_ me. So here I am, building a TUI for Obsidian.
-
-The goal of basalt is not to replace the Obsidian app. Basalt is to fill and cater a need to have a terminal view to the selection of notes and vaults, providing quick access from anywhere in the terminal with a simple command.
+The goal is not to replace Obsidian, but to complement it. Basalt provides quick access to your notes from anywhere in the terminal without breaking your workflow.
 
 ## Configuration
 
-[[Basalt]] features and functionality can be customized using a user-defined configuration file. The configuration file should be located in one of the following directories:
+Basalt can be customized using a configuration file located in one of the following directories:
 
 **macOS and Unix:**
 
@@ -53,7 +49,7 @@ The goal of basalt is not to replace the Obsidian app. Basalt is to fill and cat
 - `%USERPROFILE%\.basalt.toml`
 - `%APPDATA%\basalt\config.toml`
 
-If configuration files exist in multiple locations, only the first one found will be used, with the home directory configuration taking precedence. 
+If configuration files exist in multiple locations, only the first one found is used. The home directory configuration takes precedence.
 
 > [!WARNING]
 >
@@ -61,9 +57,9 @@ If configuration files exist in multiple locations, only the first one found wil
 
 ### Key Mappings
 
-Basalt key mappings can be modified or extended by defining key mappings in the user configuration file.
+Key mappings can be modified or extended in the configuration file.
 
-Each key mapping is associated with a specific 'pane' and becomes active when that pane has focus. The global section applies to all panes and is evaluated first.
+Each key mapping is associated with a specific pane and becomes active when that pane has focus. The `[global]` section applies to all panes and is evaluated first.
 
 ### Default configuration
 
