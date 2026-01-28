@@ -1,4 +1,4 @@
-[[Basalt]] features and functionality can be customized using a user-defined configuration file. The configuration file should be located in one of the following directories:
+Basalt can be customized using a configuration file located in one of the following directories:
 
 **macOS and Unix:**
 
@@ -10,7 +10,7 @@
 - `%USERPROFILE%\.basalt.toml`
 - `%APPDATA%\basalt\config.toml`
 
-If configuration files exist in multiple locations, only the first one found will be used, with the home directory configuration taking precedence. 
+If configuration files exist in multiple locations, only the first one found is used. The home directory configuration takes precedence.
 
 > [!WARNING]
 >
@@ -18,15 +18,15 @@ If configuration files exist in multiple locations, only the first one found wil
 
 ## Key Mappings
 
-Basalt key mappings can be modified or extended by defining key mappings in the user configuration file.
+Key mappings can be modified or extended in the configuration file.
 
-Each key mapping is associated with a specific 'pane' and becomes active when that pane has focus. The global section applies to all panes and is evaluated first.
+Each key mapping is associated with a specific pane and becomes active when that pane has focus. The `[global]` section applies to all panes and is evaluated first.
 
-Key bindings support both built-in Basalt commands and custom arbitrary command execution, allowing you to integrate external applications and create automation workflows.
+Key bindings support both built-in commands and external command execution.
 
 ## Custom Command Execution
 
-In addition to built-in commands, you can execute arbitrary external commands using special command prefixes:
+External commands use special prefixes:
 
 ```toml
 [global]
@@ -45,7 +45,7 @@ These are Basalt's native commands that control application behavior (see full l
 
 #### Execute Command - `exec:`
 
-Runs a command in the current shell environment. The command will block until completion. Only the first argument is treated as the executable command, with all remaining arguments passed as literal parameters.
+Runs a command in the current shell environment, blocking until completion. The first argument is the executable; remaining arguments are passed as parameters.
 
 ```toml
 key_bindings = [
@@ -55,7 +55,7 @@ key_bindings = [
 
 #### Spawn Process - `spawn:`
 
-Spawns a new process without blocking. This is for opening external applications or URLs. Like `exec:`, only the first argument is the executable, with remaining arguments passed as literal parameters.
+Spawns a new process without blocking. Use this for opening external applications or URLs. Like `exec:`, the first argument is the executable; remaining arguments are passed as parameters.
 
 ```toml
 key_bindings = [
@@ -66,7 +66,7 @@ key_bindings = [
 
 ## Variables
 
-Basalt provides special variables that are dynamically replaced with current context information:
+Special variables are replaced with context information at runtime:
 
 | Variable | Description | Example Value |
 |----------|-------------|---------------|
@@ -74,13 +74,13 @@ Basalt provides special variables that are dynamically replaced with current con
 | `%note` | Current note name | `My Note` |
 | `%note_path` | Current note file path | `/path/to/vault/daily/2024-01-15.md` |
 
-Variables can be used anywhere within the command string and will be replaced at runtime.
+Variables can be used anywhere in the command string.
 
 ## Integration Examples
 
 ### Obsidian Integration
 
-Obsidian supports URL schemes that start with `obsidian://`, allowing you to trigger various actions within the application:
+Obsidian supports `obsidian://` URL schemes for triggering actions:
 
 ```toml
 # Open daily note in Obsidian

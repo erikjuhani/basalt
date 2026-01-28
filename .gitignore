@@ -17,3 +17,6 @@ target/
 # Added by cargo
 
 /target
+
+# Obsidian metadata
+.obsidian
