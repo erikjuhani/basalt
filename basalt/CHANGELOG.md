@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.12.2](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.2) (Unreleased)
+
+### Fixed
+
+- [a57b959](https://github.com/erikjuhani/basalt/commit/a57b95924ed06d68f27e5ea0b966ff7bfaaa1586) Fix viewport not scrolling with cursor in edit mode
+
+> Call `ensure_cursor_visible` after cursor movement and text editing
+> operations (`insert_char`, `delete_char`, `cursor_left`, `cursor_right`,
+> `cursor_word_forward`, `cursor_word_backward`) so the viewport follows
+> the cursor. These calls were already present in `cursor_up` and
+> `cursor_down` but missing from the other methods.
+>
+> Fixes #316
+
 ## [0.12.1](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.1) (Jan, 26 2026)
 
 ### Changed

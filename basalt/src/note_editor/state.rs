@@ -144,6 +144,8 @@ impl<'a> NoteEditorState<'a> {
                 self.virtual_document.lines(),
                 &self.text_buffer,
             );
+
+            self.ensure_cursor_visible();
         }
     }
 
@@ -169,6 +171,8 @@ impl<'a> NoteEditorState<'a> {
                         self.virtual_document.lines(),
                         &self.text_buffer,
                     );
+
+                    self.ensure_cursor_visible();
                 }
             }
         }
@@ -282,6 +286,8 @@ impl<'a> NoteEditorState<'a> {
             self.virtual_document.lines(),
             &self.text_buffer,
         );
+
+        self.ensure_cursor_visible();
     }
 
     pub fn cursor_word_backward(&mut self) {
@@ -292,6 +298,8 @@ impl<'a> NoteEditorState<'a> {
             self.virtual_document.lines(),
             &self.text_buffer,
         );
+
+        self.ensure_cursor_visible();
     }
 
     pub fn cursor_left(&mut self, amount: usize) {
@@ -302,6 +310,8 @@ impl<'a> NoteEditorState<'a> {
             self.virtual_document.lines(),
             &self.text_buffer,
         );
+
+        self.ensure_cursor_visible();
     }
 
     pub fn cursor_right(&mut self, amount: usize) {
@@ -312,6 +322,8 @@ impl<'a> NoteEditorState<'a> {
             self.virtual_document.lines(),
             &self.text_buffer,
         );
+
+        self.ensure_cursor_visible();
     }
 
     pub fn cursor_jump(&mut self, idx: usize) {
@@ -473,5 +485,51 @@ impl<'a> NoteEditorState<'a> {
             };
             node.set_source_range(shifted_range);
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui::layout::Size;
+    use std::path::Path;
+
+    fn assert_cursor_visible(state: &NoteEditorState, context: &str) {
+        let cursor_row = state.cursor.virtual_row() as i32;
+        let top = state.viewport().top() as i32;
+        let bottom = state.viewport().bottom() as i32;
+        assert!(
+            cursor_row >= top && cursor_row < bottom,
+            "{context}: cursor row {cursor_row} outside viewport [{top}, {bottom})",
+        );
+    }
+
+    #[test]
+    fn test_viewport_scrolls_with_cursor_in_edit_mode() {
+        let content = "# Title\n\nLine 1\n\nLine 2\n\nLine 3\n\nLine 4\n\nLine 5\n";
+
+        let mut state = NoteEditorState::new(content, "test", Path::new("test.md"));
+        state.resize_viewport(Size::new(40, 4));
+
+        state.cursor_down(2);
+        state.set_view(View::Edit(EditMode::Source));
+
+        state.insert_char('\n');
+        state.insert_char('\n');
+        state.insert_char('\n');
+        state.insert_char('\n');
+        assert_cursor_visible(&state, "after insert_char");
+
+        state.cursor_right(20);
+        assert_cursor_visible(&state, "after cursor_right");
+
+        state.cursor_left(20);
+        assert_cursor_visible(&state, "after cursor_left");
+
+        state.cursor_down(5);
+        assert_cursor_visible(&state, "after cursor_down");
+
+        state.cursor_up(5);
+        assert_cursor_visible(&state, "after cursor_up");
     }
 }
