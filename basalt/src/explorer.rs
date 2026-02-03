@@ -92,7 +92,10 @@ pub fn update<'a>(
                 };
                 return Some(AppMessage::Input(input::Message::Open(InputModalConfig {
                     // Offset of 2 is used to move the area two rows down so that the original row is visible.
-                    position: Position::from((2, selected_index as u16 + 2)),
+                    position: Position::from((
+                        2,
+                        (selected_index + 2).saturating_sub(state.list_state.offset()) as u16,
+                    )),
                     label: label.to_string(),
                     initial_input: input.to_string(),
                     callback,
@@ -230,6 +233,40 @@ mod tests {
     use basalt_core::obsidian::{Note, VaultEntry};
     use insta::assert_snapshot;
     use ratatui::{backend::TestBackend, Terminal};
+
+    #[test]
+    fn test_toggle_input_rename_position_accounts_for_scroll_offset() {
+        let items: Vec<VaultEntry> = (0..30)
+            .map(|i| {
+                VaultEntry::File(Note::new_unchecked(
+                    &format!("Note_{i}"),
+                    Path::new(&format!("Note_{i}.md")),
+                ))
+            })
+            .collect();
+
+        let mut state = ExplorerState::new("Test", items);
+        state.next(25);
+
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+        terminal
+            .draw(|frame| Explorer::default().render(frame.area(), frame.buffer_mut(), &mut state))
+            .unwrap();
+
+        let offset = state.list_state.offset();
+        assert!(offset > 0, "offset should be non-zero after scrolling");
+
+        let selected = state.list_state.selected().unwrap();
+        let result = update(&Message::ToggleInputRename, Size::new(80, 20), &mut state);
+        let expected_y = (selected + 2).saturating_sub(offset) as u16;
+
+        match result {
+            Some(AppMessage::Input(input::Message::Open(config))) => {
+                assert_eq!(config.position, Position::from((2, expected_y)));
+            }
+            other => panic!("Expected AppMessage::Input(Open(..)), got: {other:?}"),
+        }
+    }
 
     #[test]
     fn test_render_entries() {

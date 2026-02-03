@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- [a57b959](https://github.com/erikjuhani/basalt/commit/a57b95924ed06d68f27e5ea0b966ff7bfaaa1586) Fix viewport not scrolling with cursor in edit mode
+- [5f93090](https://github.com/erikjuhani/basalt/commit/5f93090f2679eaa0785f56a398317cdc82629d13) Fix viewport not scrolling with cursor in edit mode by @erikjuhani
 
 > Call `ensure_cursor_visible` after cursor movement and text editing
 > operations (`insert_char`, `delete_char`, `cursor_left`, `cursor_right`,
@@ -13,6 +13,13 @@
 > `cursor_down` but missing from the other methods.
 >
 > Fixes #316
+
+- [5fd1359](https://github.com/erikjuhani/basalt/commit/5fd1359843bf407a2d80b8035ac258794d2c71f3) Fix input modal position when viewport is scrolled
+
+> Account for the list scroll offset when calculating the input modal
+> y-position in `ToggleInputRename`. Previously, the position used the
+> absolute selected index, which placed the modal outside the visible area
+> when the list was scrolled.
 
 ## [0.12.1](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.1) (Jan, 26 2026)
 
