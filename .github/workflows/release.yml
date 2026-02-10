@@ -2,6 +2,11 @@ name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag
+        required: true
+        type: string
   push:
     tags:
       - 'basalt/v*.*.*'
@@ -12,127 +17,36 @@ concurrency:
 
 permissions: {}
 
-env:
-  CARGO_TERM_COLOR: always
-  CARGO_INCREMENTAL: 0
-  RUST_BACKTRACE: 1
-
 jobs:
-  # TODO: Separate into build and release jobs as both have very distinct focus
-  build_and_release:
-    name: Build and Release
+  build:
+    uses: ./.github/workflows/build.yml
+
+  release:
+    name: Release
+    needs: build
 
     permissions:
       contents: write # Needed to create releases and update files
 
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-musl
-          - os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-          - os: ubuntu-latest
-            target: aarch64-unknown-linux-musl
-          - os: ubuntu-latest
-            target: armv7-unknown-linux-gnueabihf
-          - os: windows-latest
-            target: x86_64-pc-windows-gnu
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-          - os: macos-latest
-            target: x86_64-apple-darwin
-          - os: macos-latest
-            target: aarch64-apple-darwin
-
-    runs-on: ${{ matrix.os }}
-    env:
-      MATRIX_OS: ${{ matrix.os }}
-      MATRIX_TARGET: ${{ matrix.target }}
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
 
-      - name: Toolchain
-        run: rustup toolchain install
-
-      - name: Add Rust target
-        shell: bash
-        run: rustup target add "${MATRIX_TARGET}"
-
-      - name: Cache
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+      - name: Download artifacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          lookup-only: true
-
-      - name: Install linux build tools
-        shell: bash
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-arm-linux-gnueabihf \
-                                  libc6-dev-armhf-cross \
-                                  gcc-aarch64-linux-gnu \
-                                  musl-tools
-
-      - name: Build binary
-        shell: bash
-        run: cargo build --locked --release --target "${MATRIX_TARGET}"
-
-      - name: Prepare artifact
-        shell: bash
-        run: |
-          ref_name="${GITHUB_REF_NAME}"
-          version="${ref_name##*/v}"
-
-          target="${MATRIX_TARGET}"
-          bin_path="target/${target}/release"
-          archive="basalt-${version}-${target}"
-
-          if [ "${MATRIX_OS}" = "windows-latest" ]; then
-            archive="${archive}.zip"
-            7z a "${archive}" "${bin_path}/basalt.exe"
-          else
-            archive="${archive}.tar.gz"
-            tar -czf "${archive}" "${bin_path}/basalt"
-          fi
-
-          echo "ARCHIVE=${archive}" >> "${GITHUB_ENV}"
-
-      - name: Generate checksum (Windows)
-        shell: bash
-        if: matrix.os == 'windows-latest'
-        run: |
-          archive="${ARCHIVE}"
-          certutil -hashfile "${archive}" SHA256 > "${archive}.sha256"
-          echo "ARTIFACT_SUM=${archive}.sha256" >> "$GITHUB_ENV"
-
-      - name: Generate checksum (Unix)
-        shell: bash
-        if: matrix.os != 'windows-latest'
-        run: |
-          archive="${ARCHIVE}"
-          shasum -a 256 "${archive}" > "${archive}.sha256"
-          echo "ARTIFACT_SUM=${archive}.sha256" >> "$GITHUB_ENV"
+          path: ./release-artifacts
+          pattern: artifacts-*
+          merge-multiple: true
 
       - name: Upload artifact and checksum to existing GitHub release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REF_NAME: ${{ inputs.tag || github.ref_name }}
         shell: bash
         run: |
-          ref_name="${GITHUB_REF_NAME}"
-
-          artifact="${ARCHIVE}"
-          artifact_sum="${ARTIFACT_SUM}"
-          gh release upload "${ref_name}" "${artifact}" "${artifact_sum}"
+          gh release upload "${REF_NAME}" ./release-artifacts/* --clobber
 
