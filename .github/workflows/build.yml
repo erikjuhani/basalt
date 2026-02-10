@@ -1,0 +1,113 @@
+name: Build
+
+on:
+  workflow_call:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: 1
+
+jobs:
+  build:
+    name: Build (${{ matrix.target }})
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+          - os: ubuntu-latest
+            target: armv7-unknown-linux-gnueabihf
+          - os: windows-latest
+            target: x86_64-pc-windows-gnu
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: macos-latest
+            target: aarch64-apple-darwin
+
+    runs-on: ${{ matrix.os }}
+    env:
+      MATRIX_OS: ${{ matrix.os }}
+      MATRIX_TARGET: ${{ matrix.target }}
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install linux build tools
+        shell: bash
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-linux-gnueabihf \
+                                  libc6-dev-armhf-cross \
+                                  gcc-aarch64-linux-gnu \
+                                  musl-tools
+
+      - name: Toolchain
+        run: rustup toolchain install
+
+      - name: Add Rust target
+        shell: bash
+        run: rustup target add "${MATRIX_TARGET}"
+
+      - name: Cache
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          lookup-only: true
+
+      - name: Build binary
+        shell: bash
+        run: cargo build --locked --release --target "${MATRIX_TARGET}"
+
+      - name: Prepare artifact
+        shell: bash
+        run: |
+          ref_name="${GITHUB_REF_NAME}"
+          version="${ref_name##*/v}"
+
+          target="${MATRIX_TARGET}"
+          bin_path="target/${target}/release"
+          archive="basalt-${version}-${target}"
+
+          if [ "${MATRIX_OS}" = "windows-latest" ]; then
+            archive="${archive}.zip"
+            7z a "${archive}" "${bin_path}/basalt.exe"
+            certutil -hashfile "${archive}" SHA256 > "${archive}.sha256"
+          else
+            archive="${archive}.tar.gz"
+            tar -czf "${archive}" "${bin_path}/basalt"
+            shasum -a 256 "${archive}" > "${archive}.sha256"
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: artifacts-${{ matrix.target }}
+          path: |
+            basalt-*.tar.gz
+            basalt-*.zip
+            basalt-*.sha256
+          retention-days: 1
