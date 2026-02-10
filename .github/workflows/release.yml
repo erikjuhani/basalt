@@ -2,6 +2,11 @@ name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag
+        required: true
+        type: string
   push:
     tags:
       - 'basalt/v*.*.*'
@@ -40,9 +45,8 @@ jobs:
       - name: Upload artifact and checksum to existing GitHub release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REF_NAME: ${{ inputs.tag || github.ref_name }}
         shell: bash
         run: |
-          ref_name="${GITHUB_REF_NAME}"
-
-          gh release upload "${ref_name}" ./release-artifacts/* --clobber
+          gh release upload "${REF_NAME}" ./release-artifacts/* --clobber
 
