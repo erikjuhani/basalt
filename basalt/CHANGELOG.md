@@ -14,12 +14,30 @@
 >
 > Fixes #316
 
-- [5fd1359](https://github.com/erikjuhani/basalt/commit/5fd1359843bf407a2d80b8035ac258794d2c71f3) Fix input modal position when viewport is scrolled
+- [5fd1359](https://github.com/erikjuhani/basalt/commit/5fd1359843bf407a2d80b8035ac258794d2c71f3) Fix input modal position when viewport is scrolled by @erikjuhani
 
 > Account for the list scroll offset when calculating the input modal
 > y-position in `ToggleInputRename`. Previously, the position used the
 > absolute selected index, which placed the modal outside the visible area
 > when the list was scrolled.
+
+- [a4ed28f](https://github.com/erikjuhani/basalt/commit/a4ed28f19898a64c39936a2a66c08a0734e39620) Disable smart punctuation
+
+> Smart punctuation transforms characters like ' and " to curly variants
+> like ‘ and “. The latter variants have different byte lengths. This had
+> an effect that made the source offset not match with the rendered offset
+> causing issues like inability to move the cursor downwards if the
+> current paragraph contained characters that were transformed into
+> 'smart' variants due to overlapping offsets it the length difference
+> caused.
+>
+> The fix was to disable the smart punctuation, and come back to it at a
+> later date and do the change holistically. This needs most likely some
+> architectural change to allow smart punctuation to work. The smart
+> punctuation should be treated as virtual variant that only has an effect
+> in the rendering part of the text.
+>
+> This fixes: #371
 
 ## [0.12.1](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.1) (Jan, 26 2026)
 
