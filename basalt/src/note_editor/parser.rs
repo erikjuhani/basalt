@@ -43,8 +43,19 @@ impl<'a> Parser<'a> {
     ///
     /// The offset is required to know where the node appears in the provided source text.
     pub fn new(text: &'a str) -> Self {
+        let mut options = Options::all();
+
+        // Smart punctuation is excluded because it converts ASCII characters (e.g. ", ') to
+        // multi-byte Unicode (“, ‘), making the rendered text longer than the source, causing the
+        // source offset to overlap in some cases and causing unexpected behavior.
+        //
+        // TODO: Holistic approach to support smart punctation. Potentially need to do this on a
+        // different layer of the app to only do the smart punctuation effect visually using
+        // virtual elements or such, but keeping the original source content unchanged.
+        options.remove(Options::ENABLE_SMART_PUNCTUATION);
+
         let parser = pulldown_cmark::TextMergeWithOffset::new(
-            pulldown_cmark::Parser::new_ext(text, Options::all()).into_offset_iter(),
+            pulldown_cmark::Parser::new_ext(text, options).into_offset_iter(),
         );
 
         Self(parser)
