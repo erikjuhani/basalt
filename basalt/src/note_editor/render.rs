@@ -238,6 +238,15 @@ pub fn render_raw<'a>(
         })
         .collect::<Vec<_>>();
 
+    // When content is empty (e.g. empty file), produce a content line so the
+    // cursor has something to land on.
+    if lines.is_empty() {
+        lines.push(virtual_line!([
+            synthetic_span!(prefix),
+            content_span!("".to_string(), source_range)
+        ]));
+    }
+
     lines.push(empty_virtual_line!());
     lines
 }
