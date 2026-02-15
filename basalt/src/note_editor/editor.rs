@@ -80,7 +80,7 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
 
         Paragraph::new(visible_lines).block(block).render(area, buf);
 
-        if !state.content.is_empty() {
+        if !state.content.is_empty() || state.is_editing() {
             CursorWidget::default()
                 .with_offset(Offset {
                     x: inner_area.x as i32,

@@ -21,7 +21,7 @@
 > absolute selected index, which placed the modal outside the visible area
 > when the list was scrolled.
 
-- [a4ed28f](https://github.com/erikjuhani/basalt/commit/a4ed28f19898a64c39936a2a66c08a0734e39620) Disable smart punctuation
+- [a4ed28f](https://github.com/erikjuhani/basalt/commit/a4ed28f19898a64c39936a2a66c08a0734e39620) Disable smart punctuation by @erikjuhani
 
 > Smart punctuation transforms characters like ' and " to curly variants
 > like ‘ and “. The latter variants have different byte lengths. This had
@@ -38,6 +38,22 @@
 > in the rendering part of the text.
 >
 > This fixes: #371
+
+- [2f83c49](https://github.com/erikjuhani/basalt/commit/2f83c492ebdfe089b0d0b638f30011c3b91d1d69) Fix editing when file is empty
+
+> When opening an empty file and entering edit mode, no text or cursor was
+> visible until pressing ESC. This was caused by three issues:
+>
+> - No AST nodes existed for empty files, so layout produced no virtual
+>   lines and typed text was invisible
+> - Cursor rendering was gated on non-empty content, which is only updated
+>   on exit from edit mode
+> - `render_raw` produced no content lines for empty content, leaving the
+>   cursor with no valid position
+>
+> Fix by creating a placeholder paragraph node when entering insert mode
+> on an empty document, allowing cursor rendering in edit mode, and
+> producing a content line in `render_raw` for the empty content case.
 
 ## [0.12.1](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.1) (Jan, 26 2026)
 

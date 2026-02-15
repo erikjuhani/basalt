@@ -11,6 +11,7 @@ use crate::note_editor::{
     ast::{self},
     cursor::{self, Cursor},
     parser,
+    rich_text::RichText,
     text_buffer::TextBuffer,
     viewport::Viewport,
     virtual_document::VirtualDocument,
@@ -89,7 +90,6 @@ impl<'a> NoteEditorState<'a> {
         self.text_buffer.as_ref()
     }
 
-    // FIXME: if document is empty cannot write as there is no markdown block to write on.
     pub fn enter_insert(&mut self, block_idx: usize) {
         if let Some((_, block)) = self.virtual_document.get_block(block_idx) {
             let source_range = block.source_range();
@@ -97,7 +97,12 @@ impl<'a> NoteEditorState<'a> {
                 self.text_buffer = Some(TextBuffer::new(content, source_range.clone()));
             }
         } else {
-            self.text_buffer = Some(TextBuffer::new("", 0..0));
+            let empty_node = ast::Node::Paragraph {
+                text: RichText::empty(),
+                source_range: 0..0,
+            };
+            self.text_buffer = Some(TextBuffer::new("", empty_node.source_range().clone()));
+            self.ast_nodes.push(empty_node);
         }
     }
 
