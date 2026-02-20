@@ -116,6 +116,7 @@ pub enum Message<'a> {
     SelectNote(SelectedNote),
     UpdateSelectedNoteContent((String, Option<Vec<ast::Node>>)),
 
+    Batch(Vec<Message<'a>>),
     Toast(toast::Message),
     Input(input::Message),
     Splash(splash_modal::Message),
@@ -315,6 +316,14 @@ impl<'a> App<'a> {
         message: Option<Message<'a>>,
     ) -> Option<Message<'a>> {
         match message? {
+            Message::Batch(messages) => {
+                for msg in messages {
+                    let mut next = Some(msg);
+                    while next.is_some() {
+                        next = App::update(terminal, config, state, next);
+                    }
+                }
+            }
             Message::Quit => state.is_running = false,
             Message::Resize(size) => state.screen_size = size,
             Message::RefreshVault(rename) => {
