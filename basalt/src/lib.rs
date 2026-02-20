@@ -10,5 +10,6 @@ pub mod splash_modal;
 pub mod statusbar;
 pub mod stylized_text;
 pub mod text_counts;
+pub mod toast;
 pub mod vault_selector;
 pub mod vault_selector_modal;

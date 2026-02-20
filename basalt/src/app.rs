@@ -2,12 +2,19 @@ use basalt_core::obsidian::{self, Note, Vault};
 use ratatui::{
     buffer::Buffer,
     crossterm::event::{self, Event, KeyEvent, KeyEventKind},
-    layout::{Constraint, Layout, Rect, Size},
-    widgets::StatefulWidget,
+    layout::{Constraint, Flex, Layout, Rect, Size},
+    widgets::{StatefulWidget, Widget},
     DefaultTerminal,
 };
 
-use std::{cell::RefCell, fmt::Debug, fs, io::Result, path::PathBuf};
+use std::{
+    cell::RefCell,
+    fmt::Debug,
+    fs,
+    io::Result,
+    path::PathBuf,
+    time::{Duration, Instant},
+};
 
 use crate::{
     command,
@@ -25,6 +32,7 @@ use crate::{
     statusbar::{StatusBar, StatusBarState},
     stylized_text::{self, FontStyle},
     text_counts::{CharCount, WordCount},
+    toast::{self, Toast, TOAST_HEIGHT, TOAST_WIDTH},
     vault_selector_modal::{self, VaultSelectorModal, VaultSelectorModalState},
 };
 
@@ -57,6 +65,7 @@ pub struct AppState<'a> {
     note_editor: NoteEditorState<'a>,
     outline: OutlineState,
     selected_note: Option<SelectedNote>,
+    toasts: Vec<Toast>,
 
     input_modal: InputModalState,
     splash_modal: SplashModalState<'a>,
@@ -107,6 +116,7 @@ pub enum Message<'a> {
     SelectNote(SelectedNote),
     UpdateSelectedNoteContent((String, Option<Vec<ast::Node>>)),
 
+    Toast(toast::Message),
     Input(input::Message),
     Splash(splash_modal::Message),
     Explorer(explorer::Message),
@@ -199,13 +209,31 @@ impl<'a> App<'a> {
 
         let mut state = self.state.clone();
         let config = self.config.clone();
+
+        let tick_rate = Duration::from_millis(250);
+        let mut last_tick = Instant::now();
+
         while state.is_running {
             self.draw(&mut state)?;
-            let event = event::read()?;
 
-            let mut message = App::handle_event(&config, &state, &event);
-            while message.is_some() {
-                message = App::update(self.terminal.get_mut(), &config, &mut state, message);
+            let timeout = tick_rate.saturating_sub(last_tick.elapsed());
+
+            if event::poll(timeout)? {
+                let event = event::read()?;
+
+                let mut message = App::handle_event(&config, &state, &event);
+                while message.is_some() {
+                    message = App::update(self.terminal.get_mut(), &config, &mut state, message);
+                }
+            }
+            if last_tick.elapsed() >= tick_rate {
+                App::update(
+                    self.terminal.get_mut(),
+                    &config,
+                    &mut state,
+                    Some(Message::Toast(toast::Message::Tick)),
+                );
+                last_tick = Instant::now();
             }
         }
 
@@ -438,6 +466,7 @@ impl<'a> App<'a> {
                 return note_editor::update(&message, state.screen_size, &mut state.note_editor);
             }
             Message::Input(message) => return input::update(&message, &mut state.input_modal),
+            Message::Toast(message) => return toast::update(message, &mut state.toasts),
         };
 
         None
@@ -497,7 +526,8 @@ impl<'a> App<'a> {
         let status_bar = StatusBar::default();
         status_bar.render(statusbar, buf, &mut status_bar_state);
 
-        self.render_modals(area, buf, state)
+        self.render_modals(area, buf, state);
+        self.render_toasts(area, buf, state);
     }
 
     fn render_modals(&self, area: Rect, buf: &mut Buffer, state: &mut AppState<'a>) {
@@ -512,6 +542,30 @@ impl<'a> App<'a> {
         if state.help_modal.visible {
             HelpModal.render(area, buf, &mut state.help_modal);
         }
+    }
+
+    fn render_toasts(&self, area: Rect, buf: &mut Buffer, state: &mut AppState<'a>) {
+        let [_, toast_area] =
+            Layout::horizontal([Constraint::Fill(1), Constraint::Length(TOAST_WIDTH)])
+                .horizontal_margin(1)
+                .flex(Flex::End)
+                .areas(area);
+
+        state
+            .toasts
+            .iter()
+            .rev()
+            .enumerate()
+            .for_each(|(i, toast)| {
+                let mut toast_area = toast_area;
+                if i > 0 {
+                    toast_area.y += (i * TOAST_HEIGHT as usize) as u16;
+                }
+                if toast_area.y >= area.bottom() {
+                    return;
+                }
+                toast.clone().render(toast_area, buf)
+            });
     }
 }
 
