@@ -7,33 +7,23 @@ TUI Application to manage Obsidian vaults and notes directly from the terminal �
 
 ![Demo](https://raw.githubusercontent.com/erikjuhani/basalt/refs/heads/main/assets/basalt_demo.gif)
 
-Basalt is a cross-platform TUI (Terminal User Interface) for managing Obsidian vaults and notes. It runs on Windows, macOS, and Linux.
-
-Basalt is not a replacement for Obsidian. Instead, it provides a minimalist terminal interface with readable markdown rendering and a [WYSIWYG](https://en.wikipedia.org/wiki/WYSIWYG) experience.
-
-## Vision
-
-- Basalt functions as a companion app for Obsidian that enables quick note editing without interrupting the terminal flow
-- Basalt enables text editing in a familiar way (Obsidian, vim) without having to rely on external editors
-- Basalt is a terminal based [WYSIWYG](https://en.wikipedia.org/wiki/WYSIWYG) markdown editor
-- Basalt works as a CLI for finding / deleting / creating notes and works with the rest of the unix tooling
-- Basalt is a standalone terminal note managing application that works seamlessly with Obsidian
+Basalt is a cross-platform TUI (Terminal User Interface) for managing Obsidian vaults and notes. It runs on Windows, macOS, and Linux. Basalt is not a replacement for Obsidian. Instead, it provides a minimalist terminal interface with a [WYSIWYG](https://en.wikipedia.org/wiki/WYSIWYG) experience.
 
 ## Installation
 
-Install basalt using cargo:
+Install Basalt using [Cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html):
 
 ```sh
 cargo install basalt-tui
 ```
 
-Or use the precompiled binaries from the [latest release](https://github.com/erikjuhani/basalt/releases/latest).
+Or download a pre-compiled binary from the [latest release](https://github.com/erikjuhani/basalt/releases/latest), extract it, and move the `basalt` binary to a location in your `PATH`.
 
 ## Configuration
 
-Basalt can be customized using a configuration file located in one of the following directories:
+Basalt can be customized using a TOML configuration file. The file does not exist by default — create it manually when you want to override the defaults.
 
-**macOS and Unix:**
+**macOS and Linux:**
 
 - `$HOME/.basalt.toml`
 - `$XDG_CONFIG_HOME/basalt/config.toml`
@@ -49,22 +39,19 @@ If configuration files exist in multiple locations, only the first one found is 
 >
 > This behavior may change in future versions to merge all found configurations instead.
 
-### Key Mappings
-
-Key mappings can be modified or extended in the configuration file.
-
-Each key mapping is associated with a specific pane and becomes active when that pane has focus. The `[global]` section applies to all panes and is evaluated first.
-
-### Default configuration
-
-See the [full default configuration](docs/Configuration/Default%20configuration.md).
+See the [full configuration reference](docs/Configuration/Configuration.md) for key mappings, custom commands, and defaults.
 
 ## Documentation
 
-See the [docs](docs/Basalt.md) for usage, configuration, and more.
+- [Getting started](docs/Getting%20started/Installation.md)
+- [User interface](docs/User%20interface/User%20interface.md)
+- [Configuration](docs/Configuration/Configuration.md)
+- [Editing and Formatting](docs/Editing%20and%20Formatting.md)
+- [Files and Folders](docs/Files%20and%20Folders.md)
+- [Known Limitations](docs/Known%20Limitations.md)
 
 ## Contributing
 
-Contributions are welcome, primarily for bug fixes. Feature work is considered on a case-by-case basis—please open an issue first to discuss.
+Contributions are welcome, primarily for bug fixes. Feature work is considered on a case-by-case basis — please open an issue first to discuss.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code style, and contribution guidelines.
