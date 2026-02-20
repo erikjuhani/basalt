@@ -36,6 +36,7 @@ pub(crate) enum Command {
     ExplorerOpen,
     ExplorerSort,
     ExplorerToggle,
+    ExplorerToggleInputFind,
     ExplorerToggleInputRename,
     ExplorerToggleOutline,
     ExplorerSwitchPaneNext,
@@ -115,6 +116,7 @@ fn str_to_command(s: &str) -> Option<Command> {
         "explorer_open" => Some(Command::ExplorerOpen),
         "explorer_sort" => Some(Command::ExplorerSort),
         "explorer_toggle" => Some(Command::ExplorerToggle),
+        "explorer_toggle_input_find" => Some(Command::ExplorerToggleInputFind),
         "explorer_toggle_outline" => Some(Command::ExplorerToggleOutline),
         "explorer_toggle_input_rename" => Some(Command::ExplorerToggleInputRename),
         "explorer_switch_pane_next" => Some(Command::ExplorerSwitchPaneNext),
@@ -237,6 +239,9 @@ impl From<Command> for Message<'_> {
             Command::ExplorerOpen => Message::Explorer(explorer::Message::Open),
             Command::ExplorerSort => Message::Explorer(explorer::Message::Sort),
             Command::ExplorerToggle => Message::Explorer(explorer::Message::Toggle),
+            Command::ExplorerToggleInputFind => {
+                Message::Explorer(explorer::Message::ToggleInputFind)
+            }
             Command::ExplorerToggleOutline => Message::Explorer(explorer::Message::ToggleOutline),
             Command::ExplorerToggleInputRename => {
                 Message::Explorer(explorer::Message::ToggleInputRename)

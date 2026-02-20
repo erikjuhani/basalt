@@ -8,7 +8,10 @@ use ratatui::{
     widgets::{Block, BorderType, Clear, Padding, Paragraph, StatefulWidget, Widget},
 };
 
-use crate::app::{ActivePane, Message as AppMessage};
+use crate::{
+    app::{ActivePane, Message as AppMessage},
+    explorer,
+};
 
 #[derive(Clone, Default, Debug, PartialEq)]
 enum InputMode {
@@ -21,6 +24,13 @@ enum InputMode {
 pub enum Callback {
     RenameDir(Directory),
     RenameNote(Note),
+    FindExplorer,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum CallbackResult {
+    RefreshVault(Option<(std::path::PathBuf, std::path::PathBuf)>),
+    FindExplorer(String),
 }
 
 #[derive(Clone, Default, Debug, PartialEq)]
@@ -61,6 +71,7 @@ impl InputModalState {
         self.scroll = 0;
         self.cursor_col = value.chars().count();
         self.input_mode = InputMode::Editing;
+        self.modified = false;
     }
 
     pub fn set_label(&mut self, label: &str) {
@@ -79,22 +90,23 @@ impl InputModalState {
         self.callback = Some(callback.clone());
     }
 
-    pub fn run_callback(&mut self) -> Option<(std::path::PathBuf, std::path::PathBuf)> {
+    pub fn run_callback(&mut self) -> Option<CallbackResult> {
         let result = if let Some(callback) = &self.callback {
             // FIXME: Propagate errors
             match callback {
                 Callback::RenameNote(note) => {
                     let original_path = note.path().to_path_buf();
-                    rename_note(note.clone(), &self.input)
-                        .ok()
-                        .map(|n| (original_path, n.path().to_path_buf()))
+                    rename_note(note.clone(), &self.input).ok().map(|n| {
+                        CallbackResult::RefreshVault(Some((original_path, n.path().to_path_buf())))
+                    })
                 }
                 Callback::RenameDir(directory) => {
                     let original_path = directory.path().to_path_buf();
-                    rename_dir(directory.clone(), &self.input)
-                        .ok()
-                        .map(|d| (original_path, d.path().to_path_buf()))
+                    rename_dir(directory.clone(), &self.input).ok().map(|d| {
+                        CallbackResult::RefreshVault(Some((original_path, d.path().to_path_buf())))
+                    })
                 }
+                Callback::FindExplorer => Some(CallbackResult::FindExplorer(self.input.clone())),
             }
         } else {
             None
@@ -110,6 +122,10 @@ impl InputModalState {
 
     pub fn is_editing(&self) -> bool {
         matches!(self.input_mode, InputMode::Editing)
+    }
+
+    fn callback_is_find(&self) -> bool {
+        matches!(self.callback, Some(Callback::FindExplorer))
     }
 
     fn cursor_left(&mut self, amount: usize) {
@@ -232,12 +248,24 @@ pub fn update<'a>(message: &Message, state: &mut InputModalState) -> Option<AppM
                 state.insert_char(c);
             }
             KeyCode::Enter => {
-                if state.modified {
-                    let rename = state.run_callback();
+                if state.modified || state.callback_is_find() {
+                    let callback_result = state.run_callback();
                     state.input_mode = InputMode::Normal;
                     state.toggle_visibility();
                     state.modified = false;
-                    return Some(AppMessage::RefreshVault(rename));
+
+                    if let Some(callback_result) = callback_result {
+                        return Some(match callback_result {
+                            CallbackResult::RefreshVault(rename) => {
+                                AppMessage::RefreshVault(rename)
+                            }
+                            CallbackResult::FindExplorer(query) => {
+                                AppMessage::Explorer(explorer::Message::ApplyFilter(query))
+                            }
+                        });
+                    }
+
+                    return Some(AppMessage::SetActivePane(ActivePane::Explorer));
                 } else {
                     state.input_mode = InputMode::Normal;
                     return Some(AppMessage::Input(Message::Cancel));
