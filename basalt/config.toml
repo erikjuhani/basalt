@@ -22,6 +22,7 @@
 # explorer_open: opens the selected note in note viewer
 # explorer_sort: toggles note and folder sorting between A-z and Z-a
 # explorer_toggle: toggles explorer pane
+# explorer_toggle_input_find: opens input modal to filter note list
 # explorer_toggle_outline: toggles outline pane
 # explorer_toggle_input_rename: opens input modal to rename selected note or directory
 # explorer_hide_pane: hides pane by steps, from full-width to regular width, to hidden
@@ -126,6 +127,7 @@ key_bindings = [
  { key = "left", command = "explorer_hide_pane" },
  { key = "right", command = "explorer_expand_pane" },
  { key = "s", command = "explorer_sort" },
+ { key = "f", command = "explorer_toggle_input_find" },
  { key = "r", command = "explorer_toggle_input_rename" },
  { key = "tab", command = "explorer_switch_pane_next" },
  { key = "shift+backtab", command = "explorer_switch_pane_previous" },

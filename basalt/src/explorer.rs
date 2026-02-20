@@ -39,12 +39,14 @@ pub enum Message {
     Toggle,
     ToggleOutline,
     ToggleInputRename,
+    ToggleInputFind,
     HidePane,
     ExpandPane,
     SwitchPaneNext,
     SwitchPanePrevious,
     ScrollUp(ScrollAmount),
     ScrollDown(ScrollAmount),
+    ApplyFilter(String),
 }
 
 pub fn update<'a>(
@@ -101,6 +103,21 @@ pub fn update<'a>(
                     callback,
                 })));
             }
+        }
+        Message::ToggleInputFind => {
+            let selected_index = state.list_state.selected().unwrap_or(0);
+            return Some(AppMessage::Input(input::Message::Open(InputModalConfig {
+                position: Position::from((
+                    2,
+                    (selected_index + 2).saturating_sub(state.list_state.offset()) as u16,
+                )),
+                label: "Find note".to_string(),
+                initial_input: state.filter_query().unwrap_or_default().to_string(),
+                callback: input::Callback::FindExplorer,
+            })));
+        }
+        Message::ApplyFilter(query) => {
+            state.apply_filter(query.to_string());
         }
         Message::Open => {
             state.select();
@@ -193,13 +210,17 @@ impl<'a> StatefulWidget for Explorer<'a> {
                 .block(
                     block
                         .title(format!(
-                            "{} {} ",
+                            "{} {}{} ",
                             if state.visibility == Visibility::FullWidth {
                                 " ⟹ "
                             } else {
                                 ""
                             },
-                            state.title
+                            state.title,
+                            state
+                                .filter_query()
+                                .map(|query| format!(" / {query}"))
+                                .unwrap_or_default()
                         ))
                         .title(
                             Line::from(vec![" ".into(), sort_symbol.into(), " ◀ ".into()])

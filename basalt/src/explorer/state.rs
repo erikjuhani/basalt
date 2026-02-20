@@ -30,13 +30,44 @@ pub struct ExplorerState {
     pub(crate) selected_item_index: Option<usize>,
     pub(crate) selected_item_path: Option<PathBuf>,
     pub(crate) items: Vec<Item>,
+    pub(crate) all_flat_items: Vec<(Item, usize)>,
     pub(crate) flat_items: Vec<(Item, usize)>,
     pub(crate) visibility: Visibility,
     pub(crate) active: bool,
     pub(crate) sort: Sort,
     pub(crate) list_state: ListState,
+    pub(crate) filter_query: Option<String>,
 
     pub(crate) editing: bool,
+}
+
+fn fuzzy_match_score(haystack: &str, needle: &str) -> Option<usize> {
+    let haystack_lower = haystack.to_lowercase();
+    let needle_lower = needle.to_lowercase();
+
+    if let Some(index) = haystack_lower.find(&needle_lower) {
+        return Some(10_000usize.saturating_sub(index));
+    }
+
+    let mut score = 0usize;
+    let mut cursor = 0usize;
+    let chars = haystack_lower.chars().collect::<Vec<_>>();
+
+    for target in needle_lower.chars() {
+        let mut found = None;
+        for (index, c) in chars.iter().enumerate().skip(cursor) {
+            if *c == target {
+                found = Some(index);
+                break;
+            }
+        }
+
+        let index = found?;
+        score += 100usize.saturating_sub(index.saturating_sub(cursor));
+        cursor = index + 1;
+    }
+
+    Some(score)
 }
 
 /// Calculates the vertical offset of list items in rows.
@@ -226,17 +257,75 @@ impl ExplorerState {
         let mut items = self.items.clone();
         items.sort_by(sort_items_by(sort));
 
-        self.flat_items = items.iter().flat_map(flatten(sort, 0)).collect();
+        self.all_flat_items = items.iter().flat_map(flatten(sort, 0)).collect();
+        self.flat_items = self.all_flat_items.clone();
         self.items = items;
         self.sort = sort;
+        self.apply_filter_view();
     }
 
     pub fn flatten_with_items(&mut self, items: &[Item]) {
         let mut items = items.to_vec();
         items.sort_by(sort_items_by(self.sort));
 
-        self.flat_items = items.iter().flat_map(flatten(self.sort, 0)).collect();
+        self.all_flat_items = items.iter().flat_map(flatten(self.sort, 0)).collect();
+        self.flat_items = self.all_flat_items.clone();
         self.items = items.to_vec();
+        self.apply_filter_view();
+    }
+
+    fn apply_filter_view(&mut self) {
+        if let Some(query) = &self.filter_query {
+            let mut filtered = self
+                .all_flat_items
+                .iter()
+                .filter_map(|(item, depth)| match item {
+                    Item::File(note) => fuzzy_match_score(note.name(), query)
+                        .map(|score| (item.clone(), *depth, score)),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+
+            filtered.sort_by(|a, b| b.2.cmp(&a.2).then_with(|| a.0.name().cmp(b.0.name())));
+            self.flat_items = filtered
+                .into_iter()
+                .map(|(item, depth, _)| (item, depth))
+                .collect();
+        } else {
+            self.flat_items = self.all_flat_items.clone();
+        }
+
+        if self.flat_items.is_empty() {
+            self.list_state.select(None);
+        } else if self.list_state.selected().is_none() {
+            self.list_state.select(Some(0));
+        }
+    }
+
+    pub fn apply_filter(&mut self, query: String) {
+        let query = query.trim().to_string();
+
+        if query.is_empty() {
+            self.clear_filter();
+            return;
+        }
+
+        self.filter_query = Some(query);
+        self.apply_filter_view();
+        self.list_state.select(if self.flat_items.is_empty() {
+            None
+        } else {
+            Some(0)
+        });
+    }
+
+    pub fn clear_filter(&mut self) {
+        self.filter_query = None;
+        self.apply_filter_view();
+    }
+
+    pub fn filter_query(&self) -> Option<&str> {
+        self.filter_query.as_deref()
     }
 
     pub fn sort(&mut self) {
@@ -348,5 +437,48 @@ impl ExplorerState {
         let index = self.list_state.selected().map(|i| i.saturating_sub(amount));
 
         self.list_state.select(index);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use basalt_core::obsidian::{Note, VaultEntry};
+
+    use super::ExplorerState;
+
+    #[test]
+    fn test_apply_filter_reduces_to_matching_notes() {
+        let entries = vec![
+            VaultEntry::File(Note::new_unchecked("Alpha", Path::new("Alpha.md"))),
+            VaultEntry::File(Note::new_unchecked("Beta", Path::new("Beta.md"))),
+            VaultEntry::File(Note::new_unchecked("Gamma", Path::new("Gamma.md"))),
+        ];
+
+        let mut state = ExplorerState::new("Test", entries);
+        state.apply_filter("ga".to_string());
+
+        assert_eq!(state.flat_items.len(), 1);
+        assert_eq!(state.flat_items[0].0.name(), "Gamma");
+        assert_eq!(state.filter_query(), Some("ga"));
+    }
+
+    #[test]
+    fn test_apply_filter_empty_clears_filter() {
+        let entries = vec![
+            VaultEntry::File(Note::new_unchecked("Alpha", Path::new("Alpha.md"))),
+            VaultEntry::File(Note::new_unchecked("Beta", Path::new("Beta.md"))),
+        ];
+
+        let mut state = ExplorerState::new("Test", entries);
+        let all = state.flat_items.len();
+
+        state.apply_filter("alp".to_string());
+        assert!(state.flat_items.len() < all);
+
+        state.apply_filter(" ".to_string());
+        assert_eq!(state.flat_items.len(), all);
+        assert_eq!(state.filter_query(), None);
     }
 }
