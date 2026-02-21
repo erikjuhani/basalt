@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.3](https://github.com/erikjuhani/basalt/releases/tag/basalt-core/0.8.3) (Feb, 21 2026)
+
+### Fixed
+
+- [b191cbc](https://github.com/erikjuhani/basalt/commit/b191cbc865f2dc57a4089940a8f65a0808f437af) Fix `update_wiki_links` to also update links within renamed note
+
+> Previously, the renamed note itself was excluded from the set of notes
+> to scan for wikilink updates. This meant self-referential links within
+> the note being renamed would not be updated.
+>
+> Fixes #387
+
 ## [0.8.2](https://github.com/erikjuhani/basalt/releases/tag/basalt-core/0.8.2) (Jan, 26 2026)
 
 ### Added
