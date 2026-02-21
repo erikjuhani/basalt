@@ -75,9 +75,9 @@ fn replace_content(content: &str, replacements: &[(String, String)]) -> String {
 /// let note_a = obsidian::vault::create_note(&vault, "Note A")?;
 /// let note_b = obsidian::vault::create_note(&vault, "Note B")?;
 /// fs::write(note_a.path(), "A link to [[Note B]]")?;
-/// fs::write(note_b.path(), "A link to [[Note A]]")?;
+/// fs::write(note_b.path(), "A link to [[Note A]] and link to self [[Note B]]")?;
 /// # assert_eq!(fs::read_to_string(note_a.path())?, "A link to [[Note B]]");
-/// # assert_eq!(fs::read_to_string(note_b.path())?, "A link to [[Note A]]");
+/// # assert_eq!(fs::read_to_string(note_b.path())?, "A link to [[Note A]] and link to self [[Note B]]");
 ///
 /// let old_path = note_b.path();
 /// let note_b = obsidian::vault::rename_note(note_b.clone(), "Renamed B")?;
@@ -86,7 +86,7 @@ fn replace_content(content: &str, replacements: &[(String, String)]) -> String {
 /// let content_a = fs::read_to_string(note_a.path());
 /// let content_b = fs::read_to_string(note_b.path());
 /// assert_eq!(fs::read_to_string(note_a.path())?, "A link to [[Renamed B]]");
-/// assert_eq!(fs::read_to_string(note_b.path())?, "A link to [[Note A]]");
+/// assert_eq!(fs::read_to_string(note_b.path())?, "A link to [[Note A]] and link to self [[Renamed B]]");
 /// # Ok::<(), Error>(())
 /// ```
 pub fn update_wiki_links(
@@ -121,21 +121,19 @@ pub fn update_wiki_links(
         }
     }
 
-    fn entry_to_note<'a>(new_path: &'a Path) -> impl Fn(VaultEntry) -> Vec<Note> + 'a {
-        move |entry| match entry {
-            VaultEntry::File(note) if note.path() != new_path => vec![note],
-            VaultEntry::Directory { entries, .. } => entries
-                .into_iter()
-                .flat_map(entry_to_note(new_path))
-                .collect(),
-            _ => vec![],
+    fn entry_to_note(entry: VaultEntry) -> Vec<Note> {
+        match entry {
+            VaultEntry::File(note) => vec![note],
+            VaultEntry::Directory { entries, .. } => {
+                entries.into_iter().flat_map(entry_to_note).collect()
+            }
         }
     }
 
     vault
         .entries()
         .into_iter()
-        .flat_map(entry_to_note(new_path))
+        .flat_map(entry_to_note)
         .try_for_each(replace_wiki_link(&replacements))?;
 
     Ok(())
