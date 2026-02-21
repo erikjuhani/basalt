@@ -10,6 +10,8 @@ mod text_wrap;
 mod viewport;
 mod virtual_document;
 
+use std::time::Duration;
+
 use ratatui::{
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
     layout::Size,
@@ -19,7 +21,7 @@ use crate::{
     app::{calc_scroll_amount, ActivePane, Message as AppMessage, ScrollAmount},
     explorer,
     note_editor::state::{EditMode, NoteEditorState, View},
-    outline,
+    outline, toast,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -136,12 +138,29 @@ pub fn update<'a>(
                 return Some(AppMessage::SetActivePane(ActivePane::Explorer));
             }
             Message::Save => {
-                // FIXME: Implement proper error handling when toasts are available.
-                let _ = state.save_to_file();
-                return Some(AppMessage::UpdateSelectedNoteContent((
-                    state.content.to_string(),
-                    None,
-                )));
+                let modified = state.modified();
+                match state.save_to_file() {
+                    Ok(_) if modified => {
+                        return Some(AppMessage::Batch(vec![
+                            AppMessage::UpdateSelectedNoteContent((
+                                state.content.to_string(),
+                                None,
+                            )),
+                            AppMessage::Toast(toast::Message::Create(toast::Toast::success(
+                                "File saved",
+                                Duration::from_secs(2),
+                            ))),
+                        ]))
+                    }
+                    // FIXME: Log the error.
+                    // This requires a logging system to store system logs for debugging purposes
+                    Err(_) => {
+                        return Some(AppMessage::Toast(toast::Message::Create(
+                            toast::Toast::error("Failed to save file", Duration::from_secs(2)),
+                        )))
+                    }
+                    _ => {}
+                }
             }
             _ => {}
         },

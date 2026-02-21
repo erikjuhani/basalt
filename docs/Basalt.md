@@ -1,4 +1,4 @@
-[[Basalt]] is a TUI for browsing and editing [Obsidian](https://obsidian.md) vaults directly from the terminal. It renders markdown with WYSIWYG-style formatting, provides vim-inspired navigation, and works as a companion to the Obsidian app without replacing it.
+[[Basalt]] is a TUI to manage [Obsidian](https://obsidian.md) vaults and notes directly from the terminal. It renders markdown with WYSIWYG-style formatting, provides vim-inspired navigation, and works as a companion to Obsidian.
 
 ![[basalt_demo.gif]]
 

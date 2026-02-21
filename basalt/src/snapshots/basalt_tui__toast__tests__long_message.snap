@@ -1,0 +1,7 @@
+---
+source: basalt/src/toast.rs
+expression: terminal.backend()
+---
+"╭──────────────────────────────────────╮          "
+"│ ⓘ This is a really long message that │          "
+"╰──────────────────────────────────────╯          "

@@ -39,6 +39,8 @@ Sleep 0.5s
 Backspace
 Sleep 1s
 Backspace
+Sleep 1s
+Backspace
 Sleep 3s
 Type@500ms "Main"
 Sleep 2s
@@ -50,52 +52,22 @@ Type "t"    # Close explorer pane
 Sleep 3.5s
 Ctrl+O      # Expand outline pane
 Sleep 4s
-Type "j"    #
+Type "j"
 Sleep 0.5s
-Type "j"    #
+Type "j"
 Sleep 0.5s
 Type "j"
 Sleep 0.5s
 Type "j"
 Sleep 1.5s
-Type "j"
-Sleep 0.5s
 Type "j"
 Sleep 0.5s
 Type "j"
 Sleep 1s
-Type "j"
-Sleep 0.5s
-Type "j"
-Sleep 1.5s
-Type "j"
-Sleep 1s
-Type "j"
-Sleep 0.5s
-Type "j"
-Sleep 1.5s
-Type "j"
-Sleep 0.5s
-Type "j"
-Sleep 2.0s
-Type "j"
-Sleep 1.5s
-Type "j"
-Sleep 0.5s
-Type "j"
-Sleep 1.0s
-Type "j"
-Sleep 1.5s
 Type "j"
 Sleep 2.5s
-Ctrl+D
-Sleep 3.0s
-Ctrl+U
-Sleep 2.0s
-Type "j"
-Sleep 1.5s
 Type "i"
-Sleep 2.5s
+Sleep 2.0s
 Enter
 Sleep 1.5s
 Up
@@ -106,24 +78,43 @@ Enter
 Sleep 0.5s
 Up
 Sleep 2s
-Type@500ms "### Overview"
+Type@500ms "### What is it?"
 Sleep 3s
 Escape
 Sleep 4s
 Type "i"
 Sleep 2s
-Enter
-Sleep 1s
-Enter
-Sleep 2s
-Up
-Sleep 1s
-Up
+Down
 Sleep 1.5s
+Left
+Left
+Left
+Left
+Left
+Left
+Left
+Left
+Left
+Left
+Left
+Left
+Left
+Left
+Left
+Enter
+Sleep 1.5s
+Enter
+Sleep 1.5s
+Up
+Sleep 1.0s
+Up
+Sleep 1.0s
 Type@300ms "Basalt is a mafic, extrusive igneous rock formed from the rapid cooling of viscosity lava rich in magnesium and iron."
 Sleep 4s
 Escape
 Sleep 4s
+Ctrl+x
+Sleep 5s
 Shift+R
 Sleep 5s
 Ctrl+O
@@ -137,4 +128,3 @@ Sleep 3s
 Ctrl+D
 Sleep 7s
 Type "q"
-Sleep 3s

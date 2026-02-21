@@ -1,6 +1,34 @@
 # Changelog
 
-## [0.12.2](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.2) (Unreleased)
+## [0.12.2](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.2) (Feb, 21 2026)
+
+### Added
+
+- [57017bb](https://github.com/erikjuhani/basalt/commit/57017bb04ecd065f59e1051803a93e839c17efe2) Add toast notification system
+
+> Introduces toast module with level-based notifications (info, warn,
+> error, success) that auto-expire via a 250ms tick loop. Toasts render
+> in the top-right corner with colored borders and icons per level.
+>
+> Includes snapshot tests for all toast variants and unit tests for
+> expiry behavior.
+>
+> Related to #83
+
+- [7bd859b](https://github.com/erikjuhani/basalt/commit/7bd859bccfa88398ad94bcd45c03317d54f2be14) Add `Batch` message variant for sequential message dispatch
+
+> Enables multiple app messages to be dispatched and fully processed in
+> sequence, which is needed to combine actions like saving a note and
+> showing a toast notification in a single update cycle.
+>
+> Related to #83
+
+- [99b79b1](https://github.com/erikjuhani/basalt/commit/99b79b13150a61fe347f2276bd1b517f24e0076b) Add toast notifications for file save feedback
+
+> Show a success toast when a modified file is saved and an error toast
+> when saving fails, replacing the previous silent no-op error handling.
+>
+> Fixes #83
 
 ### Fixed
 
@@ -39,7 +67,7 @@
 >
 > This fixes: #371
 
-- [2f83c49](https://github.com/erikjuhani/basalt/commit/2f83c492ebdfe089b0d0b638f30011c3b91d1d69) Fix editing when file is empty
+- [2f83c49](https://github.com/erikjuhani/basalt/commit/2f83c492ebdfe089b0d0b638f30011c3b91d1d69) Fix editing when file is empty by @erikjuhani
 
 > When opening an empty file and entering edit mode, no text or cursor was
 > visible until pressing ESC. This was caused by three issues:

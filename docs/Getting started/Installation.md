@@ -1,7 +1,3 @@
-
-
-[[Basalt]] is a TUI for browsing and editing [Obsidian](https://obsidian.md) vaults directly from the terminal. It is a single binary that runs on Windows, macOS, and Linux.
-
 ## Installation
 
 [[Basalt]] is available to install via [Cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html) and as pre-compiled binaries from [GitHub releases](https://github.com/erikjuhani/basalt/releases).
