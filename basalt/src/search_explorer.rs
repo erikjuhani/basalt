@@ -27,7 +27,7 @@ enum Mode {
 pub struct SearchExplorerState {
     query: String,
     cursor_col: usize,
-    mode: Mode,
+    searching: bool,
     results: Vec<(Note, u32)>,
     all_notes: Vec<Note>,
     pub(crate) list_state: ListState,
