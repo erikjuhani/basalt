@@ -35,8 +35,8 @@ pub struct SearchExplorerState {
 }
 
 impl SearchExplorerState {
-    pub fn open(&mut self, notes: Vec<Note>) {
-        self.all_notes = notes;
+    pub fn open(&mut self, entries: &[VaultEntry]) {
+        self.entries = entries.flatten();
         self.query.clear();
         self.cursor_col = 0;
         self.mode = Mode::Searching;
