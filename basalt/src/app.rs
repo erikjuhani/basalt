@@ -503,7 +503,7 @@ impl<'a> App<'a> {
                     let notes = search_explorer::collect_all_notes(&entries);
                     state.search_explorer.open(notes);
                     state.explorer.set_active(false);
-                    state.active_pane = ActivePane::SearchExplorer;
+                    return Some(Message::SetActivePane(ActivePane::SearchExplorer));
                 }
             }
             Message::SearchExplorer(message) => {
