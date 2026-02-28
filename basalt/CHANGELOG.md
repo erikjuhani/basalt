@@ -1,5 +1,67 @@
 # Changelog
 
+## [0.12.3](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.3) (Unreleased)
+
+### Added
+
+- [eb66637](https://github.com/erikjuhani/basalt/commit/eb66637bd7498abe7dfae0d97069440eb9a35d38) Add support for sequential keys
+
+> This change adds support for a sequence (or chord) of keys like 'gg' or
+> 'bn' or 'gth'.
+>
+> The keys maps are separated into Single keys (which can contain
+> modifiers) or a 'sequence' of keys called Chord.
+>
+> Additionally added support for uppercased chars in key bindings, which
+> means that users can now use shift + char to run commands.
+>
+> Organized and structured the key code parsing, so it's more readable and
+> the 'special' cases are clearly represented.
+
+- [50d3b96](https://github.com/erikjuhani/basalt/commit/50d3b96d49cece4fb4b2936cc46553a641b2da31) Add sequence-aware key dispatch to app
+
+> This commit adds key sequence handling to basalt, which means that users
+> can create key bindings with a key sequence like `gg` or `ciw`.
+>
+> - Replace single-key lookup with `pending_keys: Vec<Keystroke>` on
+>   `AppState`, `handle_event` and `handle_key_event` take `&mut AppState`
+>   to drive accumulation and prefix/exact matching
+> - Add `ConfigSection::sequence_to_message` and `is_sequence_prefix`
+> - Remove old `key_to_message` / `handle_active_component_event`, editing
+>   bypass is now inlined in `handle_key_event`
+> - `handle_editing_event` in input and note_editor now take `KeyEvent` by
+>   value for consistency
+>
+> Related to #400
+> Related to #212
+
+- [2cc478d](https://github.com/erikjuhani/basalt/commit/2cc478d3d592f19e70b26fbe0620166088ec95b0) Add scroll-to-top and scroll-to-bottom commands
+
+> Adds ScrollToTop/ScrollToBottom to the note editor and explorer message
+> enums, wired through new command variants: note_editor_scroll_to_top,
+> note_editor_scroll_to_bottom, explorer_scroll_to_top,
+> explorer_scroll_to_bottom.
+>
+> Note editor ScrollToBottom uses cursor_jump to the last block rather
+> than cursor_down(usize::MAX), which silently does nothing because
+> saturating_add clamps to usize::MAX and skip(lines.len()) exhausts the
+> iterator.
+
+- [0a1dfc9](https://github.com/erikjuhani/basalt/commit/0a1dfc926b2ef48220dc01c06f6c4bf791f0dec6) Add vim_mode config flag and vim.toml preset
+
+> When vim_mode = true in the user config, a vim.toml preset is merged
+> between the base config and the user config, so users can still override
+> individual bindings. The preset adds:
+>
+> - ctrl+f / ctrl+b for half-page scrolling in note editor, explorer,
+>   and help modal (replacing ctrl+d / ctrl+u)
+> - gg / G for jump to top/bottom in note editor, explorer, and outline
+
+### Fixed
+
+- [90528cb](https://github.com/erikjuhani/basalt/commit/90528cb74b944d840297d68969116ba10680b45f) Fix integer overflow in explorer
+
+
 ## [0.12.2](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.2) (Feb, 21 2026)
 
 ### Added
