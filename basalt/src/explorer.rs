@@ -45,6 +45,8 @@ pub enum Message {
     SwitchPanePrevious,
     ScrollUp(ScrollAmount),
     ScrollDown(ScrollAmount),
+    ScrollToTop,
+    ScrollToBottom,
 }
 
 pub fn update<'a>(
@@ -72,6 +74,12 @@ pub fn update<'a>(
         }
         Message::ScrollDown(scroll_amount) => {
             state.next(calc_scroll_amount(scroll_amount, screen_size.height.into()));
+        }
+        Message::ScrollToTop => {
+            state.previous(usize::MAX);
+        }
+        Message::ScrollToBottom => {
+            state.next(usize::MAX);
         }
         Message::ToggleOutline => {
             return Some(AppMessage::Outline(outline::Message::Toggle));

@@ -44,6 +44,8 @@ pub enum Message {
     CursorDown,
     ScrollUp(ScrollAmount),
     ScrollDown(ScrollAmount),
+    ScrollToTop,
+    ScrollToBottom,
     JumpToBlock(usize),
     Delete,
 }
@@ -78,6 +80,19 @@ pub fn update<'a>(
         }
         Message::ScrollDown(scroll_amount) => {
             state.cursor_down(calc_scroll_amount(scroll_amount, screen_size.height.into()));
+            return Some(AppMessage::Outline(outline::Message::SelectAt(
+                state.current_block(),
+            )));
+        }
+        Message::ScrollToTop => {
+            state.cursor_up(usize::MAX);
+            return Some(AppMessage::Outline(outline::Message::SelectAt(
+                state.current_block(),
+            )));
+        }
+        Message::ScrollToBottom => {
+            let last_block = state.virtual_document.blocks().len().saturating_sub(1);
+            state.cursor_jump(last_block);
             return Some(AppMessage::Outline(outline::Message::SelectAt(
                 state.current_block(),
             )));
