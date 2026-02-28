@@ -11,12 +11,14 @@ Basalt is a cross-platform TUI (Terminal User Interface) for managing Obsidian v
 
 ## Installation
 
-Install Basalt using [Cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html):
-
-```sh
-cargo install basalt-tui
-```
-
+- Using [Cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html):
+  ```sh
+  cargo install basalt-tui
+  ```
+- Using [aqua](https://aquaproj.github.io/docs/install):
+  ```sh
+  aqua g -i erikjuhani/basalt
+  ```
 Or download a pre-compiled binary from the [latest release](https://github.com/erikjuhani/basalt/releases/latest), extract it, and move the `basalt` binary to a location in your `PATH`.
 
 ## Configuration
