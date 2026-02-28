@@ -1,0 +1,17 @@
+[note_editor]
+key_bindings = [
+  { key = "gg", command = "note_editor_scroll_to_top" },
+  { key = "G",  command = "note_editor_scroll_to_bottom" },
+]
+
+[explorer]
+key_bindings = [
+  { key = "gg", command = "explorer_scroll_to_top" },
+  { key = "G",  command = "explorer_scroll_to_bottom" },
+]
+
+[outline]
+key_bindings = [
+  { key = "gg", command = "explorer_scroll_to_top" },
+  { key = "G",  command = "explorer_scroll_to_bottom" },
+]

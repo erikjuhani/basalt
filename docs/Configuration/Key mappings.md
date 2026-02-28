@@ -16,6 +16,20 @@ key_bindings = [
 ]
 ```
 
+## Key sequence syntax
+
+A key can be a single character, a named key, a modified key, or a **sequence** of keystrokes. Sequences are written as a multi-character string and only fire when all keys are pressed in order with nothing in between. This makes it possible to define vim- or Helix-style bindings like `gg`.
+
+```toml
+[note_editor]
+key_bindings = [
+  { key = "gg", command = "note_editor_scroll_to_top" },
+  { key = "G",  command = "note_editor_scroll_to_bottom" },
+]
+```
+
+An uppercase letter like `G` is shorthand for `shift+g` — shift is implied automatically.
+
 ## Available commands
 
 ### Global commands
@@ -53,6 +67,8 @@ key_bindings = [
 | `explorer_scroll_down_one`       | Scroll selector down by one                    |
 | `explorer_scroll_up_half_page`   | Scroll selector up half a page                 |
 | `explorer_scroll_down_half_page` | Scroll selector down half a page               |
+| `explorer_scroll_to_top`         | Jump to the first item                         |
+| `explorer_scroll_to_bottom`      | Jump to the last item                          |
 
 ### Outline commands
 
@@ -77,6 +93,8 @@ key_bindings = [
 | `note_editor_scroll_down_one`          | Scroll down by one                  |
 | `note_editor_scroll_up_half_page`      | Scroll up half page                 |
 | `note_editor_scroll_down_half_page`    | Scroll down half page               |
+| `note_editor_scroll_to_top`            | Jump to the top of the note         |
+| `note_editor_scroll_to_bottom`         | Jump to the bottom of the note      |
 | `note_editor_toggle_explorer`          | Toggle explorer pane                |
 | `note_editor_toggle_outline`           | Toggle outline pane                 |
 | `note_editor_switch_pane_next`         | Switch focus to next pane           |

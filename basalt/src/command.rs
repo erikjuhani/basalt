@@ -73,6 +73,11 @@ pub(crate) enum Command {
     NoteEditorToggleOutline,
     NoteEditorCursorUp,
     NoteEditorCursorDown,
+    NoteEditorScrollToTop,
+    NoteEditorScrollToBottom,
+
+    ExplorerScrollToTop,
+    ExplorerScrollToBottom,
 
     NoteEditorExperimentalCursorWordForward,
     NoteEditorExperimentalCursorWordBackward,
@@ -160,6 +165,11 @@ fn str_to_command(s: &str) -> Option<Command> {
         "note_editor_toggle_outline" => Some(Command::NoteEditorToggleOutline),
         "note_editor_cursor_up" => Some(Command::NoteEditorCursorUp),
         "note_editor_cursor_down" => Some(Command::NoteEditorCursorDown),
+        "note_editor_scroll_to_top" => Some(Command::NoteEditorScrollToTop),
+        "note_editor_scroll_to_bottom" => Some(Command::NoteEditorScrollToBottom),
+
+        "explorer_scroll_to_top" => Some(Command::ExplorerScrollToTop),
+        "explorer_scroll_to_bottom" => Some(Command::ExplorerScrollToBottom),
 
         "note_editor_experimental_cursor_word_forward" => {
             Some(Command::NoteEditorExperimentalCursorWordForward)
@@ -314,6 +324,14 @@ impl From<Command> for Message<'_> {
             }
             Command::NoteEditorCursorUp => Message::NoteEditor(note_editor::Message::CursorUp),
             Command::NoteEditorCursorDown => Message::NoteEditor(note_editor::Message::CursorDown),
+            Command::NoteEditorScrollToTop => {
+                Message::NoteEditor(note_editor::Message::ScrollToTop)
+            }
+            Command::NoteEditorScrollToBottom => {
+                Message::NoteEditor(note_editor::Message::ScrollToBottom)
+            }
+            Command::ExplorerScrollToTop => Message::Explorer(explorer::Message::ScrollToTop),
+            Command::ExplorerScrollToBottom => Message::Explorer(explorer::Message::ScrollToBottom),
             Command::NoteEditorToggleExplorer => {
                 Message::NoteEditor(note_editor::Message::ToggleExplorer)
             }

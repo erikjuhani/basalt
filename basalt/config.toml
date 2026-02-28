@@ -32,6 +32,8 @@
 # explorer_scroll_down_one: scrolls the selector down by one
 # explorer_scroll_up_half_page: scrolls the selector up half a page
 # explorer_scroll_down_half_page: scrolls the selector down half a page
+# explorer_scroll_to_top: jumps to the first item
+# explorer_scroll_to_bottom: jumps to the last item
 #
 # Outline commands:
 #
@@ -50,6 +52,8 @@
 # note_editor_scroll_down_one: scrolls down by one
 # note_editor_scroll_up_half_page: scrolls up by half page
 # note_editor_scroll_down_half_page: scrolls down by half page
+# note_editor_scroll_to_top: jumps to the top of the note
+# note_editor_scroll_to_bottom: jumps to the bottom of the note
 # note_editor_toggle_explorer: toggles explorer pane
 # note_editor_toggle_outline: toggles outline pane
 # note_editor_switch_pane_next: switches focus to next pane
@@ -95,6 +99,7 @@
 
 # Editor is experimental
 experimental_editor = false
+vim_mode = false
 
 [global]
 key_bindings = [
@@ -134,6 +139,8 @@ key_bindings = [
  { key = "ctrl+u", command = "explorer_scroll_up_half_page" },
  { key = "ctrl+d", command = "explorer_scroll_down_half_page" },
  { key = "ctrl+o", command = "explorer_toggle_outline" },
+ { key = "ctrl+shift+up", command = "explorer_scroll_to_top" },
+ { key = "ctrl+shift+down", command = "explorer_scroll_to_bottom" },
 ]
 
 [outline]
@@ -149,6 +156,8 @@ key_bindings = [
  { key = "shift+backtab", command = "outline_switch_pane_previous" },
  { key = "enter", command = "outline_expand" },
  { key = "g", command = "outline_select" },
+ { key = "ctrl+shift+up", command = "explorer_scroll_to_top" },
+ { key = "ctrl+shift+down", command = "explorer_scroll_to_bottom" },
 ]
 
 [note_editor]
@@ -164,6 +173,8 @@ key_bindings = [
  { key = "ctrl+u", command = "note_editor_scroll_up_half_page" },
  { key = "ctrl+d", command = "note_editor_scroll_down_half_page" },
  { key = "ctrl+o", command = "note_editor_toggle_outline" },
+ { key = "ctrl+shift+up", command = "note_editor_scroll_to_top" },
+ { key = "ctrl+shift+down", command = "note_editor_scroll_to_bottom" },
 
  # Experimental editor 
  { key = "i", command = "note_editor_experimental_set_edit_view" },
