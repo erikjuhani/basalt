@@ -28,6 +28,25 @@ key_bindings = [
 
 This adds `Ctrl+Q` as a quit binding while keeping all other default global bindings (`?`, `Ctrl+G`, etc.) intact.
 
+## Vim mode
+
+Setting `vim_mode = true` enables a built-in keybinding preset modelled after vim. It is merged between the base defaults and your own config, so individual bindings can still be overridden.
+
+```toml
+vim_mode = true
+```
+
+The preset adds the following bindings:
+
+| Pane          | Key  | Command                 |
+| ------------- | ---- | ----------------------- |
+| Note editor   | `gg` | Jump to top of note     |
+| Note editor   | `G`  | Jump to bottom of note  |
+| Explorer      | `gg` | Jump to first item      |
+| Explorer      | `G`  | Jump to last item       |
+| Outline       | `gg` | Jump to first item      |
+| Outline       | `G`  | Jump to last item       |
+
 ## Default configuration
 
 The full default configuration is shown below. The default `exec:` and `spawn:` commands use macOS conventions (`vi`, `open`). On Linux, replace `open` with `xdg-open`; on Windows, use `start`. See [[Custom commands]] for details.
@@ -35,6 +54,7 @@ The full default configuration is shown below. The default `exec:` and `spawn:` 
 ```toml
 # Editor is experimental
 experimental_editor = false
+vim_mode = false
 
 [global]
 key_bindings = [
@@ -74,6 +94,8 @@ key_bindings = [
  { key = "ctrl+u", command = "explorer_scroll_up_half_page" },
  { key = "ctrl+d", command = "explorer_scroll_down_half_page" },
  { key = "ctrl+o", command = "explorer_toggle_outline" },
+ { key = "ctrl+shift+up", command = "explorer_scroll_to_top" },
+ { key = "ctrl+shift+down", command = "explorer_scroll_to_bottom" },
 ]
 
 [outline]
@@ -89,6 +111,8 @@ key_bindings = [
  { key = "shift+backtab", command = "outline_switch_pane_previous" },
  { key = "enter", command = "outline_expand" },
  { key = "g", command = "outline_select" },
+ { key = "ctrl+shift+up", command = "explorer_scroll_to_top" },
+ { key = "ctrl+shift+down", command = "explorer_scroll_to_bottom" },
 ]
 
 [note_editor]
@@ -104,6 +128,8 @@ key_bindings = [
  { key = "ctrl+u", command = "note_editor_scroll_up_half_page" },
  { key = "ctrl+d", command = "note_editor_scroll_down_half_page" },
  { key = "ctrl+o", command = "note_editor_toggle_outline" },
+ { key = "ctrl+shift+up", command = "note_editor_scroll_to_top" },
+ { key = "ctrl+shift+down", command = "note_editor_scroll_to_bottom" },
 
  # Experimental editor
  { key = "i", command = "note_editor_experimental_set_edit_view" },
