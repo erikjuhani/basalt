@@ -72,6 +72,7 @@ impl fmt::Display for ConfigSection<'_> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Config<'a> {
     pub experimental_editor: bool,
+    pub vim_mode: bool,
     pub global: ConfigSection<'a>,
     pub splash: ConfigSection<'a>,
     pub explorer: ConfigSection<'a>,
@@ -92,6 +93,7 @@ impl From<TomlConfig> for Config<'_> {
     fn from(value: TomlConfig) -> Self {
         Self {
             experimental_editor: value.experimental_editor,
+            vim_mode: value.vim_mode,
             global: value.global.into(),
             splash: value.splash.into(),
             explorer: value.explorer.into(),
@@ -120,9 +122,12 @@ impl Config<'_> {
     /// existing entries with the value from another config.
     pub(crate) fn merge(&mut self, config: Self) -> Self {
         self.experimental_editor = config.experimental_editor;
+        self.vim_mode = config.vim_mode;
         self.global.merge_key_bindings(config.global);
         self.explorer.merge_key_bindings(config.explorer);
         self.splash.merge_key_bindings(config.splash);
+        self.outline.merge_key_bindings(config.outline);
+        self.input_modal.merge_key_bindings(config.input_modal);
         self.note_editor.merge_key_bindings(config.note_editor);
         self.help_modal.merge_key_bindings(config.help_modal);
         self.vault_selector_modal
@@ -193,6 +198,8 @@ struct TomlConfig {
     #[serde(default)]
     experimental_editor: bool,
     #[serde(default)]
+    vim_mode: bool,
+    #[serde(default)]
     global: TomlConfigSection,
     #[serde(default)]
     splash: TomlConfigSection,
@@ -240,6 +247,8 @@ fn read_user_config<'a>() -> Result<Config<'a>, ConfigError> {
 const BASE_CONFIGURATION_STR: &str =
     include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/config.toml"));
 
+const VIM_CONFIG_STR: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/vim.toml"));
+
 /// Loads and merges configuration from multiple sources in priority order.
 ///
 /// The configuration is built by layering sources with increasing precedence:
@@ -252,22 +261,31 @@ const BASE_CONFIGURATION_STR: &str =
 pub fn load<'a>() -> Result<Config<'a>, ConfigError> {
     // TODO: Use compile time toml parsing instead to check the build error during compile time
     // Requires a custom proc-macro workspace crate
-    let mut base_config: Config = toml::from_str::<TomlConfig>(BASE_CONFIGURATION_STR)?.into();
+    let mut config: Config = toml::from_str::<TomlConfig>(BASE_CONFIGURATION_STR)?.into();
 
     // TODO: Parsing errors related to the configuration file should ideally be surfaced as warnings.
     // This is pending a solution for toast notifications and proper warning/error logging.
-    if let Ok(user_config) = read_user_config() {
-        base_config.merge(user_config);
+    let user_config = read_user_config().ok();
+
+    if user_config.as_ref().is_some_and(|c| !c.vim_mode) {
+        let vim_config: Config = toml::from_str::<TomlConfig>(VIM_CONFIG_STR)
+            .map_err(ConfigError::from)?
+            .into();
+        config.merge(vim_config);
+    }
+
+    if let Some(user) = user_config {
+        config.merge(user);
     }
 
     let system_key_binding_overrides: ConfigSection =
         [(Key::CTRL_C.to_string(), Message::Quit)].into();
 
-    base_config
+    config
         .global
         .merge_key_bindings(system_key_binding_overrides);
 
-    Ok(base_config)
+    Ok(config)
 }
 
 #[cfg(test)]

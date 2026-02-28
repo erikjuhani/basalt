@@ -99,6 +99,7 @@
 
 # Editor is experimental
 experimental_editor = false
+vim_mode = false
 
 [global]
 key_bindings = [
