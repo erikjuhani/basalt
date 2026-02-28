@@ -18,7 +18,7 @@ use std::{
 
 use crate::{
     command,
-    config::{self, Config},
+    config::{self, Config, Keystroke},
     explorer::{self, Explorer, ExplorerState, Item, Visibility},
     help_modal::{self, HelpModal, HelpModalState},
     input::{self, Input, InputModalState},
@@ -59,6 +59,7 @@ pub struct AppState<'a> {
     vault: Vault,
     screen_size: Size,
     is_running: bool,
+    pending_keys: Vec<Keystroke>,
 
     active_pane: ActivePane,
     explorer: ExplorerState,
@@ -174,6 +175,21 @@ fn help_text(version: &str) -> String {
     HELP_TEXT.replace("%version-notice", version)
 }
 
+fn active_config_section<'a>(
+    config: &'a Config,
+    active: ActivePane,
+) -> &'a config::ConfigSection<'a> {
+    match active {
+        ActivePane::Splash => &config.splash,
+        ActivePane::Explorer => &config.explorer,
+        ActivePane::Outline => &config.outline,
+        ActivePane::HelpModal => &config.help_modal,
+        ActivePane::VaultSelectorModal => &config.vault_selector_modal,
+        ActivePane::Input => &config.input_modal,
+        ActivePane::NoteEditor => &config.note_editor,
+    }
+}
+
 pub struct App<'a> {
     state: AppState<'a>,
     config: Config<'a>,
@@ -222,7 +238,7 @@ impl<'a> App<'a> {
             if event::poll(timeout)? {
                 let event = event::read()?;
 
-                let mut message = App::handle_event(&config, &state, &event);
+                let mut message = App::handle_event(&config, &mut state, event);
                 while message.is_some() {
                     message = App::update(self.terminal.get_mut(), &config, &mut state, message);
                 }
@@ -255,11 +271,11 @@ impl<'a> App<'a> {
 
     fn handle_event(
         config: &'a Config,
-        state: &AppState<'_>,
-        event: &Event,
+        state: &mut AppState<'_>,
+        event: Event,
     ) -> Option<Message<'a>> {
         match event {
-            Event::Resize(cols, rows) => Some(Message::Resize(Size::new(*cols, *rows))),
+            Event::Resize(cols, rows) => Some(Message::Resize(Size::new(cols, rows))),
             Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
                 App::handle_key_event(config, state, key_event)
             }
@@ -267,46 +283,63 @@ impl<'a> App<'a> {
         }
     }
 
-    #[rustfmt::skip]
-    fn handle_active_component_event(config: &'a Config, state: &AppState<'_>, key: &KeyEvent, active_component: ActivePane) -> Option<Message<'a>> {
-        match active_component {
-            ActivePane::Splash => config.splash.key_to_message(key.into()),
-            ActivePane::Explorer => config.explorer.key_to_message(key.into()),
-            ActivePane::Outline => config.outline.key_to_message(key.into()),
-            ActivePane::HelpModal => config.help_modal.key_to_message(key.into()),
-            ActivePane::VaultSelectorModal => config.vault_selector_modal.key_to_message(key.into()),
-            ActivePane::Input => {
-                if state.input_modal.is_editing() {
-                    input::handle_editing_event(key).map(Message::Input)
-                } else {
-                    config.input_modal.key_to_message(key.into())
-                }
-            },
-            ActivePane::NoteEditor => {
-                    if state.note_editor.is_editing() {
-                        note_editor::handle_editing_event(key).map(Message::NoteEditor)
-                    } else {
-                        config.note_editor.key_to_message(key.into())
-                    }
+    fn handle_key_event(
+        config: &'a Config,
+        state: &mut AppState<'_>,
+        key_event: KeyEvent,
+    ) -> Option<Message<'a>> {
+        match state.active_component() {
+            ActivePane::NoteEditor if state.note_editor.is_editing() => {
+                state.pending_keys.clear();
+                note_editor::handle_editing_event(key_event).map(Message::NoteEditor)
             }
+            ActivePane::Input if state.input_modal.is_editing() => {
+                state.pending_keys.clear();
+                input::handle_editing_event(key_event).map(Message::Input)
+            }
+            active => App::handle_pending_keys(
+                Keystroke::from(key_event),
+                config,
+                active,
+                &mut state.pending_keys,
+            ),
         }
     }
 
-    fn handle_key_event(
+    fn handle_pending_keys(
+        key: Keystroke,
         config: &'a Config,
-        state: &AppState<'_>,
-        key: &KeyEvent,
+        active: ActivePane,
+        pending_keys: &mut Vec<Keystroke>,
     ) -> Option<Message<'a>> {
-        let global_message = config.global.key_to_message(key.into());
+        pending_keys.push(key.clone());
+        let section = active_config_section(config, active);
 
-        let is_editing = state.note_editor.is_editing() || state.input_modal.is_editing();
-
-        if global_message.is_some() && !is_editing {
+        let global_message = config.global.sequence_to_message(pending_keys);
+        if global_message.is_some() {
+            pending_keys.clear();
             return global_message;
         }
 
-        let active_component = state.active_component();
-        App::handle_active_component_event(config, state, key, active_component)
+        let section_message = section.sequence_to_message(pending_keys);
+        if section_message.is_some() {
+            pending_keys.clear();
+            return section_message;
+        }
+
+        let is_sequence_prefix = config.global.is_sequence_prefix(pending_keys)
+            || section.is_sequence_prefix(pending_keys);
+
+        if is_sequence_prefix {
+            return None;
+        }
+
+        let is_sequence = pending_keys.len() > 1;
+
+        pending_keys.clear();
+        is_sequence
+            .then(|| App::handle_pending_keys(key, config, active, pending_keys))
+            .flatten()
     }
 
     fn update(

@@ -266,7 +266,7 @@ pub fn update<'a>(message: &Message, state: &mut InputModalState) -> Option<AppM
     None
 }
 
-pub fn handle_editing_event(key: &KeyEvent) -> Option<Message> {
+pub fn handle_editing_event(key: KeyEvent) -> Option<Message> {
     match key.code {
         KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::ALT) => {
             Some(Message::CursorWordForward)
@@ -278,7 +278,7 @@ pub fn handle_editing_event(key: &KeyEvent) -> Option<Message> {
         KeyCode::Right => Some(Message::CursorRight),
         KeyCode::Esc => Some(Message::Cancel),
         KeyCode::Backspace => Some(Message::Delete),
-        _ => Some(Message::KeyEvent(*key)),
+        _ => Some(Message::KeyEvent(key)),
     }
 }
 

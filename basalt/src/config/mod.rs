@@ -8,7 +8,7 @@ use key_binding::KeyBinding;
 use serde::Deserialize;
 
 use crate::{app::Message, command::Command};
-pub(crate) use key_binding::Key;
+pub(crate) use key_binding::{Key, Keystroke};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
@@ -45,8 +45,17 @@ impl ConfigSection<'_> {
         });
     }
 
-    pub fn key_to_message(&self, key: Key) -> Option<Message<'_>> {
-        self.key_bindings.get(&key.to_string()).cloned()
+    pub fn sequence_to_message(&self, keys: &[Keystroke]) -> Option<Message<'_>> {
+        let s: String = keys.iter().map(|k| k.to_string()).collect();
+        self.key_bindings.get(&s).cloned()
+    }
+
+    pub fn is_sequence_prefix(&self, keys: &[Keystroke]) -> bool {
+        let s: String = keys.iter().map(|k| k.to_string()).collect();
+
+        self.key_bindings
+            .keys()
+            .any(|k| k.starts_with(&s) && k.len() > s.len())
     }
 }
 

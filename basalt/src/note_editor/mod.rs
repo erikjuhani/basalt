@@ -169,7 +169,7 @@ pub fn update<'a>(
     None
 }
 
-pub fn handle_editing_event(key: &KeyEvent) -> Option<Message> {
+pub fn handle_editing_event(key: KeyEvent) -> Option<Message> {
     match key.code {
         KeyCode::Up => Some(Message::CursorUp),
         KeyCode::Down => Some(Message::CursorDown),
@@ -186,6 +186,6 @@ pub fn handle_editing_event(key: &KeyEvent) -> Option<Message> {
         KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             Some(Message::ToggleView)
         }
-        _ => Some(Message::KeyEvent(*key)),
+        _ => Some(Message::KeyEvent(key)),
     }
 }
