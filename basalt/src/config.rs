@@ -71,6 +71,7 @@ pub struct Config<'a> {
     pub help_modal: ConfigSection<'a>,
     pub note_editor: ConfigSection<'a>,
     pub vault_selector_modal: ConfigSection<'a>,
+    pub search_explorer: ConfigSection<'a>,
 }
 
 impl Default for Config<'_> {
@@ -91,6 +92,7 @@ impl From<TomlConfig> for Config<'_> {
             help_modal: value.help_modal.into(),
             note_editor: value.note_editor.into(),
             vault_selector_modal: value.vault_selector_modal.into(),
+            search_explorer: value.search_explorer.into(),
         }
     }
 }
@@ -118,6 +120,8 @@ impl Config<'_> {
         self.help_modal.merge_key_bindings(config.help_modal);
         self.vault_selector_modal
             .merge_key_bindings(config.vault_selector_modal);
+        self.search_explorer
+            .merge_key_bindings(config.search_explorer);
         self.clone()
     }
 }
@@ -129,6 +133,7 @@ impl fmt::Display for Config<'_> {
         writeln!(f, "[explorer]\n{}", self.explorer)?;
         writeln!(f, "[note_editor]\n{}", self.note_editor)?;
         writeln!(f, "[help_modal]\n{}", self.help_modal)?;
+        writeln!(f, "[search_explorer]\n{}", self.search_explorer)?;
         writeln!(f, "[vault_selector_modal]\n{}", self.vault_selector_modal)?;
 
         Ok(())
@@ -199,6 +204,8 @@ struct TomlConfig {
     note_editor: TomlConfigSection,
     #[serde(default)]
     vault_selector_modal: TomlConfigSection,
+    #[serde(default)]
+    search_explorer: TomlConfigSection,
 }
 
 /// Finds and reads the user configuration file in order of priority.

@@ -134,6 +134,7 @@ key_bindings = [
  { key = "ctrl+u", command = "explorer_scroll_up_half_page" },
  { key = "ctrl+d", command = "explorer_scroll_down_half_page" },
  { key = "ctrl+o", command = "explorer_toggle_outline" },
+ { key = "f", command = "explorer_toggle_search" },
 ]
 
 [outline]
@@ -215,4 +216,28 @@ key_bindings = [
  { key = "down", command = "vault_selector_modal_down" },
  { key = "enter", command = "vault_selector_modal_open" },
  { key = "esc", command = "vault_selector_modal_close" },
+]
+
+# Search explorer commands (navigate mode only, search mode captures raw keys):
+#
+# search_explorer_up: moves selector up
+# search_explorer_down: moves selector down
+# search_explorer_open: opens the selected note
+# search_explorer_close: closes search explorer
+# search_explorer_search_mode: switch to search (typing) mode
+# search_explorer_scroll_up_half_page: scrolls up by half page
+# search_explorer_scroll_down_half_page: scrolls down by half page
+
+[search_explorer]
+key_bindings = [
+ { key = "k", command = "search_explorer_up" },
+ { key = "j", command = "search_explorer_down" },
+ { key = "up", command = "search_explorer_up" },
+ { key = "down", command = "search_explorer_down" },
+ { key = "enter", command = "search_explorer_open" },
+ { key = "esc", command = "search_explorer_close" },
+ { key = "f", command = "search_explorer_search_mode" },
+ { key = "i", command = "search_explorer_search_mode" },
+ { key = "ctrl+u", command = "search_explorer_scroll_up_half_page" },
+ { key = "ctrl+d", command = "search_explorer_scroll_down_half_page" },
 ]

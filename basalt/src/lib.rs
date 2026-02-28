@@ -6,6 +6,7 @@ pub mod help_modal;
 pub mod input;
 pub mod note_editor;
 pub mod outline;
+pub mod search_explorer;
 pub mod splash_modal;
 pub mod statusbar;
 pub mod stylized_text;

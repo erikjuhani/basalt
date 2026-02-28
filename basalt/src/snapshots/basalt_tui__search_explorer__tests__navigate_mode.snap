@@ -1,0 +1,14 @@
+---
+source: basalt/src/search_explorer.rs
+expression: terminal.backend()
+---
+"╭ Search ─────────────────────────╮"
+"│ In                              │"
+"├─────────────────────────────────┤"
+"│   Index                         │"
+"│   Indigo                        │"
+"│   Induction Tape                │"
+"│   Meeting Notes                 │"
+"│                                 │"
+"│                                 │"
+"╰─────────────────────────────────╯"

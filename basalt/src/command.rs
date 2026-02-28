@@ -10,7 +10,8 @@ use std::{io::stdout, process};
 
 use crate::{
     app::{Message, ScrollAmount},
-    explorer, help_modal, input, note_editor, outline, splash_modal, vault_selector_modal,
+    explorer, help_modal, input, note_editor, outline, search_explorer, splash_modal,
+    vault_selector_modal,
 };
 
 trait ReplaceVar {
@@ -46,6 +47,16 @@ pub(crate) enum Command {
     ExplorerScrollDownOne,
     ExplorerScrollUpHalfPage,
     ExplorerScrollDownHalfPage,
+
+    ExplorerToggleSearch,
+
+    SearchExplorerUp,
+    SearchExplorerDown,
+    SearchExplorerOpen,
+    SearchExplorerClose,
+    SearchExplorerSearchMode,
+    SearchExplorerScrollUpHalfPage,
+    SearchExplorerScrollDownHalfPage,
 
     OutlineUp,
     OutlineDown,
@@ -126,6 +137,8 @@ fn str_to_command(s: &str) -> Option<Command> {
         "explorer_scroll_up_half_page" => Some(Command::ExplorerScrollUpHalfPage),
         "explorer_scroll_down_half_page" => Some(Command::ExplorerScrollDownHalfPage),
 
+        "explorer_toggle_search" => Some(Command::ExplorerToggleSearch),
+
         "input_modal_word_forward" => Some(Command::InputModalWordForward),
         "input_modal_word_backward" => Some(Command::InputModalWordBackward),
         "input_modal_left" => Some(Command::InputModalLeft),
@@ -184,6 +197,14 @@ fn str_to_command(s: &str) -> Option<Command> {
         "vault_selector_modal_close" => Some(Command::VaultSelectorModalClose),
         "vault_selector_modal_open" => Some(Command::VaultSelectorModalOpen),
         "vault_selector_modal_toggle" => Some(Command::VaultSelectorModalToggle),
+
+        "search_explorer_up" => Some(Command::SearchExplorerUp),
+        "search_explorer_down" => Some(Command::SearchExplorerDown),
+        "search_explorer_open" => Some(Command::SearchExplorerOpen),
+        "search_explorer_close" => Some(Command::SearchExplorerClose),
+        "search_explorer_search_mode" => Some(Command::SearchExplorerSearchMode),
+        "search_explorer_scroll_up_half_page" => Some(Command::SearchExplorerScrollUpHalfPage),
+        "search_explorer_scroll_down_half_page" => Some(Command::SearchExplorerScrollDownHalfPage),
 
         // TODO: Remove deprecations in the next major version
         // Deprecated
@@ -259,6 +280,8 @@ impl From<Command> for Message<'_> {
             Command::ExplorerScrollDownHalfPage => {
                 Message::Explorer(explorer::Message::ScrollDown(ScrollAmount::HalfPage))
             }
+
+            Command::ExplorerToggleSearch => Message::ToggleSearchExplorer,
 
             Command::InputModalEditMode => Message::Input(input::Message::EditMode),
             Command::InputModalAccept => Message::Input(input::Message::Accept),
@@ -361,6 +384,22 @@ impl From<Command> for Message<'_> {
             Command::VaultSelectorModalOpen => {
                 Message::VaultSelectorModal(vault_selector_modal::Message::Select)
             }
+
+            Command::SearchExplorerUp => Message::SearchExplorer(search_explorer::Message::Up),
+            Command::SearchExplorerDown => Message::SearchExplorer(search_explorer::Message::Down),
+            Command::SearchExplorerOpen => Message::SearchExplorer(search_explorer::Message::Open),
+            Command::SearchExplorerClose => {
+                Message::SearchExplorer(search_explorer::Message::Close)
+            }
+            Command::SearchExplorerSearchMode => {
+                Message::SearchExplorer(search_explorer::Message::SearchMode)
+            }
+            Command::SearchExplorerScrollUpHalfPage => {
+                Message::SearchExplorer(search_explorer::Message::ScrollUp(ScrollAmount::HalfPage))
+            }
+            Command::SearchExplorerScrollDownHalfPage => Message::SearchExplorer(
+                search_explorer::Message::ScrollDown(ScrollAmount::HalfPage),
+            ),
 
             Command::Exec(command) => Message::Exec(command),
             Command::Spawn(command) => Message::Spawn(command),

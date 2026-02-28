@@ -28,6 +28,7 @@ use crate::{
         state::{NoteEditorState, View},
     },
     outline::{self, Outline, OutlineState},
+    search_explorer::{self, SearchExplorer, SearchExplorerState},
     splash_modal::{self, SplashModal, SplashModalState},
     statusbar::{StatusBar, StatusBarState},
     stylized_text::{self, FontStyle},
@@ -65,6 +66,7 @@ pub struct AppState<'a> {
     note_editor: NoteEditorState<'a>,
     outline: OutlineState,
     selected_note: Option<SelectedNote>,
+    search_explorer: SearchExplorerState,
     toasts: Vec<Toast>,
 
     input_modal: InputModalState,
@@ -124,6 +126,8 @@ pub enum Message<'a> {
     NoteEditor(note_editor::Message),
     Outline(outline::Message),
     HelpModal(help_modal::Message),
+    ToggleSearchExplorer,
+    SearchExplorer(search_explorer::Message),
     VaultSelectorModal(vault_selector_modal::Message),
 }
 
@@ -136,6 +140,7 @@ pub enum ActivePane {
     Outline,
     Input,
     HelpModal,
+    SearchExplorer,
     VaultSelectorModal,
 }
 
@@ -148,6 +153,7 @@ impl From<ActivePane> for &str {
             ActivePane::Outline => "Outline",
             ActivePane::Input => "Input",
             ActivePane::HelpModal => "Help",
+            ActivePane::SearchExplorer => "Search",
             ActivePane::VaultSelectorModal => "Vault Selector",
         }
     }
@@ -289,6 +295,13 @@ impl<'a> App<'a> {
                         config.note_editor.key_to_message(key.into())
                     }
             }
+            ActivePane::SearchExplorer => {
+                if state.search_explorer.is_searching() {
+                    search_explorer::handle_searching_event(key).map(Message::SearchExplorer)
+                } else {
+                    config.search_explorer.key_to_message(key.into())
+                }
+            },
         }
     }
 
@@ -299,7 +312,9 @@ impl<'a> App<'a> {
     ) -> Option<Message<'a>> {
         let global_message = config.global.key_to_message(key.into());
 
-        let is_editing = state.note_editor.is_editing() || state.input_modal.is_editing();
+        let is_editing = state.note_editor.is_editing()
+            || state.input_modal.is_editing()
+            || state.search_explorer.is_searching();
 
         if global_message.is_some() && !is_editing {
             return global_message;
@@ -382,6 +397,10 @@ impl<'a> App<'a> {
                 }
                 ActivePane::Input => {
                     state.active_pane = active_pane;
+                }
+                ActivePane::SearchExplorer => {
+                    state.active_pane = active_pane;
+                    state.explorer.set_active(false);
                 }
                 _ => {}
             },
@@ -475,6 +494,25 @@ impl<'a> App<'a> {
                 return note_editor::update(&message, state.screen_size, &mut state.note_editor);
             }
             Message::Input(message) => return input::update(&message, &mut state.input_modal),
+            Message::ToggleSearchExplorer => {
+                if state.search_explorer.visible {
+                    state.search_explorer.close();
+                    return Some(Message::SetActivePane(ActivePane::Explorer));
+                } else {
+                    let entries = state.vault.entries();
+                    let notes = search_explorer::collect_all_notes(&entries);
+                    state.search_explorer.open(notes);
+                    state.explorer.set_active(false);
+                    return Some(Message::SetActivePane(ActivePane::SearchExplorer));
+                }
+            }
+            Message::SearchExplorer(message) => {
+                return search_explorer::update(
+                    &message,
+                    state.screen_size,
+                    &mut state.search_explorer,
+                );
+            }
             Message::Toast(message) => return toast::update(message, &mut state.toasts),
         };
 
@@ -490,10 +528,14 @@ impl<'a> App<'a> {
             .horizontal_margin(1)
             .areas(area);
 
-        let (left, right) = match state.explorer.visibility {
-            Visibility::Hidden => (Constraint::Length(4), Constraint::Fill(1)),
-            Visibility::Visible => (Constraint::Length(35), Constraint::Fill(1)),
-            Visibility::FullWidth => (Constraint::Fill(1), Constraint::Length(0)),
+        let (left, right) = if state.search_explorer.visible {
+            (Constraint::Length(35), Constraint::Fill(1))
+        } else {
+            match state.explorer.visibility {
+                Visibility::Hidden => (Constraint::Length(4), Constraint::Fill(1)),
+                Visibility::Visible => (Constraint::Length(35), Constraint::Fill(1)),
+                Visibility::FullWidth => (Constraint::Fill(1), Constraint::Length(0)),
+            }
         };
 
         let [explorer_pane, note, outline] = Layout::horizontal([
@@ -507,7 +549,11 @@ impl<'a> App<'a> {
         ])
         .areas(content);
 
-        Explorer::new().render(explorer_pane, buf, &mut state.explorer);
+        if state.search_explorer.visible {
+            SearchExplorer.render(explorer_pane, buf, &mut state.search_explorer);
+        } else {
+            Explorer::new().render(explorer_pane, buf, &mut state.explorer);
+        }
         NoteEditor::default().render(note, buf, &mut state.note_editor);
         Outline.render(outline, buf, &mut state.outline);
         Input.render(area, buf, &mut state.input_modal);
