@@ -339,7 +339,7 @@ impl ExplorerState {
         let index = self
             .list_state
             .selected()
-            .map(|i| (i + amount).min(self.flat_items.len().saturating_sub(1)));
+            .map(|i| i.saturating_add(amount).min(self.flat_items.len().saturating_sub(1)));
 
         self.list_state.select(index);
     }
