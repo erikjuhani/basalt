@@ -1,11 +1,17 @@
 ## Installation
 
-[[Basalt]] is available to install via [Cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html) and as pre-compiled binaries from [GitHub releases](https://github.com/erikjuhani/basalt/releases).
+[[Basalt]] is available to install via [Cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html), [aqua](https://aquaproj.github.io/docs/install), and as pre-compiled binaries from [GitHub releases](https://github.com/erikjuhani/basalt/releases).
 
 ### Cargo
 
 ```
 cargo install basalt-tui
+```
+
+### aqua
+
+```
+aqua g -i erikjuhani/basalt
 ```
 
 ### Pre-compiled binaries

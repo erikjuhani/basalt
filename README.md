@@ -15,10 +15,12 @@ Basalt is a cross-platform TUI (Terminal User Interface) for managing Obsidian v
   ```sh
   cargo install basalt-tui
   ```
+
 - Using [aqua](https://aquaproj.github.io/docs/install):
   ```sh
   aqua g -i erikjuhani/basalt
   ```
+
 Or download a pre-compiled binary from the [latest release](https://github.com/erikjuhani/basalt/releases/latest), extract it, and move the `basalt` binary to a location in your `PATH`.
 
 ## Configuration
