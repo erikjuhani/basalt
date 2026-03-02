@@ -247,7 +247,7 @@ fn read_user_config<'a>() -> Result<Config<'a>, ConfigError> {
 const BASE_CONFIGURATION_STR: &str =
     include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/config.toml"));
 
-const VIM_CONFIG_STR: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/vim.toml"));
+const VIM_CONFIGURATION_STR: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/vim.toml"));
 
 /// Loads and merges configuration from multiple sources in priority order.
 ///
@@ -267,8 +267,8 @@ pub fn load<'a>() -> Result<Config<'a>, ConfigError> {
     // This is pending a solution for toast notifications and proper warning/error logging.
     let user_config = read_user_config().ok();
 
-    if user_config.as_ref().is_some_and(|c| !c.vim_mode) {
-        let vim_config: Config = toml::from_str::<TomlConfig>(VIM_CONFIG_STR)
+    if user_config.as_ref().is_some_and(|c| c.vim_mode) {
+        let vim_config: Config = toml::from_str::<TomlConfig>(VIM_CONFIGURATION_STR)
             .map_err(ConfigError::from)?
             .into();
         config.merge(vim_config);

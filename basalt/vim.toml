@@ -1,3 +1,9 @@
+[input_modal]
+key_bindings = [
+ { key = "w", command = "input_modal_word_forward" },
+ { key = "b", command = "input_modal_word_backward" },
+]
+
 [note_editor]
 key_bindings = [
   { key = "gg", command = "note_editor_scroll_to_top" },

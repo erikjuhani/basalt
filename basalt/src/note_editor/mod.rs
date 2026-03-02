@@ -52,14 +52,14 @@ pub enum Message {
 
 // FIXME: Add resize message to handle resize related updates like cursor positioning
 pub fn update<'a>(
-    message: &Message,
+    message: Message,
     screen_size: Size,
     state: &mut NoteEditorState,
 ) -> Option<AppMessage<'a>> {
     match message {
         Message::CursorLeft => state.cursor_left(1),
         Message::CursorRight => state.cursor_right(1),
-        Message::JumpToBlock(idx) => state.cursor_jump(*idx),
+        Message::JumpToBlock(idx) => state.cursor_jump(idx),
         Message::CursorUp => {
             state.cursor_up(1);
             return Some(AppMessage::Outline(outline::Message::SelectAt(
@@ -73,13 +73,19 @@ pub fn update<'a>(
             )));
         }
         Message::ScrollUp(scroll_amount) => {
-            state.cursor_up(calc_scroll_amount(scroll_amount, screen_size.height.into()));
+            state.cursor_up(calc_scroll_amount(
+                &scroll_amount,
+                screen_size.height.into(),
+            ));
             return Some(AppMessage::Outline(outline::Message::SelectAt(
                 state.current_block(),
             )));
         }
         Message::ScrollDown(scroll_amount) => {
-            state.cursor_down(calc_scroll_amount(scroll_amount, screen_size.height.into()));
+            state.cursor_down(calc_scroll_amount(
+                &scroll_amount,
+                screen_size.height.into(),
+            ));
             return Some(AppMessage::Outline(outline::Message::SelectAt(
                 state.current_block(),
             )));

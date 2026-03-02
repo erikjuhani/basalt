@@ -505,9 +505,9 @@ impl<'a> App<'a> {
                 return outline::update(&message, &mut state.outline);
             }
             Message::NoteEditor(message) => {
-                return note_editor::update(&message, state.screen_size, &mut state.note_editor);
+                return note_editor::update(message, state.screen_size, &mut state.note_editor);
             }
-            Message::Input(message) => return input::update(&message, &mut state.input_modal),
+            Message::Input(message) => return input::update(message, &mut state.input_modal),
             Message::Toast(message) => return toast::update(message, &mut state.toasts),
         };
 
