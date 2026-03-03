@@ -51,6 +51,8 @@ Key differences from the defaults:
 | Input modal   | `w`  | Move cursor forward by word  |
 | Input modal   | `b`  | Move cursor backward by word |
 
+In the note editor, vim mode introduces Normal/Insert sub-modes within EDIT. Pressing `i` enters Insert mode for typing; `Esc` returns to Normal mode for navigation; pressing `Esc` again exits back to READ.
+
 The full vim preset is defined in `vim.toml`. Sections not defined in the preset keep their default bindings.
 
 ## Default configuration

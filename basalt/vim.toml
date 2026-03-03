@@ -15,11 +15,10 @@ key_bindings = [
   { key = "G",  command = "note_editor_scroll_to_bottom" },
 
   # Experimental editor
-  { key = "i", command = "note_editor_experimental_set_edit_view" },
+  { key = "i", command = "note_editor_insert_mode" },
   { key = "ctrl+e", command = "note_editor_experimental_toggle_view" },
   { key = "shift+r", command = "note_editor_experimental_set_read_view" },
   { key = "ctrl+x", command = "note_editor_experimental_save" },
-  { key = "esc", command = "note_editor_experimental_exit" },
   { key = "h", command = "note_editor_experimental_cursor_left" },
   { key = "l", command = "note_editor_experimental_cursor_right" },
   { key = "left", command = "note_editor_experimental_cursor_left" },

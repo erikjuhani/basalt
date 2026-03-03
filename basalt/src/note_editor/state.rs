@@ -54,9 +54,16 @@ pub struct NoteEditorState<'a> {
     filepath: PathBuf,
     filename: String,
     active: bool,
+    insert_mode: bool,
+    vim_mode: bool,
+    editor_enabled: bool,
     modified: bool,
     viewport: Viewport,
     text_buffer: Option<TextBuffer>,
+    /// Which block is currently in raw/edit mode. Stored explicitly so
+    /// the layout always matches the text_buffer, even when the cursor
+    /// position would temporarily resolve to a different block.
+    editing_block: Option<usize>,
 }
 
 impl<'a> NoteEditorState<'a> {
@@ -74,7 +81,11 @@ impl<'a> NoteEditorState<'a> {
             filepath: filepath.to_path_buf(),
             ast_nodes,
             active: false,
+            insert_mode: false,
+            vim_mode: false,
+            editor_enabled: false,
             modified: false,
+            editing_block: None,
         }
     }
 
@@ -86,11 +97,39 @@ impl<'a> NoteEditorState<'a> {
         matches!(self.view, View::Edit(..))
     }
 
+    pub fn insert_mode(&self) -> bool {
+        self.insert_mode
+    }
+
+    pub fn set_insert_mode(&mut self, mode: bool) {
+        self.insert_mode = mode;
+    }
+
+    pub fn vim_mode(&self) -> bool {
+        self.vim_mode
+    }
+
+    pub fn set_vim_mode(&mut self, mode: bool) {
+        self.vim_mode = mode;
+    }
+
+    pub fn editor_enabled(&self) -> bool {
+        self.editor_enabled
+    }
+
+    pub fn set_editor_enabled(&mut self, enabled: bool) {
+        self.editor_enabled = enabled;
+    }
+
     pub fn text_buffer(&self) -> Option<&TextBuffer> {
         self.text_buffer.as_ref()
     }
 
     pub fn enter_insert(&mut self, block_idx: usize) {
+        // Commit any pending edits from the previous block before switching.
+        self.commit_text_buffer();
+
+        self.editing_block = Some(block_idx);
         if let Some((_, block)) = self.virtual_document.get_block(block_idx) {
             let source_range = block.source_range();
             if let Some(content) = self.content.get(source_range.clone()) {
@@ -106,22 +145,33 @@ impl<'a> NoteEditorState<'a> {
         }
     }
 
-    pub fn exit_insert(&mut self) {
-        if matches!(self.view, View::Read) {
-            return;
-        }
-
+    /// Write the current text_buffer back to self.content if it was modified,
+    /// re-parse AST nodes. Returns true if content changed.
+    fn commit_text_buffer(&mut self) -> bool {
         if let Some(buffer) = self.text_buffer() {
             let new_content = buffer.write(&self.content);
             if self.content != new_content {
                 self.content = new_content;
                 self.ast_nodes = parser::from_str(&self.content);
-                self.update_layout();
                 self.modified = true;
+                return true;
             }
+        }
+        false
+    }
+
+    pub fn exit_insert(&mut self) {
+        if matches!(self.view, View::Read) {
+            return;
+        }
+
+        let changed = self.commit_text_buffer();
+        if changed {
+            self.update_layout();
         }
 
         self.text_buffer = None;
+        self.editing_block = None;
     }
 
     pub fn set_filename(&mut self, name: &str) {
@@ -228,8 +278,7 @@ impl<'a> NoteEditorState<'a> {
         if self.viewport.size_changed(size) {
             use cursor::Message::*;
 
-            let current_block_idx =
-                matches!(self.view, View::Edit(..)).then_some(self.current_block());
+            let current_block_idx = self.editing_block;
 
             self.virtual_document.layout(
                 &self.filename,
@@ -278,9 +327,7 @@ impl<'a> NoteEditorState<'a> {
     }
 
     pub fn modified(&self) -> bool {
-        self.text_buffer()
-            .map(|buffer| buffer.modified)
-            .unwrap_or(self.modified)
+        self.modified || self.text_buffer().is_some_and(|buffer| buffer.modified)
     }
 
     pub fn cursor_word_forward(&mut self) {
@@ -331,28 +378,46 @@ impl<'a> NoteEditorState<'a> {
         self.ensure_cursor_visible();
     }
 
+    pub fn cursor_to_end(&mut self) {
+        let last_block = self.virtual_document.blocks().len().saturating_sub(1);
+        self.cursor_jump(last_block);
+        // After jumping to the last block (which lands on its first line),
+        // move down to reach the actual last line within that block.
+        self.cursor_down(usize::MAX);
+    }
+
     pub fn cursor_jump(&mut self, idx: usize) {
-        use cursor::Message::*;
+        let prev_block_idx = self.current_block();
 
         if let Some(block) = self.virtual_document.blocks().get(idx) {
             self.cursor.update(
-                Jump(block.source_range.start),
+                cursor::Message::Jump(block.source_range.start),
                 self.virtual_document.lines(),
                 &self.text_buffer,
             );
         }
 
+        self.relayout_on_block_change(prev_block_idx);
         self.ensure_cursor_visible();
     }
 
     pub fn update_layout(&mut self) {
         use cursor::Message::*;
 
-        let current_block_idx = if matches!(self.view, View::Edit(..)) {
-            Some(self.current_block())
-        } else {
-            None
-        };
+        // Deferred initialization: if Edit mode was set before the viewport was
+        // sized (e.g. vim_mode at note open), initialize the text buffer now that
+        // the virtual document has been laid out.
+        if matches!(self.view, View::Edit(..)) && self.text_buffer.is_none() {
+            let block_idx = self.current_block();
+            self.enter_insert(block_idx);
+            self.cursor.update(
+                SwitchMode(cursor::CursorMode::Edit),
+                self.virtual_document.lines(),
+                &self.text_buffer,
+            );
+        }
+
+        let current_block_idx = self.editing_block;
 
         self.virtual_document.layout(
             &self.filename,
@@ -372,85 +437,83 @@ impl<'a> NoteEditorState<'a> {
     }
 
     pub fn cursor_up(&mut self, amount: usize) {
-        use cursor::Message::*;
-
         let prev_block_idx = self.current_block();
 
         self.cursor.update(
-            MoveUp(amount),
+            cursor::Message::MoveUp(amount),
             self.virtual_document.lines(),
             &self.text_buffer,
         );
 
-        if matches!(self.view, View::Edit(..)) {
-            let current_block_idx = self.current_block();
-
-            if current_block_idx != prev_block_idx {
-                self.enter_insert(current_block_idx);
-
-                self.virtual_document.layout(
-                    &self.filename,
-                    &self.content,
-                    &self.view,
-                    Some(current_block_idx),
-                    &self.ast_nodes,
-                    self.viewport.area().width.into(),
-                    self.text_buffer.clone(),
-                );
-
-                // Recalculate cursor position after layout change
-                // The virtual line indices have shifted, so we need to find the new position
-                // based on the source offset
-                self.cursor.update(
-                    Jump(self.cursor.source_offset()),
-                    self.virtual_document.lines(),
-                    &self.text_buffer,
-                );
-            }
-        }
-
+        self.relayout_on_block_change(prev_block_idx);
         self.ensure_cursor_visible();
     }
 
     pub fn cursor_down(&mut self, amount: usize) {
-        use cursor::Message::*;
-
         let prev_block_idx = self.current_block();
 
         self.cursor.update(
-            MoveDown(amount),
+            cursor::Message::MoveDown(amount),
             self.virtual_document.lines(),
             &self.text_buffer,
         );
 
-        if matches!(self.view, View::Edit(..)) {
-            let current_block_idx = self.current_block();
+        self.relayout_on_block_change(prev_block_idx);
+        self.ensure_cursor_visible();
+    }
 
-            if current_block_idx != prev_block_idx {
-                self.enter_insert(current_block_idx);
-
-                self.virtual_document.layout(
-                    &self.filename,
-                    &self.content,
-                    &self.view,
-                    Some(current_block_idx),
-                    &self.ast_nodes,
-                    self.viewport.area().width.into(),
-                    self.text_buffer.clone(),
-                );
-
-                // Recalculate cursor position after layout change
-                // The virtual line indices have shifted, so we need to find the new position
-                // based on the source offset
-                self.cursor.update(
-                    Jump(self.cursor.source_offset()),
-                    self.virtual_document.lines(),
-                    &self.text_buffer,
-                );
-            }
+    /// When the cursor crosses a block boundary in Edit mode, switch the
+    /// text_buffer to the new block and re-layout so the new block is
+    /// rendered in raw mode.
+    ///
+    /// After re-layout the source offset from the old layout may not
+    /// correspond to the same logical position (e.g. code-block visual
+    /// vs raw source ranges differ).  We determine whether the cursor
+    /// entered the block from above or below by comparing block indices
+    /// and whether the jump crossed more than one block (multi-block
+    /// jumps like gg/G always go to the entry edge).
+    fn relayout_on_block_change(&mut self, prev_block_idx: usize) {
+        if !matches!(self.view, View::Edit(..)) {
+            return;
         }
 
-        self.ensure_cursor_visible();
+        let target_block_idx = self.current_block();
+        if target_block_idx == prev_block_idx {
+            return;
+        }
+
+        let adjacent = prev_block_idx.abs_diff(target_block_idx) == 1;
+        let moved_up = target_block_idx < prev_block_idx;
+        let use_end = adjacent && moved_up;
+
+        let target_offset = self.ast_nodes.get(target_block_idx).map(|node| {
+            let range = node.source_range();
+            if use_end {
+                range.end.saturating_sub(1).max(range.start)
+            } else {
+                range.start
+            }
+        });
+
+        self.enter_insert(target_block_idx);
+
+        self.virtual_document.layout(
+            &self.filename,
+            &self.content,
+            &self.view,
+            self.editing_block,
+            &self.ast_nodes,
+            self.viewport.area().width.into(),
+            self.text_buffer.clone(),
+        );
+
+        if let Some(offset) = target_offset {
+            self.cursor.update(
+                cursor::Message::Jump(offset),
+                self.virtual_document.lines(),
+                &self.text_buffer,
+            );
+        }
     }
 
     pub fn save_to_file(&mut self) -> io::Result<()> {

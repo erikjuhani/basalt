@@ -113,6 +113,7 @@ An uppercase letter like `G` is shorthand for `shift+g` — shift is implied aut
 | `note_editor_experimental_cursor_right`           | Move cursor right              |
 | `note_editor_experimental_cursor_word_forward`    | Move cursor forward by word    |
 | `note_editor_experimental_cursor_word_backward`   | Move cursor backward by word   |
+| `note_editor_insert_mode`                         | Enter insert mode (vim mode)   |
 
 ### Input modal commands
 

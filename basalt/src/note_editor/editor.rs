@@ -23,9 +23,11 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
     type State = NoteEditorState<'a>;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        let mode_color = match state.view {
-            View::Edit(..) => Color::Green,
-            View::Read => Color::Red,
+        let (mode_label, mode_color) = match state.view {
+            View::Edit(..) if state.vim_mode() && state.insert_mode() => ("INSERT", Color::Green),
+            View::Edit(..) if state.vim_mode() => ("NORMAL", Color::Yellow),
+            View::Edit(..) => ("EDIT", Color::Green),
+            View::Read => ("READ", Color::Red),
         };
 
         let block = Block::bordered()
@@ -43,7 +45,7 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
             // ))
             .title_bottom(
                 [
-                    format!(" {}", state.view).fg(mode_color).bold().italic(),
+                    format!(" {mode_label}").fg(mode_color).bold().italic(),
                     if state.modified() {
                         "* ".bold().italic()
                     } else {

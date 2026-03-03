@@ -69,6 +69,7 @@
 # note_editor_experimental_cursor_right: moves cursor right
 # note_editor_experimental_cursor_word_forward: moves cursor forward by a word
 # note_editor_experimental_cursor_word_backward: moves cursor backwards by a word
+# note_editor_insert_mode: enters insert mode (vim mode)
 #
 # Input modal commands:
 #

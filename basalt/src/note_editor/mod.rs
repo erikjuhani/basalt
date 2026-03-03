@@ -48,6 +48,7 @@ pub enum Message {
     ScrollToBottom,
     JumpToBlock(usize),
     Delete,
+    InsertMode,
 }
 
 // FIXME: Add resize message to handle resize related updates like cursor positioning
@@ -56,6 +57,7 @@ pub fn update<'a>(
     screen_size: Size,
     state: &mut NoteEditorState,
 ) -> Option<AppMessage<'a>> {
+    let vim_mode = state.vim_mode();
     match message {
         Message::CursorLeft => state.cursor_left(1),
         Message::CursorRight => state.cursor_right(1),
@@ -97,8 +99,7 @@ pub fn update<'a>(
             )));
         }
         Message::ScrollToBottom => {
-            let last_block = state.virtual_document.blocks().len().saturating_sub(1);
-            state.cursor_jump(last_block);
+            state.cursor_to_end();
             return Some(AppMessage::Outline(outline::Message::SelectAt(
                 state.current_block(),
             )));
@@ -107,10 +108,18 @@ pub fn update<'a>(
     };
 
     match state.view {
-        View::Edit(..) => match message {
+        View::Edit(..) if state.insert_mode() => match message {
             Message::CursorWordForward => state.cursor_word_forward(),
             Message::CursorWordBackward => state.cursor_word_backward(),
-            Message::ToggleView => state.set_view(View::Read),
+            Message::ToggleView | Message::ReadView => {
+                state.set_insert_mode(false);
+                state.exit_insert();
+                state.set_view(View::Read);
+                return Some(AppMessage::UpdateSelectedNoteContent((
+                    state.content.to_string(),
+                    Some(state.ast_nodes.clone()),
+                )));
+            }
             Message::KeyEvent(key) => {
                 match key.code {
                     KeyCode::Char(c) => {
@@ -131,6 +140,26 @@ pub fn update<'a>(
                 state.delete_char();
             }
             Message::Exit => {
+                if vim_mode {
+                    state.set_insert_mode(false);
+                } else {
+                    state.set_insert_mode(false);
+                    state.exit_insert();
+                    state.set_view(View::Read);
+                    return Some(AppMessage::UpdateSelectedNoteContent((
+                        state.content.to_string(),
+                        Some(state.ast_nodes.clone()),
+                    )));
+                }
+            }
+            _ => {}
+        },
+        View::Edit(..) => match message {
+            // Normal mode (vim): navigation and read-mode equivalents
+            Message::CursorWordForward => state.cursor_word_forward(),
+            Message::CursorWordBackward => state.cursor_word_backward(),
+            Message::InsertMode | Message::EditView => state.set_insert_mode(true),
+            Message::ToggleView | Message::ReadView => {
                 state.exit_insert();
                 state.set_view(View::Read);
                 return Some(AppMessage::UpdateSelectedNoteContent((
@@ -138,11 +167,53 @@ pub fn update<'a>(
                     Some(state.ast_nodes.clone()),
                 )));
             }
+            Message::ToggleExplorer => {
+                return Some(AppMessage::Explorer(explorer::Message::Toggle));
+            }
+            Message::ToggleOutline => {
+                return Some(AppMessage::Outline(outline::Message::Toggle));
+            }
+            Message::SwitchPaneNext => {
+                state.set_active(false);
+                return Some(AppMessage::SetActivePane(ActivePane::Outline));
+            }
+            Message::SwitchPanePrevious => {
+                state.set_active(false);
+                return Some(AppMessage::SetActivePane(ActivePane::Explorer));
+            }
+            Message::Save => {
+                let modified = state.modified();
+                match state.save_to_file() {
+                    Ok(_) if modified => {
+                        return Some(AppMessage::Batch(vec![
+                            AppMessage::UpdateSelectedNoteContent((
+                                state.content.to_string(),
+                                None,
+                            )),
+                            AppMessage::Toast(toast::Message::Create(toast::Toast::success(
+                                "File saved",
+                                Duration::from_secs(2),
+                            ))),
+                        ]))
+                    }
+                    Err(_) => {
+                        return Some(AppMessage::Toast(toast::Message::Create(
+                            toast::Toast::error("Failed to save file", Duration::from_secs(2)),
+                        )))
+                    }
+                    _ => {}
+                }
+            }
             _ => {}
         },
         View::Read => match message {
-            Message::ToggleView => state.set_view(View::Edit(EditMode::Source)),
-            Message::EditView => state.set_view(View::Edit(EditMode::Source)),
+            Message::ToggleView if state.editor_enabled() => {
+                state.set_view(View::Edit(EditMode::Source))
+            }
+            Message::EditView | Message::InsertMode if state.editor_enabled() => {
+                state.set_view(View::Edit(EditMode::Source));
+                state.set_insert_mode(true);
+            }
             Message::ReadView => state.set_view(View::Read),
             Message::ToggleExplorer => {
                 return Some(AppMessage::Explorer(explorer::Message::Toggle));
@@ -173,8 +244,6 @@ pub fn update<'a>(
                             ))),
                         ]))
                     }
-                    // FIXME: Log the error.
-                    // This requires a logging system to store system logs for debugging purposes
                     Err(_) => {
                         return Some(AppMessage::Toast(toast::Message::Create(
                             toast::Toast::error("Failed to save file", Duration::from_secs(2)),
