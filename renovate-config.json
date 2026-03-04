@@ -74,7 +74,10 @@
       "matchDepNames": [
         "ghcr.io/renovatebot/renovate"
       ],
-      "automerge": true
+      "automerge": true,
+      "schedule": [
+        "0 0 * * 1"
+      ]
     },
     {
       "matchUpdateTypes": [
@@ -96,7 +99,10 @@
       "matchDepNames": [
         "renovatebot/github-action"
       ],
-      "automerge": true
+      "automerge": true,
+      "schedule": [
+        "0 0 * * 1"
+      ]
     }
   ]
 }
