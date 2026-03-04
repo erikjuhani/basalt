@@ -4,7 +4,7 @@
 
 ### Added
 
-- [eb66637](https://github.com/erikjuhani/basalt/commit/eb66637bd7498abe7dfae0d97069440eb9a35d38) Add support for sequential keys
+- [eb66637](https://github.com/erikjuhani/basalt/commit/eb66637bd7498abe7dfae0d97069440eb9a35d38) Add support for sequential keys by @erikjuhani
 
 > This change adds support for a sequence (or chord) of keys like 'gg' or
 > 'bn' or 'gth'.
@@ -18,7 +18,7 @@
 > Organized and structured the key code parsing, so it's more readable and
 > the 'special' cases are clearly represented.
 
-- [50d3b96](https://github.com/erikjuhani/basalt/commit/50d3b96d49cece4fb4b2936cc46553a641b2da31) Add sequence-aware key dispatch to app
+- [50d3b96](https://github.com/erikjuhani/basalt/commit/50d3b96d49cece4fb4b2936cc46553a641b2da31) Add sequence-aware key dispatch to app by @erikjuhani
 
 > This commit adds key sequence handling to basalt, which means that users
 > can create key bindings with a key sequence like `gg` or `ciw`.
@@ -35,7 +35,7 @@
 > Related to #400
 > Related to #212
 
-- [2cc478d](https://github.com/erikjuhani/basalt/commit/2cc478d3d592f19e70b26fbe0620166088ec95b0) Add scroll-to-top and scroll-to-bottom commands
+- [2cc478d](https://github.com/erikjuhani/basalt/commit/2cc478d3d592f19e70b26fbe0620166088ec95b0) Add scroll-to-top and scroll-to-bottom commands by @erikjuhani
 
 > Adds ScrollToTop/ScrollToBottom to the note editor and explorer message
 > enums, wired through new command variants: note_editor_scroll_to_top,
@@ -47,7 +47,7 @@
 > saturating_add clamps to usize::MAX and skip(lines.len()) exhausts the
 > iterator.
 
-- [0a1dfc9](https://github.com/erikjuhani/basalt/commit/0a1dfc926b2ef48220dc01c06f6c4bf791f0dec6) Add vim_mode config flag and vim.toml preset
+- [0a1dfc9](https://github.com/erikjuhani/basalt/commit/0a1dfc926b2ef48220dc01c06f6c4bf791f0dec6) Add vim_mode config flag and vim.toml preset by @erikjuhani
 
 > When vim_mode = true in the user config, a vim.toml preset is merged
 > between the base config and the user config, so users can still override
@@ -57,10 +57,50 @@
 >   and help modal (replacing ctrl+d / ctrl+u)
 > - gg / G for jump to top/bottom in note editor, explorer, and outline
 
+- [ae58ea4](https://github.com/erikjuhani/basalt/commit/ae58ea403b4a80e9fee71c2b5dd4ef457cbe6efb) Add vim Normal/Insert sub-modes to note editor
+
+> Add Normal/Insert sub-modes within EDIT mode. `i` enters Insert mode,
+> `Esc` returns to Normal for hjkl navigation, `Esc` again exits to READ.
+>
+> Fix block navigation in edit mode: track `editing_block` explicitly to
+> prevent layout oscillation, commit text_buffer before switching blocks,
+> fix `modified()` after block switch, and use AST source ranges for
+> correct cursor positioning when entering code blocks.
+
+### Changed
+
+- [0c9883c](https://github.com/erikjuhani/basalt/commit/0c9883c058c71b097bf7a55ed63cb61733c0734d) Replace default keybindings with vim preset when vim_mode is enabled
+
+> Instead of merging vim.toml bindings on top of the defaults, vim mode
+> now replaces the entire key_bindings set for each section it defines.
+> This ensures vim-style bindings like `gg` and `G` are the only way to
+> scroll to top/bottom, without leftover default bindings like
+> ctrl+shift+up/down.
+
+- [697b856](https://github.com/erikjuhani/basalt/commit/697b85682cb037cda90a2860652a2d3a82ab632d) Normalize lowercase+SHIFT keystrokes to uppercase
+
+> Some terminals send 'g'+SHIFT instead of 'G'+SHIFT. Normalize this in
+> `Keystroke::from` so key bindings match regardless of terminal behavior.
+> Also fix `From<&KeyEvent>` to go through the normalization path.
+
 ### Fixed
 
-- [90528cb](https://github.com/erikjuhani/basalt/commit/90528cb74b944d840297d68969116ba10680b45f) Fix integer overflow in explorer
+- [90528cb](https://github.com/erikjuhani/basalt/commit/90528cb74b944d840297d68969116ba10680b45f) Fix integer overflow in explorer by @erikjuhani
 
+
+- [b98cdf5](https://github.com/erikjuhani/basalt/commit/b98cdf5913e8c81df50e21e0630c0147587e7efd) Fix vim_mode config flag
+
+> Fix inverted vim_mode condition that loaded vim config when disabled...
+>
+> Add w/b word motion bindings for input modal in vim.toml and rename
+> VIM_CONFIG_STR to VIM_CONFIGURATION_STR for consistency
+
+- [cda1b25](https://github.com/erikjuhani/basalt/commit/cda1b25c784ae0f3eb3c23d401883d235d1ebe93) Fix cursor movement skipping blocks with no accessible content lines
+
+> When moving up/down, if the target line has no content (e.g. a synthetic
+> line in a visual code block), search in the opposite direction as a
+> fallback. This fixes ScrollToTop not working when the first element is a
+> code block, and ScrollToBottom not reaching the last line.
 
 ## [0.12.2](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.2) (Feb, 21 2026)
 
