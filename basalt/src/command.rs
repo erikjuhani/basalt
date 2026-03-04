@@ -88,6 +88,7 @@ pub(crate) enum Command {
     NoteEditorExperimentalExit,
     NoteEditorExperimentalCursorLeft,
     NoteEditorExperimentalCursorRight,
+    NoteEditorInsertMode,
 
     VaultSelectorModalUp,
     VaultSelectorModalDown,
@@ -188,6 +189,7 @@ fn str_to_command(s: &str) -> Option<Command> {
         "note_editor_experimental_exit" => Some(Command::NoteEditorExperimentalExit),
         "note_editor_experimental_cursor_left" => Some(Command::NoteEditorExperimentalCursorLeft),
         "note_editor_experimental_cursor_right" => Some(Command::NoteEditorExperimentalCursorRight),
+        "note_editor_insert_mode" => Some(Command::NoteEditorInsertMode),
 
         "vault_selector_modal_up" => Some(Command::VaultSelectorModalUp),
         "vault_selector_modal_down" => Some(Command::VaultSelectorModalDown),
@@ -363,6 +365,7 @@ impl From<Command> for Message<'_> {
             Command::NoteEditorExperimentalCursorRight => {
                 Message::NoteEditor(note_editor::Message::CursorRight)
             }
+            Command::NoteEditorInsertMode => Message::NoteEditor(note_editor::Message::InsertMode),
 
             Command::VaultSelectorModalClose => {
                 Message::VaultSelectorModal(vault_selector_modal::Message::Close)

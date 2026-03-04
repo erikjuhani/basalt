@@ -53,11 +53,19 @@ impl From<KeyCode> for Keystroke {
 
 impl From<(KeyCode, KeyModifiers)> for Keystroke {
     fn from((code, mut modifiers): (KeyCode, KeyModifiers)) -> Self {
-        if let KeyCode::Char(ch) = code {
-            if ch.is_uppercase() {
+        let code = match code {
+            KeyCode::Char(ch) if ch.is_uppercase() => {
                 modifiers.insert(KeyModifiers::SHIFT);
+                code
             }
-        }
+            KeyCode::Char(ch)
+                if modifiers.contains(KeyModifiers::SHIFT) && ch.is_ascii_lowercase() =>
+            {
+                // Normalize lowercase+SHIFT to uppercase
+                KeyCode::Char(ch.to_ascii_uppercase())
+            }
+            _ => code,
+        };
         Self { code, modifiers }
     }
 }
@@ -70,7 +78,7 @@ impl From<(char, KeyModifiers)> for Keystroke {
 
 impl From<&KeyEvent> for Keystroke {
     fn from(event: &KeyEvent) -> Self {
-        Keystroke::new(event.code, event.modifiers)
+        Self::from((event.code, event.modifiers))
     }
 }
 

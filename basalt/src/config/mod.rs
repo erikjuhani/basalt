@@ -45,6 +45,13 @@ impl ConfigSection<'_> {
         });
     }
 
+    /// Replaces this section's key_bindings entirely with those from another config.
+    pub(crate) fn replace_key_bindings(&mut self, config: Self) {
+        if !config.key_bindings.is_empty() {
+            self.key_bindings = config.key_bindings;
+        }
+    }
+
     pub fn sequence_to_message(&self, keys: &[Keystroke]) -> Option<Message<'_>> {
         let s: String = keys.iter().map(|k| k.to_string()).collect();
         self.key_bindings.get(&s).cloned()
@@ -132,6 +139,21 @@ impl Config<'_> {
         self.help_modal.merge_key_bindings(config.help_modal);
         self.vault_selector_modal
             .merge_key_bindings(config.vault_selector_modal);
+        self.clone()
+    }
+
+    /// Replaces key_bindings for each section that has bindings defined in the given config.
+    /// Sections with no bindings in the given config are left unchanged.
+    pub(crate) fn replace(&mut self, config: Self) -> Self {
+        self.global.replace_key_bindings(config.global);
+        self.explorer.replace_key_bindings(config.explorer);
+        self.splash.replace_key_bindings(config.splash);
+        self.outline.replace_key_bindings(config.outline);
+        self.input_modal.replace_key_bindings(config.input_modal);
+        self.note_editor.replace_key_bindings(config.note_editor);
+        self.help_modal.replace_key_bindings(config.help_modal);
+        self.vault_selector_modal
+            .replace_key_bindings(config.vault_selector_modal);
         self.clone()
     }
 }
@@ -247,7 +269,7 @@ fn read_user_config<'a>() -> Result<Config<'a>, ConfigError> {
 const BASE_CONFIGURATION_STR: &str =
     include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/config.toml"));
 
-const VIM_CONFIG_STR: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/vim.toml"));
+const VIM_CONFIGURATION_STR: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/vim.toml"));
 
 /// Loads and merges configuration from multiple sources in priority order.
 ///
@@ -267,11 +289,11 @@ pub fn load<'a>() -> Result<Config<'a>, ConfigError> {
     // This is pending a solution for toast notifications and proper warning/error logging.
     let user_config = read_user_config().ok();
 
-    if user_config.as_ref().is_some_and(|c| !c.vim_mode) {
-        let vim_config: Config = toml::from_str::<TomlConfig>(VIM_CONFIG_STR)
+    if user_config.as_ref().is_some_and(|c| c.vim_mode) {
+        let vim_config: Config = toml::from_str::<TomlConfig>(VIM_CONFIGURATION_STR)
             .map_err(ConfigError::from)?
             .into();
-        config.merge(vim_config);
+        config.replace(vim_config);
     }
 
     if let Some(user) = user_config {

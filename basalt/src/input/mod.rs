@@ -202,7 +202,7 @@ pub enum Message {
     EditMode,
 }
 
-pub fn update<'a>(message: &Message, state: &mut InputModalState) -> Option<AppMessage<'a>> {
+pub fn update<'a>(message: Message, state: &mut InputModalState) -> Option<AppMessage<'a>> {
     match message {
         Message::CursorLeft => {
             state.cursor_left(1);
@@ -251,11 +251,11 @@ pub fn update<'a>(message: &Message, state: &mut InputModalState) -> Option<AppM
             initial_input,
             callback,
         }) => {
-            state.set_input(initial_input);
+            state.set_input(&initial_input);
             state.set_row(position.y as usize);
             state.set_offset_x(position.x as usize);
-            state.set_label(label);
-            state.set_callback(callback);
+            state.set_label(&label);
+            state.set_callback(&callback);
             state.toggle_visibility();
             return Some(AppMessage::SetActivePane(ActivePane::Input));
         }

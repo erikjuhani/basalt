@@ -206,7 +206,10 @@ impl Cursor {
                 let current_idx = self.virtual_row;
                 let target_idx = current_idx.saturating_sub(amount);
 
-                for idx in (0..=target_idx).rev() {
+                // Search downward from target, then upward if no content line found
+                let iter = (0..=target_idx).rev().chain(target_idx + 1..current_idx);
+
+                for idx in iter {
                     if let Some(line) = lines.get(idx).filter(|line| line.has_content()) {
                         self.virtual_row = idx;
 
@@ -241,8 +244,11 @@ impl Cursor {
                 let current_idx = self.virtual_row;
                 let target_idx = current_idx.saturating_add(amount).min(lines.len());
 
-                for (idx, line) in lines.iter().enumerate().skip(target_idx) {
-                    if line.has_content() {
+                // Search forward from target, then backward if no content line found
+                let iter = (target_idx..lines.len()).chain((current_idx + 1..target_idx).rev());
+
+                for idx in iter {
+                    if let Some(line) = lines.get(idx).filter(|line| line.has_content()) {
                         self.virtual_row = idx;
 
                         if let Some(source_range) = line.source_range() {

@@ -30,22 +30,30 @@ This adds `Ctrl+Q` as a quit binding while keeping all other default global bind
 
 ## Vim mode
 
-Setting `vim_mode = true` enables a built-in keybinding preset modelled after vim. It is merged between the base defaults and your own config, so individual bindings can still be overridden.
+Setting `vim_mode = true` enables a built-in keybinding preset modelled after vim. For each section it defines, the vim preset **replaces** the default bindings entirely rather than merging with them. Your own config is still merged on top, so individual bindings can still be overridden.
 
 ```toml
 vim_mode = true
 ```
 
-The preset adds the following bindings:
+Key differences from the defaults:
 
-| Pane          | Key  | Command                 |
-| ------------- | ---- | ----------------------- |
-| Note editor   | `gg` | Jump to top of note     |
-| Note editor   | `G`  | Jump to bottom of note  |
-| Explorer      | `gg` | Jump to first item      |
-| Explorer      | `G`  | Jump to last item       |
-| Outline       | `gg` | Jump to first item      |
-| Outline       | `G`  | Jump to last item       |
+| Pane          | Key  | Command                      |
+| ------------- | ---- | ---------------------------- |
+| Note editor   | `gg` | Jump to top of note          |
+| Note editor   | `G`  | Jump to bottom of note       |
+| Note editor   | `w`  | Move cursor forward by word  |
+| Note editor   | `b`  | Move cursor backward by word |
+| Explorer      | `gg` | Jump to first item           |
+| Explorer      | `G`  | Jump to last item            |
+| Outline       | `gg` | Jump to first item           |
+| Outline       | `G`  | Jump to last item            |
+| Input modal   | `w`  | Move cursor forward by word  |
+| Input modal   | `b`  | Move cursor backward by word |
+
+In the note editor, vim mode introduces Normal/Insert sub-modes within EDIT. Pressing `i` enters Insert mode for typing; `Esc` returns to Normal mode for navigation; pressing `Esc` again exits back to READ.
+
+The full vim preset is defined in `vim.toml`. Sections not defined in the preset keep their default bindings.
 
 ## Default configuration
 

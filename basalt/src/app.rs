@@ -25,7 +25,7 @@ use crate::{
     note_editor::{
         self, ast,
         editor::NoteEditor,
-        state::{NoteEditorState, View},
+        state::{EditMode, NoteEditorState, View},
     },
     outline::{self, Outline, OutlineState},
     splash_modal::{self, SplashModal, SplashModalState},
@@ -289,7 +289,9 @@ impl<'a> App<'a> {
         key_event: KeyEvent,
     ) -> Option<Message<'a>> {
         match state.active_component() {
-            ActivePane::NoteEditor if state.note_editor.is_editing() => {
+            ActivePane::NoteEditor
+                if state.note_editor.is_editing() && state.note_editor.insert_mode() =>
+            {
                 state.pending_keys.clear();
                 note_editor::handle_editing_event(key_event).map(Message::NoteEditor)
             }
@@ -437,8 +439,16 @@ impl<'a> App<'a> {
                     &selected_note.path,
                 );
 
-                if !config.experimental_editor {
-                    state.note_editor.view = View::Read;
+                let vim_mode = config.vim_mode;
+                state.note_editor.set_vim_mode(vim_mode);
+
+                let editor_enabled = config.experimental_editor;
+                state.note_editor.set_editor_enabled(editor_enabled);
+
+                if editor_enabled && vim_mode {
+                    state.note_editor.set_view(View::Edit(EditMode::Source));
+                } else {
+                    state.note_editor.set_view(View::Read);
                 }
 
                 // TODO: This should be behind an event/message
@@ -505,9 +515,9 @@ impl<'a> App<'a> {
                 return outline::update(&message, &mut state.outline);
             }
             Message::NoteEditor(message) => {
-                return note_editor::update(&message, state.screen_size, &mut state.note_editor);
+                return note_editor::update(message, state.screen_size, &mut state.note_editor);
             }
-            Message::Input(message) => return input::update(&message, &mut state.input_modal),
+            Message::Input(message) => return input::update(message, &mut state.input_modal),
             Message::Toast(message) => return toast::update(message, &mut state.toasts),
         };
 
