@@ -114,6 +114,8 @@ pub enum Message<'a> {
         rename: Option<(PathBuf, PathBuf)>,
         select: Option<PathBuf>,
     },
+    CreateUntitledNote,
+    CreateUntitledFolder,
     OpenVault(&'a Vault),
     SelectNote(SelectedNote),
     UpdateSelectedNoteContent((String, Option<Vec<ast::Node>>)),
@@ -403,6 +405,47 @@ impl<'a> App<'a> {
                     ]));
                 }
             }
+            Message::CreateUntitledNote => match create_untitled_note(&state.vault) {
+                Ok(note) => {
+                    return Some(Message::Batch(vec![
+                        Message::RefreshVault {
+                            rename: None,
+                            select: Some(note.path().to_path_buf()),
+                        },
+                        Message::Toast(toast::Message::Create(toast::Toast::success(
+                            "Note created",
+                            Duration::from_secs(2),
+                        ))),
+                        Message::SelectNote(note.into()),
+                    ]));
+                }
+                Err(_) => {
+                    return Some(Message::Toast(toast::Message::Create(toast::Toast::error(
+                        "Failed to create a new note",
+                        Duration::from_secs(2),
+                    ))));
+                }
+            },
+            Message::CreateUntitledFolder => match create_untitled_dir(&state.vault) {
+                Ok(note) => {
+                    return Some(Message::Batch(vec![
+                        Message::RefreshVault {
+                            rename: None,
+                            select: Some(note.path().to_path_buf()),
+                        },
+                        Message::Toast(toast::Message::Create(toast::Toast::success(
+                            "Folder created",
+                            Duration::from_secs(2),
+                        ))),
+                    ]));
+                }
+                Err(_) => {
+                    return Some(Message::Toast(toast::Message::Create(toast::Toast::error(
+                        "Failed to create a new note",
+                        Duration::from_secs(2),
+                    ))));
+                }
+            },
             Message::SetActivePane(active_pane) => match active_pane {
                 ActivePane::Explorer => {
                     state.active_pane = active_pane;

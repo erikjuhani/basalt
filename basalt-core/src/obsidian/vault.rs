@@ -388,6 +388,7 @@ pub fn create_dir(vault: &Vault, name: &str) -> result::Result<Directory, Error>
 /// # })?;
 /// # Ok::<(), Error>(())
 /// ```
+/// FIXME: Support directory parameter to add folders automatically to sub paths
 pub fn create_untitled_dir(vault: &Vault) -> result::Result<Directory, Error> {
     create_dir(vault, "Untitled")
 }
