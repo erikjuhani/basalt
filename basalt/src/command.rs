@@ -36,6 +36,8 @@ pub(crate) enum Command {
     ExplorerOpen,
     ExplorerSort,
     ExplorerToggle,
+    ExplorerNewUntitledNote,
+    ExplorerNewUntitledFolder,
     ExplorerToggleInputRename,
     ExplorerToggleOutline,
     ExplorerSwitchPaneNext,
@@ -121,6 +123,8 @@ fn str_to_command(s: &str) -> Option<Command> {
         "explorer_open" => Some(Command::ExplorerOpen),
         "explorer_sort" => Some(Command::ExplorerSort),
         "explorer_toggle" => Some(Command::ExplorerToggle),
+        "explorer_new_untitled_note" => Some(Command::ExplorerNewUntitledNote),
+        "explorer_new_untitled_folder" => Some(Command::ExplorerNewUntitledFolder),
         "explorer_toggle_outline" => Some(Command::ExplorerToggleOutline),
         "explorer_toggle_input_rename" => Some(Command::ExplorerToggleInputRename),
         "explorer_switch_pane_next" => Some(Command::ExplorerSwitchPaneNext),
@@ -271,6 +275,8 @@ impl From<Command> for Message<'_> {
             Command::ExplorerScrollDownHalfPage => {
                 Message::Explorer(explorer::Message::ScrollDown(ScrollAmount::HalfPage))
             }
+            Command::ExplorerNewUntitledNote => Message::CreateUntitledNote,
+            Command::ExplorerNewUntitledFolder => Message::CreateUntitledFolder,
 
             Command::InputModalEditMode => Message::Input(input::Message::EditMode),
             Command::InputModalAccept => Message::Input(input::Message::Accept),
