@@ -97,7 +97,7 @@ jobs:
           ls -R "${cache_dir}"
 
       - name: Run renovate
-        uses: renovatebot/github-action@8d75b92f43899d483728e9a8a7fd44238020f6e6 # v46.1.2
+        uses: renovatebot/github-action@7b4b65bf31e07d4e3e51708d07700fb41bc03166 # v46.1.3
         env:
           RENOVATE_REPOSITORY_CACHE: ${{ github.event.inputs.repoCache || 'enabled' }}
           RENOVATE_REPOSITORIES: ${{ github.repository }}
