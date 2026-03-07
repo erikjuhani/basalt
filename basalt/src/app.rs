@@ -1,4 +1,4 @@
-use basalt_core::obsidian::{self, Note, Vault};
+use basalt_core::obsidian::{self, create_untitled_dir, create_untitled_note, Note, Vault};
 use ratatui::{
     buffer::Buffer,
     crossterm::event::{self, Event, KeyEvent, KeyEventKind},
@@ -110,9 +110,12 @@ pub enum Message<'a> {
     Spawn(String),
     Resize(Size),
     SetActivePane(ActivePane),
-    /// (original_path, new_path) TODO: Use tuple struct instead to be explicit
-    RefreshVault(Option<(PathBuf, PathBuf)>),
-    RefreshSelectedNote,
+    RefreshVault {
+        rename: Option<(PathBuf, PathBuf)>,
+        select: Option<PathBuf>,
+    },
+    CreateUntitledNote,
+    CreateUntitledFolder,
     OpenVault(&'a Vault),
     SelectNote(SelectedNote),
     UpdateSelectedNoteContent((String, Option<Vec<ast::Node>>)),
@@ -159,6 +162,16 @@ pub struct SelectedNote {
     name: String,
     path: PathBuf,
     content: String,
+}
+
+impl From<Note> for SelectedNote {
+    fn from(value: Note) -> Self {
+        Self {
+            name: value.name().to_string(),
+            path: value.path().to_path_buf(),
+            content: fs::read_to_string(value.path()).unwrap_or_default(),
+        }
+    }
 }
 
 impl From<&Note> for SelectedNote {
@@ -361,16 +374,15 @@ impl<'a> App<'a> {
             }
             Message::Quit => state.is_running = false,
             Message::Resize(size) => state.screen_size = size,
-            Message::RefreshVault(rename) => {
+            Message::RefreshVault { rename, select } => {
                 if let Some((old, new)) = &rename {
                     // FIXME: Handle error propagation when wiki link update fails
                     let _ = obsidian::vault::update_wiki_links(state.vault(), old, new);
                 }
-                state.explorer.with_entries(state.vault.entries(), rename);
-                return Some(Message::RefreshSelectedNote);
-            }
-            Message::RefreshSelectedNote => {
-                if state
+                state.explorer.with_entries(state.vault.entries(), select);
+
+                // Reload the note editor for the currently selected note
+                let selected_note = if state
                     .explorer
                     .list_state
                     .selected()
@@ -378,24 +390,62 @@ impl<'a> App<'a> {
                     .is_some_and(|(a, b)| a == b)
                 {
                     if let Some(Item::File(note)) = state.explorer.current_item() {
-                        state.note_editor = NoteEditorState::new(
-                            &fs::read_to_string(note.path()).ok()?,
-                            note.name(),
-                            note.path(),
-                        );
+                        Some(SelectedNote::from(note))
+                    } else {
+                        None
                     }
                 } else {
-                    let note = state.selected_note.clone()?;
-                    // FIXME: keep scroll state
-                    state.note_editor = NoteEditorState::new(
-                        &fs::read_to_string(&note.path).ok()?,
-                        &note.name,
-                        &note.path,
-                    );
-                    state.note_editor.update_layout();
+                    state.selected_note.clone()
+                };
+
+                if let Some(note) = selected_note {
+                    return Some(Message::Batch(vec![
+                        Message::SelectNote(note),
+                        Message::SetActivePane(ActivePane::Explorer),
+                    ]));
                 }
-                return Some(Message::SetActivePane(ActivePane::Explorer));
             }
+            Message::CreateUntitledNote => match create_untitled_note(&state.vault) {
+                Ok(note) => {
+                    return Some(Message::Batch(vec![
+                        Message::RefreshVault {
+                            rename: None,
+                            select: Some(note.path().to_path_buf()),
+                        },
+                        Message::Toast(toast::Message::Create(toast::Toast::success(
+                            "Note created",
+                            Duration::from_secs(2),
+                        ))),
+                        Message::SelectNote(note.into()),
+                    ]));
+                }
+                Err(_) => {
+                    return Some(Message::Toast(toast::Message::Create(toast::Toast::error(
+                        "Failed to create a new note",
+                        Duration::from_secs(2),
+                    ))));
+                }
+            },
+            Message::CreateUntitledFolder => match create_untitled_dir(&state.vault) {
+                Ok(note) => {
+                    return Some(Message::Batch(vec![
+                        Message::RefreshVault {
+                            rename: None,
+                            select: Some(note.path().to_path_buf()),
+                        },
+                        Message::Toast(toast::Message::Create(toast::Toast::success(
+                            "Folder created",
+                            Duration::from_secs(2),
+                        ))),
+                    ]));
+                }
+                Err(_) => {
+                    return Some(Message::Toast(toast::Message::Create(toast::Toast::error(
+                        "Failed to create a new note",
+                        Duration::from_secs(2),
+                    ))));
+                }
+            },
             Message::SetActivePane(active_pane) => match active_pane {
                 ActivePane::Explorer => {
                     state.active_pane = active_pane;
@@ -478,7 +528,7 @@ impl<'a> App<'a> {
                 return command::sync_command(
                     terminal,
                     command,
-                    &state.explorer.title,
+                    &state.vault.name,
                     note_name,
                     &note_path,
                 );
@@ -491,12 +541,7 @@ impl<'a> App<'a> {
                     .map(|note| (note.name.as_str(), note.path.to_string_lossy()))
                     .unwrap_or_default();
 
-                return command::spawn_command(
-                    command,
-                    &state.explorer.title,
-                    note_name,
-                    &note_path,
-                );
+                return command::spawn_command(command, &state.vault.name, note_name, &note_path);
             }
 
             Message::HelpModal(message) => {

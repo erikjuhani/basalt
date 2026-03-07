@@ -142,6 +142,9 @@ pub fn update<'a>(
             Message::Exit => {
                 if vim_mode {
                     state.set_insert_mode(false);
+                    if state.commit_text_buffer() {
+                        state.update_layout();
+                    }
                 } else {
                     state.set_insert_mode(false);
                     state.exit_insert();

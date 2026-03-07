@@ -132,6 +132,8 @@ key_bindings = [
  { key = "left", command = "explorer_hide_pane" },
  { key = "right", command = "explorer_expand_pane" },
  { key = "s", command = "explorer_sort" },
+ { key = "n", command = "explorer_new_untitled_note" },
+ { key = "shift+n", command = "explorer_new_untitled_folder" },
  { key = "r", command = "explorer_toggle_input_rename" },
  { key = "tab", command = "explorer_switch_pane_next" },
  { key = "shift+backtab", command = "explorer_switch_pane_previous" },
