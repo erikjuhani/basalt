@@ -103,13 +103,13 @@ fn sort_items_by(sort: Sort) -> impl Fn(&Item, &Item) -> Ordering {
     move |a, b| match (a.is_dir(), b.is_dir()) {
         (true, false) => Ordering::Less,
         (false, true) => Ordering::Greater,
-        (true, true) => Ordering::Equal,
+        (true, true) => natord::compare(a.name(), b.name()),
         _ => {
             let a = a.name().to_lowercase();
             let b = b.name().to_lowercase();
             match sort {
-                Sort::Asc => a.cmp(&b),
-                Sort::Desc => b.cmp(&a),
+                Sort::Asc => natord::compare(&a, &b),
+                Sort::Desc => natord::compare(&b, &a),
             }
         }
     }
