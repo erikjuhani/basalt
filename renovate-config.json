@@ -1,5 +1,5 @@
 {
-  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "$schema": "https://docs.renovatebot.com/renovate-global-schema.json",
   "extends": [
     "config:best-practices",
     ":disableDependencyDashboard",
@@ -76,17 +76,8 @@
       ],
       "automerge": true,
       "schedule": [
-        "0 0 * * 1"
+        "* 0-4 * * 1"
       ]
-    },
-    {
-      "matchUpdateTypes": [
-        "patch"
-      ],
-      "matchManagers": [
-        "github-actions"
-      ],
-      "automerge": true
     },
     {
       "matchUpdateTypes": [
@@ -101,8 +92,17 @@
       ],
       "automerge": true,
       "schedule": [
-        "0 0 * * 1"
+        "* 0-4 * * 1"
       ]
+    },
+    {
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "matchManagers": [
+        "github-actions"
+      ],
+      "automerge": true
     }
   ]
 }
