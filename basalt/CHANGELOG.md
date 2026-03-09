@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.12.3](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.3) (Unreleased)
+## [0.12.3](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.3) (Mar, 10 2026)
 
 ### Added
 
@@ -57,7 +57,7 @@
 >   and help modal (replacing ctrl+d / ctrl+u)
 > - gg / G for jump to top/bottom in note editor, explorer, and outline
 
-- [ae58ea4](https://github.com/erikjuhani/basalt/commit/ae58ea403b4a80e9fee71c2b5dd4ef457cbe6efb) Add vim Normal/Insert sub-modes to note editor
+- [ae58ea4](https://github.com/erikjuhani/basalt/commit/ae58ea403b4a80e9fee71c2b5dd4ef457cbe6efb) Add vim Normal/Insert sub-modes to note editor by @erikjuhani
 
 > Add Normal/Insert sub-modes within EDIT mode. `i` enters Insert mode,
 > `Esc` returns to Normal for hjkl navigation, `Esc` again exits to READ.
@@ -67,9 +67,15 @@
 > fix `modified()` after block switch, and use AST source ranges for
 > correct cursor positioning when entering code blocks.
 
+- [687ab46](https://github.com/erikjuhani/basalt/commit/687ab4694e681d1d117164932e62641c85fa31c8) Add create untitled note and folder commands
+
+> Bind `n` to create a new untitled note and `N` to create a new
+> untitled folder in the explorer. Both commands select the newly
+> created item in the explorer after creation.
+
 ### Changed
 
-- [0c9883c](https://github.com/erikjuhani/basalt/commit/0c9883c058c71b097bf7a55ed63cb61733c0734d) Replace default keybindings with vim preset when vim_mode is enabled
+- [0c9883c](https://github.com/erikjuhani/basalt/commit/0c9883c058c71b097bf7a55ed63cb61733c0734d) Replace default keybindings with vim preset when vim_mode is enabled by @erikjuhani
 
 > Instead of merging vim.toml bindings on top of the defaults, vim mode
 > now replaces the entire key_bindings set for each section it defines.
@@ -77,7 +83,7 @@
 > scroll to top/bottom, without leftover default bindings like
 > ctrl+shift+up/down.
 
-- [697b856](https://github.com/erikjuhani/basalt/commit/697b85682cb037cda90a2860652a2d3a82ab632d) Normalize lowercase+SHIFT keystrokes to uppercase
+- [697b856](https://github.com/erikjuhani/basalt/commit/697b85682cb037cda90a2860652a2d3a82ab632d) Normalize lowercase+SHIFT keystrokes to uppercase by @erikjuhani
 
 > Some terminals send 'g'+SHIFT instead of 'G'+SHIFT. Normalize this in
 > `Keystroke::from` so key bindings match regardless of terminal behavior.
@@ -88,19 +94,57 @@
 - [90528cb](https://github.com/erikjuhani/basalt/commit/90528cb74b944d840297d68969116ba10680b45f) Fix integer overflow in explorer by @erikjuhani
 
 
-- [b98cdf5](https://github.com/erikjuhani/basalt/commit/b98cdf5913e8c81df50e21e0630c0147587e7efd) Fix vim_mode config flag
+- [b98cdf5](https://github.com/erikjuhani/basalt/commit/b98cdf5913e8c81df50e21e0630c0147587e7efd) Fix vim_mode config flag by @erikjuhani
 
 > Fix inverted vim_mode condition that loaded vim config when disabled...
 >
 > Add w/b word motion bindings for input modal in vim.toml and rename
 > VIM_CONFIG_STR to VIM_CONFIGURATION_STR for consistency
 
-- [cda1b25](https://github.com/erikjuhani/basalt/commit/cda1b25c784ae0f3eb3c23d401883d235d1ebe93) Fix cursor movement skipping blocks with no accessible content lines
+- [cda1b25](https://github.com/erikjuhani/basalt/commit/cda1b25c784ae0f3eb3c23d401883d235d1ebe93) Fix cursor movement skipping blocks with no accessible content lines by @erikjuhani
 
 > When moving up/down, if the target line has no content (e.g. a synthetic
 > line in a visual code block), search in the opposite direction as a
 > fallback. This fixes ScrollToTop not working when the first element is a
 > code block, and ScrollToBottom not reaching the last line.
+
+- [ef9f76d](https://github.com/erikjuhani/basalt/commit/ef9f76dc160030a2313fa07bec0457acdd51b5bf) Fix first line not rendering in edit mode and vim save
+
+> When entering edit mode before layout, `enter_insert` couldn't find
+> blocks and created a spurious empty paragraph node, hiding the real
+> first line. Guard the empty-node fallback to only fire for genuinely
+> empty files.
+>
+> Also commit the text buffer when exiting vim insert mode so that save
+> writes the updated content.
+
+- [fea931b](https://github.com/erikjuhani/basalt/commit/fea931b76ad38e617cb7092c4fbacbc1e26365e1) Fix Explorer lexicographical order in item sorting
+
+> When you had items with number suffixes like 1, 2, 3, 100, the standard
+> rust comparison and ordering would not work as expected, as users are
+> usually expecting natural ordering. What happened was that we received:
+> "item 1, item 10, item 2" instead of "item 1, item 2, item 10".
+>
+> Added natord crate for natural sort ordering, and now explorer sorts the
+> items in expected order "item 1, item 2, and item 10".
+
+- [e80e4e2](https://github.com/erikjuhani/basalt/commit/e80e4e235a49b0feb1dd87727544605e8b80653c) Fix faulty app state after renaming
+
+> In some conditions after rename the state would be left in "limbo" and
+> "frozen" state, which meant that users could not navigate normally
+> anymore. This happened because we didn't correctly change to Explorer
+> pane after exiting from rename input.
+
+- [d7fb1c5](https://github.com/erikjuhani/basalt/commit/d7fb1c533f8ba33120030b41cd97c2a231623a35) Fix stale rendering after exiting vim insert mode
+
+> When using vim mode with NORMAL and INSERT modes, when creating writing
+> new nodes for example a heading and then exiting would result in visual
+> bug that appeared as if the current node merged with the next one, e.g.
+> a paragraph after our newly created heading looked liked it was merged
+> into it.
+>
+> Fixed the visual bug by accessing the ast_nodes directly, since
+> virtual_document in this case would have "stale" data.
 
 ## [0.12.2](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.2) (Feb, 21 2026)
 
