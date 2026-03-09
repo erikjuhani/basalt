@@ -404,6 +404,7 @@ impl<'a> App<'a> {
                         Message::SetActivePane(ActivePane::Explorer),
                     ]));
                 }
+                return Some(Message::SetActivePane(ActivePane::Explorer));
             }
             Message::CreateUntitledNote => match create_untitled_note(&state.vault) {
                 Ok(note) => {
