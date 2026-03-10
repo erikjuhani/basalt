@@ -4,8 +4,8 @@ expression: terminal.backend()
 ---
 "┏ Test ━━━━━━━━━━━━━━━━ ↓≡ ◀ ┓"
 "┃ ▾ TestDir                  ┃"
-"┃ │ ▸ Notes                  ┃"
 "┃ │ ▸ Amber Specs            ┃"
+"┃ │ ▸ Notes                  ┃"
 "┃ │   Andesite               ┃"
 "┃                            ┃"
 "┃                            ┃"

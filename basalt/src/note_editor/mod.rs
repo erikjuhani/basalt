@@ -140,17 +140,15 @@ pub fn update<'a>(
                 state.delete_char();
             }
             Message::Exit => {
-                if vim_mode {
-                    state.set_insert_mode(false);
-                } else {
-                    state.set_insert_mode(false);
-                    state.exit_insert();
+                state.set_insert_mode(false);
+                state.exit_insert();
+                if !vim_mode {
                     state.set_view(View::Read);
-                    return Some(AppMessage::UpdateSelectedNoteContent((
-                        state.content.to_string(),
-                        Some(state.ast_nodes.clone()),
-                    )));
                 }
+                return Some(AppMessage::UpdateSelectedNoteContent((
+                    state.content.to_string(),
+                    Some(state.ast_nodes.clone()),
+                )));
             }
             _ => {}
         },

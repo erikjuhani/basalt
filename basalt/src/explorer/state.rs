@@ -103,13 +103,13 @@ fn sort_items_by(sort: Sort) -> impl Fn(&Item, &Item) -> Ordering {
     move |a, b| match (a.is_dir(), b.is_dir()) {
         (true, false) => Ordering::Less,
         (false, true) => Ordering::Greater,
-        (true, true) => Ordering::Equal,
+        (true, true) => natord::compare(a.name(), b.name()),
         _ => {
             let a = a.name().to_lowercase();
             let b = b.name().to_lowercase();
             match sort {
-                Sort::Asc => a.cmp(&b),
-                Sort::Desc => b.cmp(&a),
+                Sort::Asc => natord::compare(&a, &b),
+                Sort::Desc => natord::compare(&b, &a),
             }
         }
     }
@@ -174,7 +174,7 @@ impl ExplorerState {
         }
     }
 
-    pub fn with_entries(&mut self, entries: Vec<VaultEntry>, rename: Option<(PathBuf, PathBuf)>) {
+    pub fn with_entries(&mut self, entries: Vec<VaultEntry>, select: Option<PathBuf>) {
         let items: Vec<Item> = entries
             .into_iter()
             .map(|entry| self.map_to_item(entry))
@@ -182,18 +182,14 @@ impl ExplorerState {
 
         self.flatten_with_items(&items);
 
-        if let Some((original_path, new_path)) = rename {
+        if let Some(path) = select {
             if let Some(index) = self.flat_items.iter().position(|(item, _)| match item {
-                Item::File(note) => note.path() == new_path,
-                Item::Directory { path: dir_path, .. } => dir_path == &new_path,
+                Item::File(note) => note.path() == path,
+                Item::Directory { path: dir_path, .. } => dir_path == &path,
             }) {
                 self.list_state.select(Some(index));
-
-                // Only update selection if the renamed item was the previously selected item
-                if self.selected_item_path.as_ref() == Some(&original_path) {
-                    self.selected_item_index = Some(index);
-                    self.selected_item_path = Some(new_path);
-                }
+                self.selected_item_index = Some(index);
+                self.selected_item_path = Some(path);
             }
         }
     }

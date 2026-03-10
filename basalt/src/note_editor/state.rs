@@ -130,12 +130,14 @@ impl<'a> NoteEditorState<'a> {
         self.commit_text_buffer();
 
         self.editing_block = Some(block_idx);
-        if let Some((_, block)) = self.virtual_document.get_block(block_idx) {
-            let source_range = block.source_range();
+        if let Some(node) = self.ast_nodes.get(block_idx) {
+            let source_range = node.source_range();
             if let Some(content) = self.content.get(source_range.clone()) {
                 self.text_buffer = Some(TextBuffer::new(content, source_range.clone()));
             }
-        } else {
+        } else if self.content.is_empty() {
+            // Only create an empty node for genuinely empty files, not when
+            // blocks haven't been laid out yet.
             let empty_node = ast::Node::Paragraph {
                 text: RichText::empty(),
                 source_range: 0..0,
@@ -147,7 +149,7 @@ impl<'a> NoteEditorState<'a> {
 
     /// Write the current text_buffer back to self.content if it was modified,
     /// re-parse AST nodes. Returns true if content changed.
-    fn commit_text_buffer(&mut self) -> bool {
+    pub fn commit_text_buffer(&mut self) -> bool {
         if let Some(buffer) = self.text_buffer() {
             let new_content = buffer.write(&self.content);
             if self.content != new_content {
@@ -165,11 +167,7 @@ impl<'a> NoteEditorState<'a> {
             return;
         }
 
-        let changed = self.commit_text_buffer();
-        if changed {
-            self.update_layout();
-        }
-
+        self.commit_text_buffer();
         self.text_buffer = None;
         self.editing_block = None;
     }

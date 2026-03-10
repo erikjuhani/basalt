@@ -237,7 +237,8 @@ pub fn update<'a>(message: Message, state: &mut InputModalState) -> Option<AppMe
                     state.input_mode = InputMode::Normal;
                     state.toggle_visibility();
                     state.modified = false;
-                    return Some(AppMessage::RefreshVault(rename));
+                    let select = rename.as_ref().map(|(_, new)| new.clone());
+                    return Some(AppMessage::RefreshVault { rename, select });
                 } else {
                     state.input_mode = InputMode::Normal;
                     return Some(AppMessage::Input(Message::Cancel));
