@@ -130,8 +130,8 @@ impl<'a> NoteEditorState<'a> {
         self.commit_text_buffer();
 
         self.editing_block = Some(block_idx);
-        if let Some((_, block)) = self.virtual_document.get_block(block_idx) {
-            let source_range = block.source_range();
+        if let Some(node) = self.ast_nodes.get(block_idx) {
+            let source_range = node.source_range();
             if let Some(content) = self.content.get(source_range.clone()) {
                 self.text_buffer = Some(TextBuffer::new(content, source_range.clone()));
             }
@@ -167,11 +167,7 @@ impl<'a> NoteEditorState<'a> {
             return;
         }
 
-        let changed = self.commit_text_buffer();
-        if changed {
-            self.update_layout();
-        }
-
+        self.commit_text_buffer();
         self.text_buffer = None;
         self.editing_block = None;
     }
