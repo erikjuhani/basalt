@@ -12,6 +12,8 @@ Use `j`/`k` or arrow keys to move through the file list and `Enter` to open a no
 | `k` / `↑`         | Move selector up                     |
 | `Enter`           | Open selected note                   |
 | `s`               | Toggle sort between A-z and Z-a      |
+| `n`               | Create new untitled note             |
+| `N`               | Create new untitled folder           |
 | `r`               | Rename selected note or directory    |
 | `t`               | Toggle explorer pane                 |
 | `h` / `←`         | Hide pane (stepped)                  |
