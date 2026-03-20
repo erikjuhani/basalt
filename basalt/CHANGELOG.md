@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.12.4](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.4) (Unreleased)
+
+### Changed
+
+- [a67ebed](https://github.com/erikjuhani/basalt/commit/a67ebed0f430f4d3a5c68be902a522731fde7249) Add `rust-version` to basalt Cargo manifest
+
+> Setting `rust-version` lets Cargo emit a clear error when someone
+> tries to build with a toolchain older than 1.91.0 and enables
+> version-aware dependency resolver behavior.
+>
+> Signed-off-by: Erik Kinnunen <erik.kinn@gmail.com>
+
 ## [0.12.3](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.3) (Mar, 10 2026)
 
 ### Added
