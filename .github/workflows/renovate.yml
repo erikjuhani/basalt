@@ -45,6 +45,7 @@ jobs:
   renovate:
     name: Renovate
     runs-on: ubuntu-latest
+    environment: renovate
     permissions:
       actions: write # Required to delete existing cache
       contents: read
