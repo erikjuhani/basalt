@@ -12,7 +12,9 @@ permissions: {}
 
 jobs:
   auto-approve:
+    name: Renovate Auto-Approve
     runs-on: ubuntu-latest
+    environment: renovate
     if: github.event.pull_request.user.login == 'renovate-updater[bot]'
 
     steps:
