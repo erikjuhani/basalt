@@ -27,6 +27,10 @@ Hidden files and folders (names starting with `.`) are not displayed.
 
 Press `s` in the [[Explorer]] to toggle between ascending and descending sort order. Folders always appear before files.
 
+## Creating
+
+Press `n` in the [[Explorer]] to create a new untitled note, or `N` to create a new untitled folder. The newly created item is automatically selected in the explorer after creation.
+
 ## Renaming
 
 Select an item in the [[Explorer]] and press `r` to open the rename dialog. Modify the name and press `Enter` to confirm or `Esc` to cancel.
@@ -37,7 +41,6 @@ When renaming a note, all wiki-links referencing that note are automatically upd
 
 The following file operations are not yet supported:
 
-- Creating new notes or folders
 - Deleting notes or folders
 - Moving notes or folders
 - Copying notes or folders

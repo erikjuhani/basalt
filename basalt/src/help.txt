@@ -74,6 +74,8 @@ INTERFACE
       ‹k / j›     Move selection up / down
       ‹↑ / ↓›     Move selection up / down
       ‹s›         Toggle note sorting
+      ‹n›         Create new untitled note
+      ‹N›         Create new untitled folder
       ‹r›         Rename selected note or directory
       ‹t›         Toggle explorer panel visibility
       ‹← / h›     Hide explorer panel
@@ -237,6 +239,7 @@ CONFIGURATION
 
   EXPLORER COMMANDS:
     explorer_up, explorer_down, explorer_open, explorer_sort, explorer_toggle,
+    explorer_new_untitled_note, explorer_new_untitled_folder,
     explorer_toggle_input_rename, explorer_switch_pane, explorer_scroll_up_one,
     explorer_scroll_down_one, explorer_scroll_up_half_page,
     explorer_scroll_down_half_page
@@ -280,6 +283,7 @@ FEATURES
   • View markdown notes in a readable, custom styled format
   • Toggle between focused note reading and vault exploration
   • Sort notes alphabetically
+  • Create new notes and folders from the explorer
   • Rename notes and directories from the explorer
   • Input modal with text editing for interactive operations
   • Experimental editor mode for note modification (when enabled)
