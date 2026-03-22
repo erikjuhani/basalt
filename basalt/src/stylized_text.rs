@@ -16,7 +16,8 @@
 /// - BlackBoardBold (𝔹𝕝𝕒𝕔𝕜𝔹𝕠𝕒𝕣𝕕𝔹𝕠𝕝𝕕)
 /// - FrakturBold (𝕱𝖗𝖆𝖐𝖙𝖚𝖗𝕭𝖔𝖑𝖉)
 /// - Script (𝓢𝓬𝓻𝓲𝓹𝓽)
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum FontStyle {
     /// Blackboard Bold (Double-struck) style (e.g., 𝕋𝕚𝕥𝕝𝕖).
     BlackBoardBold,
