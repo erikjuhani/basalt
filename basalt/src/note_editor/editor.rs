@@ -108,7 +108,7 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
 mod tests {
     use std::path::Path;
 
-    use crate::note_editor::state::EditMode;
+    use crate::{config::Symbols, note_editor::state::EditMode};
 
     use super::*;
     use indoc::indoc;
@@ -226,7 +226,8 @@ mod tests {
 
         tests.iter().for_each(|text| {
             _ = terminal.clear();
-            let mut state = NoteEditorState::new(text, "Test", Path::new("test.md"));
+            let mut state =
+                NoteEditorState::new(text, "Test", Path::new("test.md"), &Symbols::unicode());
             terminal
                 .draw(|frame| {
                     NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut state)
@@ -262,12 +263,19 @@ mod tests {
             ),
             (
                 "read_mode_with_content",
-                Box::new(|_| NoteEditorState::new(content, "Test", Path::new("test.md"))),
+                Box::new(|_| {
+                    NoteEditorState::new(content, "Test", Path::new("test.md"), &Symbols::unicode())
+                }),
             ),
             (
                 "edit_mode_with_content",
                 Box::new(|_| {
-                    let mut state = NoteEditorState::new(content, "Test", Path::new("test.md"));
+                    let mut state = NoteEditorState::new(
+                        content,
+                        "Test",
+                        Path::new("test.md"),
+                        &Symbols::unicode(),
+                    );
                     state.set_view(View::Edit(EditMode::Source));
                     state
                 }),
@@ -275,7 +283,12 @@ mod tests {
             (
                 "edit_mode_with_content_and_simple_change",
                 Box::new(|area| {
-                    let mut state = NoteEditorState::new(content, "Test", Path::new("test.md"));
+                    let mut state = NoteEditorState::new(
+                        content,
+                        "Test",
+                        Path::new("test.md"),
+                        &Symbols::unicode(),
+                    );
                     state.resize_viewport(area.as_size());
                     state.set_view(View::Edit(EditMode::Source));
                     state.insert_char('#');
@@ -287,7 +300,12 @@ mod tests {
             (
                 "edit_mode_with_arbitrary_cursor_move",
                 Box::new(|area| {
-                    let mut state = NoteEditorState::new(content, "Test", Path::new("test.md"));
+                    let mut state = NoteEditorState::new(
+                        content,
+                        "Test",
+                        Path::new("test.md"),
+                        &Symbols::unicode(),
+                    );
                     state.resize_viewport(area.as_size());
                     state.set_view(View::Edit(EditMode::Source));
                     state.cursor_right(7);
@@ -306,7 +324,12 @@ mod tests {
             (
                 "edit_mode_with_content_with_complete_word_input_change",
                 Box::new(|area| {
-                    let mut state = NoteEditorState::new(content, "Test", Path::new("test.md"));
+                    let mut state = NoteEditorState::new(
+                        content,
+                        "Test",
+                        Path::new("test.md"),
+                        &Symbols::unicode(),
+                    );
                     state.resize_viewport(area.as_size());
                     state.cursor_down(1);
                     state.set_view(View::Edit(EditMode::Source));
@@ -496,7 +519,8 @@ mod tests {
         let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
 
         tests.into_iter().for_each(|(name, content)| {
-            let mut state = NoteEditorState::new(content, name, Path::new("test.md"));
+            let mut state =
+                NoteEditorState::new(content, name, Path::new("test.md"), &Symbols::unicode());
             _ = terminal.clear();
             terminal
                 .draw(|frame| {

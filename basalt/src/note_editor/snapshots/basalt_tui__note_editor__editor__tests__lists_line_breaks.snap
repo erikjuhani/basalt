@@ -9,7 +9,7 @@ expression: terminal.backend()
 "│ Lists with line breaks                                                       │"
 "│ ──────────────────────────────────────────────────────────────────────────── │"
 "│ You can use line breaks within an ordered list without altering the          │"
-"│  ⤷ numbering.                                                                │"
+"│ ⤷ numbering.                                                                 │"
 "│                                                                              │"
 "│ 1. First list item                                                           │"
 "│ 2. Second list item                                                          │"

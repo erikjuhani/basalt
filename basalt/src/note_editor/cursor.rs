@@ -424,10 +424,13 @@ mod tests {
     use ratatui::text::Span;
 
     use super::*;
-    use crate::note_editor::{
-        parser,
-        render::{render_node, RenderStyle},
-        text_buffer::TextBuffer,
+    use crate::{
+        config::Symbols,
+        note_editor::{
+            parser,
+            render::{render_node, RenderStyle},
+            text_buffer::TextBuffer,
+        },
     };
 
     fn render_lines(content: &str) -> Vec<VirtualLine<'static>> {
@@ -440,6 +443,8 @@ mod tests {
                     80,
                     Span::default(),
                     &RenderStyle::Raw,
+                    &Symbols::unicode(),
+                    0,
                 )
                 .lines
             })
@@ -682,6 +687,8 @@ mod tests {
                     80,
                     Span::default(),
                     &RenderStyle::Visual,
+                    &Symbols::unicode(),
+                    0,
                 )
                 .lines
             })
