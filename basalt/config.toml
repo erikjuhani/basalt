@@ -102,6 +102,9 @@
 experimental_editor = false
 vim_mode = false
 
+[symbols]
+preset = "unicode"
+
 [global]
 key_bindings = [
  { key = "q", command = "quit" },

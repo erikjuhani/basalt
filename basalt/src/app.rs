@@ -210,11 +210,11 @@ pub struct App<'a> {
 }
 
 impl<'a> App<'a> {
-    pub fn new(state: AppState<'a>, terminal: DefaultTerminal) -> Self {
+    pub fn new(state: AppState<'a>, config: Config<'a>, terminal: DefaultTerminal) -> Self {
         Self {
             state,
             // TODO: Surface toast if read config returns error
-            config: config::load().unwrap(),
+            config,
             terminal: RefCell::new(terminal),
         }
     }
@@ -222,16 +222,21 @@ impl<'a> App<'a> {
     pub fn start(terminal: DefaultTerminal, vaults: Vec<&Vault>) -> Result<()> {
         let version = stylized_text::stylize(VERSION, FontStyle::Script);
         let size = terminal.size()?;
+        let config = config::load().unwrap();
 
         let state = AppState {
             screen_size: size,
             help_modal: HelpModalState::new(&help_text(&version)),
             vault_selector_modal: VaultSelectorModalState::new(vaults.clone()),
             splash_modal: SplashModalState::new(&version, vaults, true),
+            outline: OutlineState {
+                symbols: config.symbols.clone(),
+                ..Default::default()
+            },
             ..Default::default()
         };
 
-        App::new(state, terminal).run()
+        App::new(state, config, terminal).run()
     }
 
     fn run(&'a mut self) -> Result<()> {
@@ -473,7 +478,7 @@ impl<'a> App<'a> {
             },
             Message::OpenVault(vault) => {
                 state.vault = vault.clone();
-                state.explorer = ExplorerState::new(&vault.name, vault.entries());
+                state.explorer = ExplorerState::new(&vault.name, vault.entries(), &config.symbols);
                 state.note_editor = NoteEditorState::default();
                 return Some(Message::SetActivePane(ActivePane::Explorer));
             }
@@ -488,6 +493,7 @@ impl<'a> App<'a> {
                     &selected_note.content,
                     &selected_note.name,
                     &selected_note.path,
+                    &config.symbols,
                 );
 
                 let vim_mode = config.vim_mode;
@@ -507,6 +513,7 @@ impl<'a> App<'a> {
                     &state.note_editor.ast_nodes,
                     state.note_editor.current_block(),
                     state.outline.is_open(),
+                    &config.symbols,
                 );
 
                 if state.explorer.visibility == Visibility::FullWidth && is_different {
