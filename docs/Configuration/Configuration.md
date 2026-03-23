@@ -55,6 +55,15 @@ In the note editor, vim mode introduces Normal/Insert sub-modes within EDIT. Pre
 
 The full vim preset is defined in `vim.toml`. Sections not defined in the preset keep their default bindings.
 
+## Symbols
+
+The `[symbols]` table controls the visual glyphs used across the interface. Basalt ships with three presets: `unicode` (default), `ascii` and `nerd-font`. Individual symbols can be overridden on top of any preset. See [[Symbols]] for the full reference.
+
+```toml
+[symbols]
+preset = "unicode"
+```
+
 ## Default configuration
 
 The full default configuration is shown below. The default `exec:` and `spawn:` commands use macOS conventions (`vi`, `open`). On Linux, replace `open` with `xdg-open`; on Windows, use `start`. See [[Custom commands]] for details.
