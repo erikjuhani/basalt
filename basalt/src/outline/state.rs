@@ -2,7 +2,10 @@ use std::{iter::Peekable, ops::Range, slice::Iter};
 
 use ratatui::widgets::ListState;
 
-use crate::note_editor::ast::{HeadingLevel, Node};
+use crate::{
+    config::Symbols,
+    note_editor::ast::{HeadingLevel, Node},
+};
 
 use super::item::{FindItem, Flatten, Item};
 
@@ -13,6 +16,7 @@ pub struct OutlineState {
     pub(crate) open: bool,
     pub(crate) list_state: ListState,
     pub(crate) active: bool,
+    pub(crate) symbols: Symbols,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -127,7 +131,7 @@ impl HeadingsAsItems for Vec<Heading> {
 }
 
 impl OutlineState {
-    pub fn new(nodes: &[Node], index: usize, open: bool) -> Self {
+    pub fn new(nodes: &[Node], index: usize, open: bool, symbols: &Symbols) -> Self {
         let headings = nodes.to_headings();
 
         let mut state = OutlineState {
@@ -135,6 +139,7 @@ impl OutlineState {
             selected_item_index: None,
             items: headings.to_items(nodes.len()),
             list_state: ListState::default(),
+            symbols: symbols.clone(),
             ..Default::default()
         };
         state.select_at(index);
