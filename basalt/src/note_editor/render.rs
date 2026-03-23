@@ -79,13 +79,11 @@ fn text_wrap_internal<'a>(
                     content_span!(content_span, line_source_range)
                 ]),
                 _ => {
+                    let marker_padding = marker.as_ref().map(|m| m.width()).unwrap_or(0);
                     virtual_line!([
                         synthetic_span!(prefix),
-                        synthetic_span!(Span::styled(
-                            " ".repeat(prefix_width.saturating_sub(1).max(1)),
-                            prefix.style
-                        )),
-                        synthetic_span!(Span::styled(wrap_marker, Style::new().black())),
+                        synthetic_span!(Span::styled(" ".repeat(marker_padding), prefix.style)),
+                        synthetic_span!(Span::styled(wrap_marker.clone(), Style::new().black())),
                         content_span!(content_span, line_source_range)
                     ])
                 }
