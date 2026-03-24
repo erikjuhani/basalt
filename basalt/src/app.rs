@@ -583,8 +583,8 @@ impl<'a> App<'a> {
 
     fn render_splash(&self, area: Rect, buf: &mut Buffer, state: &mut SplashModalState<'a>) {
         let border_modal = self.config.symbols.border_modal.into();
-        let selected_symbol = self.config.symbols.selected.clone();
-        SplashModal::new(border_modal, selected_symbol).render(area, buf, state)
+        let vault_active = self.config.symbols.vault_active.clone();
+        SplashModal::new(border_modal, vault_active).render(area, buf, state)
     }
 
     fn render_main(&self, area: Rect, buf: &mut Buffer, state: &mut AppState<'a>) {
@@ -649,8 +649,8 @@ impl<'a> App<'a> {
 
         if state.vault_selector_modal.visible {
             let border_modal = self.config.symbols.border_modal.into();
-            let selected_symbol = self.config.symbols.selected.clone();
-            VaultSelectorModal::new(border_modal, selected_symbol).render(
+            let vault_active = self.config.symbols.vault_active.clone();
+            VaultSelectorModal::new(border_modal, vault_active).render(
                 area,
                 buf,
                 &mut state.vault_selector_modal,

@@ -94,15 +94,15 @@ impl<'a> VaultSelectorModalState<'a> {
 pub struct VaultSelectorModal<'a> {
     _lifetime: PhantomData<&'a ()>,
     pub border_type: BorderType,
-    pub selected_symbol: String,
+    pub vault_active: String,
 }
 
 impl<'a> VaultSelectorModal<'a> {
-    pub fn new(border_type: BorderType, selected_symbol: String) -> Self {
+    pub fn new(border_type: BorderType, vault_active: String) -> Self {
         Self {
             _lifetime: PhantomData,
             border_type,
-            selected_symbol,
+            vault_active,
         }
     }
 
@@ -124,7 +124,7 @@ impl<'a> StatefulWidget for VaultSelectorModal<'a> {
     {
         let area = self.modal_area(area);
         Widget::render(Clear, area, buf);
-        VaultSelector::new(self.border_type, self.selected_symbol).render(
+        VaultSelector::new(self.border_type, self.vault_active).render(
             area,
             buf,
             &mut state.vault_selector_state,
