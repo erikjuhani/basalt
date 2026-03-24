@@ -32,7 +32,7 @@ use crate::{
     statusbar::{StatusBar, StatusBarState},
     stylized_text::{self, FontStyle},
     text_counts::{CharCount, WordCount},
-    toast::{self, Toast, TOAST_HEIGHT, TOAST_WIDTH},
+    toast::{self, Toast, TOAST_WIDTH},
     vault_selector_modal::{self, VaultSelectorModal, VaultSelectorModalState},
 };
 
@@ -222,7 +222,7 @@ impl<'a> App<'a> {
     pub fn start(terminal: DefaultTerminal, vaults: Vec<&Vault>) -> Result<()> {
         let version = stylized_text::stylize(VERSION, FontStyle::Script);
         let size = terminal.size()?;
-        let config = config::load().unwrap();
+        let (config, warnings) = config::load().unwrap();
 
         let state = AppState {
             screen_size: size,
@@ -233,6 +233,10 @@ impl<'a> App<'a> {
                 symbols: config.symbols.clone(),
                 ..Default::default()
             },
+            toasts: warnings
+                .into_iter()
+                .map(|message| toast::Toast::warn(&message, Duration::from_secs(5)))
+                .collect(),
             ..Default::default()
         };
 
@@ -646,8 +650,11 @@ impl<'a> App<'a> {
         if state.vault_selector_modal.visible {
             let border_modal = self.config.symbols.border_modal.into();
             let selected_symbol = self.config.symbols.selected.clone();
-            VaultSelectorModal::new(border_modal, selected_symbol)
-                .render(area, buf, &mut state.vault_selector_modal);
+            VaultSelectorModal::new(border_modal, selected_symbol).render(
+                area,
+                buf,
+                &mut state.vault_selector_modal,
+            );
         }
 
         if state.help_modal.visible {
@@ -663,23 +670,18 @@ impl<'a> App<'a> {
                 .flex(Flex::End)
                 .areas(area);
 
-        state
-            .toasts
-            .iter()
-            .rev()
-            .enumerate()
-            .for_each(|(i, toast)| {
-                let mut toast_area = toast_area;
-                if i > 0 {
-                    toast_area.y += (i * TOAST_HEIGHT as usize) as u16;
-                }
-                if toast_area.y >= area.bottom() {
-                    return;
-                }
-                let mut toast = toast.clone();
-                toast.border_type = self.config.symbols.border_modal.into();
-                toast.render(toast_area, buf)
-            });
+        let mut y_offset: u16 = 0;
+        state.toasts.iter().rev().for_each(|toast| {
+            let mut toast_area = toast_area;
+            toast_area.y += y_offset;
+            y_offset += toast.height();
+            if toast_area.y >= area.bottom() {
+                return;
+            }
+            let mut toast = toast.clone();
+            toast.border_type = self.config.symbols.border_modal.into();
+            toast.render(toast_area, buf)
+        });
     }
 }
 

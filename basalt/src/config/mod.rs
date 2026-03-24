@@ -33,6 +33,8 @@ pub enum ConfigError {
     UnknownKeyModifiers(String),
     #[error("User config not found: {0}")]
     UserConfigNotFound(String),
+    #[error("Invalid config: {0}")]
+    InvalidConfig(String),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -272,7 +274,7 @@ fn read_user_config<'a>() -> Result<Config<'a>, ConfigError> {
 
     toml::from_str::<TomlConfig>(&read_to_string(config_path)?)
         .map(Config::from)
-        .map_err(ConfigError::from)
+        .map_err(|err| ConfigError::InvalidConfig(err.message().to_string()))
 }
 
 const BASE_CONFIGURATION_STR: &str =
@@ -289,14 +291,16 @@ const VIM_CONFIGURATION_STR: &str = include_str!(concat!(env!("CARGO_MANIFEST_DI
 ///
 /// # Configuration Precedence
 /// System overrides > User config > Base config
-pub fn load<'a>() -> Result<Config<'a>, ConfigError> {
+pub fn load<'a>() -> Result<(Config<'a>, Vec<String>), ConfigError> {
     // TODO: Use compile time toml parsing instead to check the build error during compile time
     // Requires a custom proc-macro workspace crate
     let mut config: Config = toml::from_str::<TomlConfig>(BASE_CONFIGURATION_STR)?.into();
 
-    // TODO: Parsing errors related to the configuration file should ideally be surfaced as warnings.
-    // This is pending a solution for toast notifications and proper warning/error logging.
-    let user_config = read_user_config().ok();
+    let (user_config, warnings) = match read_user_config() {
+        Ok(config) => (Some(config), vec![]),
+        Err(ConfigError::UserConfigNotFound(_)) => (None, vec![]),
+        Err(err) => (None, vec![err.to_string()]),
+    };
 
     if user_config.as_ref().is_some_and(|c| c.vim_mode) {
         let vim_config: Config = toml::from_str::<TomlConfig>(VIM_CONFIGURATION_STR)
@@ -316,7 +320,7 @@ pub fn load<'a>() -> Result<Config<'a>, ConfigError> {
         .global
         .merge_key_bindings(system_key_binding_overrides);
 
-    Ok(config)
+    Ok((config, warnings))
 }
 
 #[cfg(test)]

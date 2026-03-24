@@ -11,7 +11,6 @@ use ratatui::{
 use crate::app::Message as AppMessage;
 
 pub const TOAST_WIDTH: u16 = 40;
-pub const TOAST_HEIGHT: u16 = 3;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Toast {
@@ -63,6 +62,12 @@ impl Toast {
     pub fn is_expired(&self) -> bool {
         self.created_at.elapsed() >= self.duration
     }
+
+    pub fn height(&self) -> u16 {
+        let content_width = TOAST_WIDTH.saturating_sub(6) as usize;
+        let wrapped = textwrap::wrap(&self.message, content_width);
+        wrapped.len().max(1) as u16 + 2
+    }
 }
 
 impl Widget for Toast {
@@ -70,6 +75,7 @@ impl Widget for Toast {
     where
         Self: Sized,
     {
+        let height = self.height();
         let (icon, color) = if let Some(level) = self.level {
             (level.icon(), level.color())
         } else {
@@ -84,20 +90,32 @@ impl Widget for Toast {
             x: area.x,
             y: area.y,
             width: TOAST_WIDTH.min(area.width),
-            height: TOAST_HEIGHT.min(area.height),
+            height: height.min(area.height),
         };
 
         Clear.render(toast_area, buf);
 
-        let content = Line::from(vec![
-            Span::from(" "),
-            Span::from(icon).fg(color),
-            Span::from(" "),
-            Span::from(self.message),
-            Span::from(" "),
-        ]);
+        let content_width = TOAST_WIDTH.saturating_sub(6) as usize;
+        let wrapped = textwrap::wrap(&self.message, content_width);
 
-        Paragraph::new(content).block(block).render(toast_area, buf);
+        let lines: Vec<Line> = wrapped
+            .iter()
+            .enumerate()
+            .map(|(i, line)| {
+                if i == 0 {
+                    Line::from(vec![
+                        Span::from(" "),
+                        Span::from(icon).fg(color),
+                        Span::from(" "),
+                        Span::from(line.to_string()),
+                    ])
+                } else {
+                    Line::from(format!("   {line}"))
+                }
+            })
+            .collect();
+
+        Paragraph::new(lines).block(block).render(toast_area, buf);
     }
 }
 
