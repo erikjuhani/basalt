@@ -17,7 +17,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Layout, Rect},
     style::{Style, Stylize},
     text::{Line, Span},
-    widgets::{Block, BorderType, List, ListItem, StatefulWidget},
+    widgets::{Block, List, ListItem, StatefulWidget},
 };
 
 use crate::app::{
@@ -199,9 +199,9 @@ impl<'a> StatefulWidget for Explorer<'a> {
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         let block = Block::bordered()
             .border_type(if state.active {
-                BorderType::Thick
+                state.symbols.border_active.into()
             } else {
-                BorderType::Rounded
+                state.symbols.border_inactive.into()
             })
             .title_style(Style::default().italic().bold());
 

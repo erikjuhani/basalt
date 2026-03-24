@@ -578,7 +578,9 @@ impl<'a> App<'a> {
     }
 
     fn render_splash(&self, area: Rect, buf: &mut Buffer, state: &mut SplashModalState<'a>) {
-        SplashModal::default().render(area, buf, state)
+        let border_modal = self.config.symbols.border_modal.into();
+        let selected_symbol = self.config.symbols.selected.clone();
+        SplashModal::new(border_modal, selected_symbol).render(area, buf, state)
     }
 
     fn render_main(&self, area: Rect, buf: &mut Buffer, state: &mut AppState<'a>) {
@@ -606,7 +608,8 @@ impl<'a> App<'a> {
         Explorer::new().render(explorer_pane, buf, &mut state.explorer);
         NoteEditor::default().render(note, buf, &mut state.note_editor);
         Outline.render(outline, buf, &mut state.outline);
-        Input.render(area, buf, &mut state.input_modal);
+        let border_modal = self.config.symbols.border_modal.into();
+        Input::new(border_modal).render(area, buf, &mut state.input_modal);
 
         let (_, counts) = state
             .selected_note
@@ -641,11 +644,15 @@ impl<'a> App<'a> {
         }
 
         if state.vault_selector_modal.visible {
-            VaultSelectorModal::default().render(area, buf, &mut state.vault_selector_modal);
+            let border_modal = self.config.symbols.border_modal.into();
+            let selected_symbol = self.config.symbols.selected.clone();
+            VaultSelectorModal::new(border_modal, selected_symbol)
+                .render(area, buf, &mut state.vault_selector_modal);
         }
 
         if state.help_modal.visible {
-            HelpModal.render(area, buf, &mut state.help_modal);
+            let border_modal = self.config.symbols.border_modal.into();
+            HelpModal::new(border_modal).render(area, buf, &mut state.help_modal);
         }
     }
 
@@ -669,7 +676,9 @@ impl<'a> App<'a> {
                 if toast_area.y >= area.bottom() {
                     return;
                 }
-                toast.clone().render(toast_area, buf)
+                let mut toast = toast.clone();
+                toast.border_type = self.config.symbols.border_modal.into();
+                toast.render(toast_area, buf)
             });
     }
 }

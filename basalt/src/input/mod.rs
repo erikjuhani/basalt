@@ -284,7 +284,15 @@ pub fn handle_editing_event(key: KeyEvent) -> Option<Message> {
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct Input;
+pub struct Input {
+    pub border_type: BorderType,
+}
+
+impl Input {
+    pub fn new(border_type: BorderType) -> Self {
+        Self { border_type }
+    }
+}
 
 impl StatefulWidget for Input {
     type State = InputModalState;
@@ -351,7 +359,7 @@ impl StatefulWidget for Input {
         Paragraph::new(input)
             .block(
                 Block::bordered()
-                    .border_type(BorderType::Rounded)
+                    .border_type(self.border_type)
                     .border_style(Style::default().dark_gray())
                     // TODO: Use a label field from state
                     .title(vec![
@@ -451,7 +459,11 @@ mod tests {
             terminal
                 .draw(|frame| {
                     let mut state = state_fn();
-                    Input.render(frame.area(), frame.buffer_mut(), &mut state)
+                    Input::new(BorderType::default()).render(
+                        frame.area(),
+                        frame.buffer_mut(),
+                        &mut state,
+                    )
                 })
                 .unwrap();
             assert_snapshot!(name, terminal.backend());

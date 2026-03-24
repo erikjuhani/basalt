@@ -6,8 +6,8 @@ use ratatui::{
     style::{Color, Stylize},
     text::Line,
     widgets::{
-        Block, BorderType, Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
-        StatefulWidget, Widget,
+        Block, Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget,
+        Widget,
     },
 };
 
@@ -32,9 +32,9 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
 
         let block = Block::bordered()
             .border_type(if state.active() {
-                BorderType::Thick
+                state.symbols.border_active.into()
             } else {
-                BorderType::Rounded
+                state.symbols.border_inactive.into()
             })
             // NOTE: Uncomment for debugging
             // .title_top(format!(

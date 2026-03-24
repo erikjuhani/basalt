@@ -6,7 +6,7 @@ use ratatui::{
     layout::{Constraint, Flex, Layout, Rect},
     style::Stylize,
     text::Text,
-    widgets::{Clear, StatefulWidget, Widget},
+    widgets::{BorderType, Clear, StatefulWidget, Widget},
 };
 
 use crate::{
@@ -120,9 +120,20 @@ impl<'a> SplashModalState<'a> {
     }
 }
 
-#[derive(Default)]
 pub struct SplashModal<'a> {
     _lifetime: PhantomData<&'a ()>,
+    pub border_type: BorderType,
+    pub selected_symbol: String,
+}
+
+impl<'a> SplashModal<'a> {
+    pub fn new(border_type: BorderType, selected_symbol: String) -> Self {
+        Self {
+            _lifetime: PhantomData,
+            border_type,
+            selected_symbol,
+        }
+    }
 }
 
 impl<'a> StatefulWidget for SplashModal<'a> {
@@ -184,6 +195,10 @@ impl<'a> StatefulWidget for SplashModal<'a> {
             .centered()
             .render(help, buf);
 
-        VaultSelector::default().render(bottom, buf, &mut state.vault_selector_state);
+        VaultSelector::new(self.border_type, self.selected_symbol).render(
+            bottom,
+            buf,
+            &mut state.vault_selector_state,
+        );
     }
 }

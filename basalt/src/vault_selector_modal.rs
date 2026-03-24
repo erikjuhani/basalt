@@ -4,7 +4,7 @@ use basalt_core::obsidian::Vault;
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Flex, Layout, Rect},
-    widgets::{Clear, ScrollbarState, StatefulWidget, Widget},
+    widgets::{BorderType, Clear, ScrollbarState, StatefulWidget, Widget},
 };
 
 use crate::{
@@ -91,13 +91,22 @@ impl<'a> VaultSelectorModalState<'a> {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq)]
 pub struct VaultSelectorModal<'a> {
     _lifetime: PhantomData<&'a ()>,
+    pub border_type: BorderType,
+    pub selected_symbol: String,
 }
 
-impl VaultSelectorModal<'_> {
-    fn modal_area(self, area: Rect) -> Rect {
+impl<'a> VaultSelectorModal<'a> {
+    pub fn new(border_type: BorderType, selected_symbol: String) -> Self {
+        Self {
+            _lifetime: PhantomData,
+            border_type,
+            selected_symbol,
+        }
+    }
+
+    fn modal_area(&self, area: Rect) -> Rect {
         let vertical = Layout::vertical([Constraint::Percentage(50)]).flex(Flex::Center);
         let horizontal = Layout::horizontal([Constraint::Length(60)]).flex(Flex::Center);
         let [area] = vertical.areas(area);
@@ -115,7 +124,11 @@ impl<'a> StatefulWidget for VaultSelectorModal<'a> {
     {
         let area = self.modal_area(area);
         Widget::render(Clear, area, buf);
-        VaultSelector::default().render(area, buf, &mut state.vault_selector_state);
+        VaultSelector::new(self.border_type, self.selected_symbol).render(
+            area,
+            buf,
+            &mut state.vault_selector_state,
+        );
     }
 }
 

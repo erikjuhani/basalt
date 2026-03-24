@@ -104,7 +104,15 @@ fn modal_area(area: Rect) -> Rect {
     area
 }
 
-pub struct HelpModal;
+pub struct HelpModal {
+    pub border_type: BorderType,
+}
+
+impl HelpModal {
+    pub fn new(border_type: BorderType) -> Self {
+        Self { border_type }
+    }
+}
 
 impl StatefulWidget for HelpModal {
     type State = HelpModalState;
@@ -115,7 +123,7 @@ impl StatefulWidget for HelpModal {
     {
         let block = Block::bordered()
             .dark_gray()
-            .border_type(BorderType::Rounded)
+            .border_type(self.border_type)
             .padding(Padding::uniform(1))
             .title_style(Style::default().italic().bold())
             .title(" Help ")

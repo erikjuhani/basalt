@@ -20,6 +20,7 @@ pub struct Toast {
     created_at: Instant,
     duration: Duration,
     width: usize,
+    pub border_type: BorderType,
 }
 
 impl Toast {
@@ -76,7 +77,7 @@ impl Widget for Toast {
         };
 
         let block = Block::bordered()
-            .border_type(BorderType::Rounded)
+            .border_type(self.border_type)
             .border_style(Style::new().fg(color));
 
         let toast_area = Rect {
@@ -107,6 +108,7 @@ impl Default for Toast {
             message: String::default(),
             created_at: Instant::now(),
             duration: Duration::default(),
+            border_type: BorderType::default(),
             width: 30,
         }
     }

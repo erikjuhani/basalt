@@ -1,3 +1,4 @@
+use ratatui::widgets;
 use serde::Deserialize;
 
 use crate::stylized_text::FontStyle;
@@ -11,9 +12,32 @@ pub enum Preset {
     NerdFont,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Default, Deserialize)]
+pub enum BorderType {
+    #[default]
+    Plain,
+    Double,
+    Rounded,
+    Thick,
+}
+
+impl From<BorderType> for widgets::BorderType {
+    fn from(value: BorderType) -> Self {
+        match value {
+            BorderType::Plain => Self::Plain,
+            BorderType::Double => Self::Double,
+            BorderType::Rounded => Self::Rounded,
+            BorderType::Thick => Self::Thick,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct Symbols {
     preset: Preset,
+    pub border_active: BorderType,
+    pub border_inactive: BorderType,
+    pub border_modal: BorderType,
     pub wrap_marker: String,
     pub tree_indent: String,
     pub tree_expanded: String,
@@ -61,6 +85,9 @@ impl From<TomlSymbols> for Symbols {
         }
 
         override_if_set!(
+            border_active,
+            border_inactive,
+            border_modal,
             wrap_marker,
             tree_indent,
             tree_expanded,
@@ -113,6 +140,9 @@ impl Default for Symbols {
     fn default() -> Self {
         Self {
             preset: Preset::Ascii,
+            border_active: BorderType::Double,
+            border_inactive: BorderType::Plain,
+            border_modal: BorderType::Plain,
             wrap_marker: "".into(),
             tree_indent: "|".into(),
             tree_expanded: "v".into(),
@@ -124,8 +154,8 @@ impl Default for Symbols {
             pane_full: "=>".into(),
             sort_asc: "^=".into(),
             sort_desc: "v=".into(),
-            h1_underline: "=".into(),
-            h2_underline: "-".into(),
+            h1_underline: "═".into(),
+            h2_underline: "─".into(),
             h3_marker: "###".into(),
             h4_marker: "####".into(),
             h5_marker: "#####".into(),
@@ -133,7 +163,7 @@ impl Default for Symbols {
             task_unchecked: "[ ]".into(),
             task_checked: "[x]".into(),
             blockquote_border: "|".into(),
-            horizontal_rule: "=".into(),
+            horizontal_rule: "═".into(),
             folder_expanded_collapsed: "+".into(),
             folder_collapsed_collapsed: "-".into(),
             heading_collapsed_dot: ".".into(),
@@ -141,7 +171,7 @@ impl Default for Symbols {
             outline_expanded: "v".into(),
             outline_collapsed: ">".into(),
             outline_heading_dot: ".".into(),
-            outline_heading_expanded: "v".into(),
+            outline_heading_expanded: "#".into(),
             outline_heading_collapsed: ">".into(),
             list_markers: vec!["-".into(), "*".into(), "+".into()],
             title_font_style: None,
@@ -159,6 +189,9 @@ impl Symbols {
     pub fn unicode() -> Self {
         Self {
             preset: Preset::Unicode,
+            border_active: BorderType::Thick,
+            border_inactive: BorderType::Rounded,
+            border_modal: BorderType::Rounded,
             wrap_marker: "⤷ ".into(),
             tree_indent: "│".into(),
             tree_expanded: "▾".into(),
@@ -199,6 +232,9 @@ impl Symbols {
     pub fn nerd_font() -> Self {
         Self {
             preset: Preset::NerdFont,
+            border_active: BorderType::Thick,
+            border_inactive: BorderType::Rounded,
+            border_modal: BorderType::Rounded,
             wrap_marker: "⤷ ".into(),
             tree_indent: "│".into(),
             tree_expanded: "\u{f07c}".into(),
@@ -249,6 +285,9 @@ impl Symbols {
 pub struct TomlSymbols {
     #[serde(default)]
     preset: Preset,
+    border_active: Option<BorderType>,
+    border_inactive: Option<BorderType>,
+    border_modal: Option<BorderType>,
     wrap_marker: Option<String>,
     tree_indent: Option<String>,
     tree_expanded: Option<String>,

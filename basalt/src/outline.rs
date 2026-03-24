@@ -9,7 +9,7 @@ use ratatui::{
     layout::{Alignment, Rect},
     style::{Style, Stylize},
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, List, ListItem, Padding, StatefulWidget},
+    widgets::{Block, Borders, List, ListItem, Padding, StatefulWidget},
 };
 
 use crate::{
@@ -165,9 +165,9 @@ impl StatefulWidget for Outline {
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         let block = Block::bordered()
             .border_type(if state.active {
-                BorderType::Thick
+                state.symbols.border_active.into()
             } else {
-                BorderType::Rounded
+                state.symbols.border_inactive.into()
             })
             .title(if state.is_open() {
                 format!(" {} Outline ", state.symbols.pane_open)
