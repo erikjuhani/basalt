@@ -6,13 +6,14 @@ use std::{
 use ratatui::text::{Line, Span};
 
 use crate::{
+    config::Symbols,
     note_editor::{
         ast::{self, SourceRange},
         render::{render_node, text_wrap, RenderStyle},
         state::View,
         text_buffer::TextBuffer,
     },
-    stylized_text::{stylize, FontStyle},
+    stylized_text::stylize,
 };
 
 macro_rules! content_span {
@@ -169,6 +170,7 @@ impl<'a> VirtualBlock<'a> {
 
 #[derive(Clone, Debug, Default)]
 pub struct VirtualDocument<'a> {
+    symbols: Symbols,
     meta: Vec<VirtualLine<'a>>,
     blocks: Vec<VirtualBlock<'a>>,
     lines: Vec<VirtualLine<'a>>,
@@ -176,6 +178,12 @@ pub struct VirtualDocument<'a> {
 }
 
 impl<'a> VirtualDocument<'a> {
+    pub fn new(symbols: &Symbols) -> Self {
+        Self {
+            symbols: symbols.clone(),
+            ..Default::default()
+        }
+    }
     pub fn meta(&self) -> &[VirtualLine<'_>] {
         &self.meta
     }
@@ -209,16 +217,21 @@ impl<'a> VirtualDocument<'a> {
         text_buffer: Option<TextBuffer>,
     ) {
         if !note_name.is_empty() {
+            let note_name = match self.symbols.title_font_style {
+                Some(style) => stylize(note_name, style),
+                None => note_name.to_string(),
+            };
             let mut meta = text_wrap(
-                &stylize(note_name, FontStyle::BlackBoardBold).into(),
+                &Span::from(note_name),
                 Span::default(),
                 &(0..1),
                 width,
                 None,
                 &RenderStyle::Visual,
+                &self.symbols,
             );
             meta.extend([
-                virtual_line!([synthetic_span!("═".repeat(width))]),
+                virtual_line!([synthetic_span!(self.symbols.horizontal_rule.repeat(width))]),
                 empty_virtual_line!(),
             ]);
 
@@ -245,6 +258,8 @@ impl<'a> VirtualDocument<'a> {
                         width,
                         Span::default(),
                         &RenderStyle::Raw,
+                        &self.symbols,
+                        0,
                     )
                 } else {
                     render_node(
@@ -253,6 +268,8 @@ impl<'a> VirtualDocument<'a> {
                         width,
                         Span::default(),
                         &RenderStyle::Visual,
+                        &self.symbols,
+                        0,
                     )
                 };
                 let block_lines = block.lines.clone();

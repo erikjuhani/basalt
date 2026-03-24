@@ -15,7 +15,7 @@ expression: terminal.backend()
 "│                                                                              │"
 "│                                                                              │"
 "│ You can also create a code block by indenting the text using Tab or 4 blank  │"
-"│  ⤷ spaces.                                                                   │"
+"│ ⤷ spaces.                                                                    │"
 "│                                                                              │"
 "│                                                                              │"
 "│  cd ~/Desktop                                                                │"

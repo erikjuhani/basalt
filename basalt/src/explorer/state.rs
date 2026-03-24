@@ -6,6 +6,8 @@ use std::{
 use basalt_core::obsidian::{Note, VaultEntry};
 use ratatui::widgets::ListState;
 
+use crate::config::Symbols;
+
 use super::Item;
 
 #[derive(Debug, Default, Copy, Clone, PartialEq)]
@@ -35,6 +37,8 @@ pub struct ExplorerState {
     pub(crate) active: bool,
     pub(crate) sort: Sort,
     pub(crate) list_state: ListState,
+
+    pub(crate) symbols: Symbols,
 
     pub(crate) editing: bool,
 }
@@ -116,7 +120,7 @@ fn sort_items_by(sort: Sort) -> impl Fn(&Item, &Item) -> Ordering {
 }
 
 impl ExplorerState {
-    pub fn new(title: &str, items: Vec<VaultEntry>) -> Self {
+    pub fn new(title: &str, items: Vec<VaultEntry>, symbols: &Symbols) -> Self {
         let items: Vec<Item> = items.into_iter().map(|entry| entry.into()).collect();
         let sort = Sort::default();
 
@@ -128,6 +132,7 @@ impl ExplorerState {
             selected_item_index: None,
             selected_item_path: None,
             selected_note: None,
+            symbols: symbols.clone(),
             list_state: ListState::default().with_selected(Some(0)),
             ..Default::default()
         };

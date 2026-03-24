@@ -32,7 +32,7 @@ use crate::{
     statusbar::{StatusBar, StatusBarState},
     stylized_text::{self, FontStyle},
     text_counts::{CharCount, WordCount},
-    toast::{self, Toast, TOAST_HEIGHT, TOAST_WIDTH},
+    toast::{self, Toast, TOAST_WIDTH},
     vault_selector_modal::{self, VaultSelectorModal, VaultSelectorModalState},
 };
 
@@ -210,11 +210,11 @@ pub struct App<'a> {
 }
 
 impl<'a> App<'a> {
-    pub fn new(state: AppState<'a>, terminal: DefaultTerminal) -> Self {
+    pub fn new(state: AppState<'a>, config: Config<'a>, terminal: DefaultTerminal) -> Self {
         Self {
             state,
             // TODO: Surface toast if read config returns error
-            config: config::load().unwrap(),
+            config,
             terminal: RefCell::new(terminal),
         }
     }
@@ -222,16 +222,25 @@ impl<'a> App<'a> {
     pub fn start(terminal: DefaultTerminal, vaults: Vec<&Vault>) -> Result<()> {
         let version = stylized_text::stylize(VERSION, FontStyle::Script);
         let size = terminal.size()?;
+        let (config, warnings) = config::load().unwrap();
 
         let state = AppState {
             screen_size: size,
             help_modal: HelpModalState::new(&help_text(&version)),
             vault_selector_modal: VaultSelectorModalState::new(vaults.clone()),
             splash_modal: SplashModalState::new(&version, vaults, true),
+            outline: OutlineState {
+                symbols: config.symbols.clone(),
+                ..Default::default()
+            },
+            toasts: warnings
+                .into_iter()
+                .map(|message| toast::Toast::warn(&message, Duration::from_secs(5)))
+                .collect(),
             ..Default::default()
         };
 
-        App::new(state, terminal).run()
+        App::new(state, config, terminal).run()
     }
 
     fn run(&'a mut self) -> Result<()> {
@@ -473,7 +482,7 @@ impl<'a> App<'a> {
             },
             Message::OpenVault(vault) => {
                 state.vault = vault.clone();
-                state.explorer = ExplorerState::new(&vault.name, vault.entries());
+                state.explorer = ExplorerState::new(&vault.name, vault.entries(), &config.symbols);
                 state.note_editor = NoteEditorState::default();
                 return Some(Message::SetActivePane(ActivePane::Explorer));
             }
@@ -488,6 +497,7 @@ impl<'a> App<'a> {
                     &selected_note.content,
                     &selected_note.name,
                     &selected_note.path,
+                    &config.symbols,
                 );
 
                 let vim_mode = config.vim_mode;
@@ -507,6 +517,7 @@ impl<'a> App<'a> {
                     &state.note_editor.ast_nodes,
                     state.note_editor.current_block(),
                     state.outline.is_open(),
+                    &config.symbols,
                 );
 
                 if state.explorer.visibility == Visibility::FullWidth && is_different {
@@ -571,7 +582,9 @@ impl<'a> App<'a> {
     }
 
     fn render_splash(&self, area: Rect, buf: &mut Buffer, state: &mut SplashModalState<'a>) {
-        SplashModal::default().render(area, buf, state)
+        let border_modal = self.config.symbols.border_modal.into();
+        let vault_active = self.config.symbols.vault_active.clone();
+        SplashModal::new(border_modal, vault_active).render(area, buf, state)
     }
 
     fn render_main(&self, area: Rect, buf: &mut Buffer, state: &mut AppState<'a>) {
@@ -599,7 +612,8 @@ impl<'a> App<'a> {
         Explorer::new().render(explorer_pane, buf, &mut state.explorer);
         NoteEditor::default().render(note, buf, &mut state.note_editor);
         Outline.render(outline, buf, &mut state.outline);
-        Input.render(area, buf, &mut state.input_modal);
+        let border_modal = self.config.symbols.border_modal.into();
+        Input::new(border_modal).render(area, buf, &mut state.input_modal);
 
         let (_, counts) = state
             .selected_note
@@ -634,11 +648,18 @@ impl<'a> App<'a> {
         }
 
         if state.vault_selector_modal.visible {
-            VaultSelectorModal::default().render(area, buf, &mut state.vault_selector_modal);
+            let border_modal = self.config.symbols.border_modal.into();
+            let vault_active = self.config.symbols.vault_active.clone();
+            VaultSelectorModal::new(border_modal, vault_active).render(
+                area,
+                buf,
+                &mut state.vault_selector_modal,
+            );
         }
 
         if state.help_modal.visible {
-            HelpModal.render(area, buf, &mut state.help_modal);
+            let border_modal = self.config.symbols.border_modal.into();
+            HelpModal::new(border_modal).render(area, buf, &mut state.help_modal);
         }
     }
 
@@ -649,21 +670,19 @@ impl<'a> App<'a> {
                 .flex(Flex::End)
                 .areas(area);
 
-        state
-            .toasts
-            .iter()
-            .rev()
-            .enumerate()
-            .for_each(|(i, toast)| {
-                let mut toast_area = toast_area;
-                if i > 0 {
-                    toast_area.y += (i * TOAST_HEIGHT as usize) as u16;
-                }
-                if toast_area.y >= area.bottom() {
-                    return;
-                }
-                toast.clone().render(toast_area, buf)
-            });
+        let mut y_offset: u16 = 0;
+        state.toasts.iter().rev().for_each(|toast| {
+            let mut toast_area = toast_area;
+            toast_area.y += y_offset;
+            y_offset += toast.height();
+            if toast_area.y >= area.bottom() {
+                return;
+            }
+            let mut toast = toast.clone();
+            toast.border_type = self.config.symbols.border_modal.into();
+            toast.icon = toast.level_icon(&self.config.symbols);
+            toast.render(toast_area, buf)
+        });
     }
 }
 

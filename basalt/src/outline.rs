@@ -9,11 +9,12 @@ use ratatui::{
     layout::{Alignment, Rect},
     style::{Style, Stylize},
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, List, ListItem, Padding, StatefulWidget},
+    widgets::{Block, Borders, List, ListItem, Padding, StatefulWidget},
 };
 
 use crate::{
     app::{ActivePane, Message as AppMessage},
+    config::Symbols,
     explorer,
     note_editor::{self, ast::Node},
 };
@@ -70,42 +71,57 @@ pub fn update<'a>(message: &Message, state: &mut OutlineState) -> Option<AppMess
 pub struct Outline;
 
 trait AsListItems {
-    fn to_list_items(&self) -> Vec<ListItem<'_>>;
-    fn to_collapsed_items(&self) -> Vec<ListItem<'_>>;
+    fn to_list_items<'a>(&'a self, symbols: &'a Symbols) -> Vec<ListItem<'a>>;
+    fn to_collapsed_items<'a>(&'a self, symbols: &'a Symbols) -> Vec<ListItem<'a>>;
 }
 
 impl AsListItems for Vec<Item> {
-    fn to_collapsed_items(&self) -> Vec<ListItem<'_>> {
+    fn to_collapsed_items<'a>(&'a self, symbols: &'a Symbols) -> Vec<ListItem<'a>> {
         self.flatten()
             .iter()
             .map(|item| match item {
-                Item::Heading { .. } => ListItem::new(Line::from("·")).dark_gray().dim(),
+                Item::Heading { .. } => {
+                    ListItem::new(Line::from(symbols.outline_heading_dot.as_str()))
+                        .dark_gray()
+                        .dim()
+                }
                 Item::HeadingEntry { expanded: true, .. } => {
-                    ListItem::new(Line::from("✺")).red().dim()
+                    ListItem::new(Line::from(symbols.outline_heading_expanded.as_str()))
+                        .red()
+                        .dim()
                 }
                 Item::HeadingEntry {
                     expanded: false, ..
-                } => ListItem::new(Line::from("◦")).dark_gray().dim(),
+                } => ListItem::new(Line::from(symbols.outline_heading_collapsed.as_str()))
+                    .dark_gray()
+                    .dim(),
             })
             .collect()
     }
 
-    fn to_list_items(&self) -> Vec<ListItem<'_>> {
-        fn list_item<'a>(indentation: Span<'a>, symbol: &'a str, content: &'a str) -> ListItem<'a> {
-            ListItem::new(Line::from(
-                [indentation, symbol.into(), content.into()].to_vec(),
-            ))
+    fn to_list_items<'a>(&'a self, symbols: &'a Symbols) -> Vec<ListItem<'a>> {
+        fn list_item<'a>(
+            indentation: Span<'a>,
+            symbol: Span<'a>,
+            content: &'a str,
+        ) -> ListItem<'a> {
+            ListItem::new(Line::from([indentation, symbol, content.into()].to_vec()))
         }
 
-        fn to_list_items(depth: usize) -> impl Fn(&Item) -> Vec<ListItem> {
+        fn to_list_items_inner<'a>(
+            depth: usize,
+            symbols: &'a Symbols,
+        ) -> impl Fn(&'a Item) -> Vec<ListItem<'a>> {
             let indentation = if depth > 0 {
-                Span::raw("│ ".repeat(depth)).black()
+                Span::raw(format!("{} ", symbols.outline_indent).repeat(depth)).black()
             } else {
                 Span::raw("  ".repeat(depth)).black()
             };
+            let expanded_marker = Span::from(format!("{} ", symbols.outline_expanded));
+            let collapsed_marker = Span::from(format!("{} ", symbols.outline_collapsed));
             move |item| match item {
                 Item::Heading { content, .. } => {
-                    vec![list_item(indentation.clone(), "  ", content)]
+                    vec![list_item(indentation.clone(), "  ".into(), content)]
                 }
                 Item::HeadingEntry {
                     expanded: true,
@@ -113,19 +129,33 @@ impl AsListItems for Vec<Item> {
                     content,
                     ..
                 } => {
-                    let mut items = vec![list_item(indentation.clone(), "▾ ", content)];
-                    items.extend(children.iter().flat_map(to_list_items(depth + 1)));
+                    let mut items = vec![list_item(
+                        indentation.clone(),
+                        expanded_marker.clone(),
+                        content,
+                    )];
+                    items.extend(
+                        children
+                            .iter()
+                            .flat_map(to_list_items_inner(depth + 1, symbols)),
+                    );
                     items
                 }
                 Item::HeadingEntry {
                     expanded: false,
                     content,
                     ..
-                } => vec![list_item(indentation.clone(), "▸ ", content)],
+                } => vec![list_item(
+                    indentation.clone(),
+                    collapsed_marker.clone(),
+                    content,
+                )],
             }
         }
 
-        self.iter().flat_map(to_list_items(0)).collect()
+        self.iter()
+            .flat_map(to_list_items_inner(0, symbols))
+            .collect()
     }
 }
 
@@ -135,23 +165,23 @@ impl StatefulWidget for Outline {
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         let block = Block::bordered()
             .border_type(if state.active {
-                BorderType::Thick
+                state.symbols.border_active.into()
             } else {
-                BorderType::Rounded
+                state.symbols.border_inactive.into()
             })
             .title(if state.is_open() {
-                " ▶ Outline "
+                format!(" {} Outline ", state.symbols.pane_open)
             } else {
-                " ◀ "
+                format!(" {} ", state.symbols.pane_close)
             })
             .title_alignment(Alignment::Right)
             .padding(Padding::horizontal(1))
             .title_style(Style::default().italic().bold());
 
         let items = if state.is_open() {
-            state.items.to_list_items()
+            state.items.to_list_items(&state.symbols)
         } else {
-            state.items.to_collapsed_items()
+            state.items.to_collapsed_items(&state.symbols)
         };
 
         List::new(items)
@@ -323,7 +353,7 @@ mod tests {
 
         tests.into_iter().for_each(|(name, nodes)| {
             _ = terminal.clear();
-            let mut state = OutlineState::new(&nodes, 0, true);
+            let mut state = OutlineState::new(&nodes, 0, true, &Symbols::unicode());
             state.expand_all();
             terminal
                 .draw(|frame| Outline.render(frame.area(), frame.buffer_mut(), &mut state))

@@ -1,11 +1,12 @@
 use ratatui::{
     style::{Color, Modifier, Style, Stylize},
-    text::{Span, ToSpan},
+    text::Span,
 };
 
 use unicode_width::UnicodeWidthStr;
 
 use crate::{
+    config::Symbols,
     note_editor::{
         ast::{self, SourceRange},
         rich_text::RichText,
@@ -15,7 +16,7 @@ use crate::{
             VirtualLine, VirtualSpan,
         },
     },
-    stylized_text::{stylize, FontStyle},
+    stylized_text::stylize,
 };
 
 trait SpanExt {
@@ -38,6 +39,8 @@ pub enum RenderStyle {
 }
 
 // Internal consolidated text wrapping function
+// FIXME: Use options struct or similar
+#[allow(clippy::too_many_arguments)]
 fn text_wrap_internal<'a>(
     text_content: &str,
     text_style: Style,
@@ -46,10 +49,9 @@ fn text_wrap_internal<'a>(
     width: usize,
     marker: Option<Span<'static>>,
     option: &RenderStyle,
+    symbols: &Symbols,
 ) -> Vec<VirtualLine<'a>> {
-    let prefix_width = prefix.width();
-
-    let wrap_marker = "⤷ ";
+    let wrap_marker = &symbols.wrap_marker;
     let wrapped_lines = wrap_preserve_trailing(text_content, width, wrap_marker.width() + 1);
 
     let mut current_range_start = source_range.start;
@@ -79,13 +81,11 @@ fn text_wrap_internal<'a>(
                     content_span!(content_span, line_source_range)
                 ]),
                 _ => {
+                    let marker_padding = marker.as_ref().map(|m| m.width()).unwrap_or(0);
                     virtual_line!([
                         synthetic_span!(prefix),
-                        synthetic_span!(Span::styled(
-                            " ".repeat(prefix_width.saturating_sub(1).max(1)),
-                            prefix.style
-                        )),
-                        synthetic_span!(Span::styled(wrap_marker, Style::new().black())),
+                        synthetic_span!(Span::styled(" ".repeat(marker_padding), prefix.style)),
+                        synthetic_span!(Span::styled(wrap_marker.clone(), Style::new().black())),
                         content_span!(content_span, line_source_range)
                     ])
                 }
@@ -99,6 +99,7 @@ fn render_raw_line<'a>(
     prefix: Span<'static>,
     source_range: &SourceRange<usize>,
     max_width: usize,
+    symbols: &Symbols,
 ) -> Vec<VirtualLine<'a>> {
     text_wrap_internal(
         // TODO: Replace with `»` as a synthetic symbol for tabs
@@ -112,6 +113,7 @@ fn render_raw_line<'a>(
         max_width,
         None,
         &RenderStyle::Raw,
+        symbols,
     )
 }
 
@@ -130,6 +132,7 @@ pub fn text_wrap<'a>(
     width: usize,
     marker: Option<Span<'static>>,
     option: &RenderStyle,
+    symbols: &Symbols,
 ) -> Vec<VirtualLine<'a>> {
     text_wrap_internal(
         &text.content,
@@ -139,9 +142,12 @@ pub fn text_wrap<'a>(
         width,
         marker,
         option,
+        symbols,
     )
 }
 
+// FIXME: Use options struct or similar
+#[allow(clippy::too_many_arguments)]
 pub fn heading<'a>(
     level: ast::HeadingLevel,
     content: &str,
@@ -150,6 +156,7 @@ pub fn heading<'a>(
     source_range: &SourceRange<usize>,
     max_width: usize,
     option: &RenderStyle,
+    symbols: &Symbols,
 ) -> VirtualBlock<'a> {
     use ast::HeadingLevel::*;
     // FIXME: Support new lines when editing
@@ -171,6 +178,7 @@ pub fn heading<'a>(
             max_width,
             Some(marker),
             option,
+            symbols,
         );
 
         wrapped_heading.push(empty_virtual_line!());
@@ -185,6 +193,7 @@ pub fn heading<'a>(
             max_width,
             None,
             option,
+            symbols,
         );
         wrapped_heading.push(virtual_line!([synthetic_span!(underline)]));
         wrapped_heading
@@ -197,16 +206,37 @@ pub fn heading<'a>(
             } else {
                 text.bold()
             },
-            "═".repeat(max_width.saturating_sub(prefix_width)).into(),
+            symbols
+                .h1_underline
+                .repeat(max_width.saturating_sub(prefix_width))
+                .into(),
         ),
         H2 => h_with_underline(
             text.bold().yellow(),
-            "─".repeat(max_width.saturating_sub(prefix_width)).yellow(),
+            symbols
+                .h2_underline
+                .repeat(max_width.saturating_sub(prefix_width))
+                .yellow(),
         ),
-        H3 => h("⬤  ".cyan(), text.bold().cyan()),
-        H4 => h("● ".magenta(), text.bold().magenta()),
-        H5 => h("◆ ".to_span(), stylize(&text, FontStyle::Script).into()),
-        H6 => h("✺ ".to_span(), stylize(&text, FontStyle::Script).into()),
+        H3 => h(format!("{} ", symbols.h3_marker).cyan(), text.bold().cyan()),
+        H4 => h(
+            format!("{} ", symbols.h4_marker).magenta(),
+            text.bold().magenta(),
+        ),
+        H5 => h(
+            format!("{} ", symbols.h5_marker).into(),
+            match symbols.h5_font_style {
+                Some(style) => stylize(&text, style).into(),
+                None => text.into(),
+            },
+        ),
+        H6 => h(
+            format!("{} ", symbols.h6_marker).into(),
+            match symbols.h6_font_style {
+                Some(style) => stylize(&text, style).into(),
+                None => text.into(),
+            },
+        ),
     };
 
     VirtualBlock::new(&lines, source_range)
@@ -217,6 +247,7 @@ pub fn render_raw<'a>(
     source_range: &SourceRange<usize>,
     max_width: usize,
     prefix: Span<'static>,
+    symbols: &Symbols,
 ) -> Vec<VirtualLine<'a>> {
     let mut current_range_start = source_range.start;
 
@@ -233,7 +264,7 @@ pub fn render_raw<'a>(
                     content_span!("".to_string(), line_range)
                 ])]
             } else {
-                render_raw_line(line, prefix.clone(), &line_range, max_width)
+                render_raw_line(line, prefix.clone(), &line_range, max_width, symbols)
             }
         })
         .collect::<Vec<_>>();
@@ -258,9 +289,10 @@ pub fn paragraph<'a>(
     source_range: &SourceRange<usize>,
     max_width: usize,
     option: &RenderStyle,
+    symbols: &Symbols,
 ) -> VirtualBlock<'a> {
     let lines = match option {
-        RenderStyle::Raw => render_raw(content, source_range, max_width, prefix),
+        RenderStyle::Raw => render_raw(content, source_range, max_width, prefix, symbols),
         RenderStyle::Visual => {
             let text = text.to_string();
             let mut current_range_start = source_range.start;
@@ -279,6 +311,7 @@ pub fn paragraph<'a>(
                         max_width,
                         None,
                         option,
+                        symbols,
                     )
                 })
                 .collect::<Vec<_>>();
@@ -372,6 +405,8 @@ pub fn code_block<'a>(
     VirtualBlock::new(&lines, source_range)
 }
 
+// FIXME: Use options struct or similar
+#[allow(clippy::too_many_arguments)]
 pub fn list<'a>(
     content: &str,
     prefix: Span<'static>,
@@ -379,9 +414,11 @@ pub fn list<'a>(
     source_range: &SourceRange<usize>,
     max_width: usize,
     option: &RenderStyle,
+    symbols: &Symbols,
+    list_depth: usize,
 ) -> VirtualBlock<'a> {
     let lines = match option {
-        RenderStyle::Raw => render_raw(content, source_range, max_width, prefix),
+        RenderStyle::Raw => render_raw(content, source_range, max_width, prefix, symbols),
         RenderStyle::Visual => {
             let mut lines: Vec<VirtualLine<'a>> = nodes
                 .iter()
@@ -390,7 +427,16 @@ pub fn list<'a>(
                         .get(node.source_range().clone())
                         .unwrap_or("")
                         .to_string();
-                    render_node(node_content, node, max_width, prefix.clone(), option).lines
+                    render_node(
+                        node_content,
+                        node,
+                        max_width,
+                        prefix.clone(),
+                        option,
+                        symbols,
+                        list_depth,
+                    )
+                    .lines
                 })
                 .collect();
 
@@ -404,6 +450,8 @@ pub fn list<'a>(
     VirtualBlock::new(&lines, source_range)
 }
 
+// FIXME: Use options struct or similar
+#[allow(clippy::too_many_arguments)]
 pub fn task<'a>(
     content: &str,
     prefix: Span<'static>,
@@ -412,9 +460,11 @@ pub fn task<'a>(
     source_range: &SourceRange<usize>,
     max_width: usize,
     option: &RenderStyle,
+    symbols: &Symbols,
+    list_depth: usize,
 ) -> VirtualBlock<'a> {
     let lines = match option {
-        RenderStyle::Raw => render_raw(content, source_range, max_width, prefix),
+        RenderStyle::Raw => render_raw(content, source_range, max_width, prefix, symbols),
         RenderStyle::Visual => {
             let Some((text, rest)) = nodes.split_first().and_then(|(first, rest)| {
                 let text = first.rich_text()?;
@@ -429,10 +479,16 @@ pub fn task<'a>(
                 RenderStyle::Raw => content.to_string(),
             };
             let (marker, text) = match kind {
-                ast::TaskKind::Unchecked => ("□ ".dark_gray(), text.into()),
-                ast::TaskKind::LooselyChecked => ("■ ".magenta(), text.dark_gray()),
+                ast::TaskKind::Unchecked => (
+                    format!("{} ", symbols.task_unchecked).dark_gray(),
+                    text.into(),
+                ),
+                ast::TaskKind::LooselyChecked => (
+                    format!("{} ", symbols.task_checked).magenta(),
+                    text.dark_gray(),
+                ),
                 ast::TaskKind::Checked => (
-                    "■ ".magenta(),
+                    format!("{} ", symbols.task_checked).magenta(),
                     text.dark_gray().add_modifier(Modifier::CROSSED_OUT),
                 ),
             };
@@ -444,6 +500,7 @@ pub fn task<'a>(
                 max_width,
                 Some(marker),
                 option,
+                symbols,
             );
 
             lines.extend(rest.iter().flat_map(|node| {
@@ -453,6 +510,8 @@ pub fn task<'a>(
                     max_width,
                     prefix.merge("  ".into()),
                     option,
+                    symbols,
+                    list_depth + 1,
                 )
                 .lines
             }));
@@ -464,6 +523,8 @@ pub fn task<'a>(
     VirtualBlock::new(&lines, source_range)
 }
 
+// FIXME: Use options struct or similar
+#[allow(clippy::too_many_arguments)]
 pub fn item<'a>(
     content: &str,
     prefix: Span<'static>,
@@ -472,9 +533,11 @@ pub fn item<'a>(
     source_range: &SourceRange<usize>,
     max_width: usize,
     option: &RenderStyle,
+    symbols: &Symbols,
+    list_depth: usize,
 ) -> VirtualBlock<'a> {
     let lines = match option {
-        RenderStyle::Raw => render_raw(content, source_range, max_width, prefix),
+        RenderStyle::Raw => render_raw(content, source_range, max_width, prefix, symbols),
         RenderStyle::Visual => {
             let Some((text, rest)) = nodes.split_first().and_then(|(first, rest)| {
                 let text = first.rich_text()?;
@@ -487,7 +550,14 @@ pub fn item<'a>(
 
             let marker = match kind {
                 ast::ItemKind::Ordered(i) => format!("{i}. ").dark_gray(),
-                ast::ItemKind::Unordered => "- ".dark_gray(),
+                ast::ItemKind::Unordered => {
+                    let marker = if symbols.list_markers.is_empty() {
+                        "-"
+                    } else {
+                        &symbols.list_markers[list_depth % symbols.list_markers.len()]
+                    };
+                    format!("{marker} ").dark_gray()
+                }
             };
 
             let mut lines = text_wrap(
@@ -498,6 +568,7 @@ pub fn item<'a>(
                 max_width,
                 Some(marker),
                 option,
+                symbols,
             );
 
             lines.extend(rest.iter().flat_map(|node| {
@@ -507,6 +578,8 @@ pub fn item<'a>(
                     max_width,
                     prefix.merge("  ".into()),
                     option,
+                    symbols,
+                    list_depth + 1,
                 )
                 .lines
             }));
@@ -525,6 +598,8 @@ pub fn line_range(start: usize, line_width: usize, newline: bool) -> SourceRange
     start..end
 }
 
+// FIXME: Use options struct or similar
+#[allow(clippy::too_many_arguments)]
 pub fn block_quote<'a>(
     content: &str,
     prefix: Span<'static>,
@@ -537,9 +612,10 @@ pub fn block_quote<'a>(
     source_range: &SourceRange<usize>,
     max_width: usize,
     option: &RenderStyle,
+    symbols: &Symbols,
 ) -> VirtualBlock<'a> {
     let lines = match option {
-        RenderStyle::Raw => render_raw(content, source_range, max_width, prefix),
+        RenderStyle::Raw => render_raw(content, source_range, max_width, prefix, symbols),
         RenderStyle::Visual => nodes
             .iter()
             .enumerate()
@@ -550,6 +626,8 @@ pub fn block_quote<'a>(
                     max_width,
                     prefix.merge(Span::raw("┃ ").magenta()),
                     option,
+                    symbols,
+                    0,
                 )
                 .lines;
                 if prefix.to_string().is_empty() && i != nodes.len().saturating_sub(1) {
@@ -572,6 +650,8 @@ pub fn render_node<'a>(
     max_width: usize,
     prefix: Span<'static>,
     option: &RenderStyle,
+    symbols: &Symbols,
+    list_depth: usize,
 ) -> VirtualBlock<'a> {
     use ast::Node::*;
     match node {
@@ -587,10 +667,17 @@ pub fn render_node<'a>(
             source_range,
             max_width,
             option,
+            symbols,
         ),
-        Paragraph { text, source_range } => {
-            paragraph(&content, prefix, text, source_range, max_width, option)
-        }
+        Paragraph { text, source_range } => paragraph(
+            &content,
+            prefix,
+            text,
+            source_range,
+            max_width,
+            option,
+            symbols,
+        ),
         CodeBlock {
             lang,
             text,
@@ -607,7 +694,16 @@ pub fn render_node<'a>(
         List {
             nodes,
             source_range,
-        } => list(&content, prefix, nodes, source_range, max_width, option),
+        } => list(
+            &content,
+            prefix,
+            nodes,
+            source_range,
+            max_width,
+            option,
+            symbols,
+            list_depth,
+        ),
         Item {
             kind,
             nodes,
@@ -620,6 +716,8 @@ pub fn render_node<'a>(
             source_range,
             max_width,
             option,
+            symbols,
+            list_depth,
         ),
         Task {
             kind,
@@ -633,6 +731,8 @@ pub fn render_node<'a>(
             source_range,
             max_width,
             option,
+            symbols,
+            list_depth,
         ),
         BlockQuote {
             kind,
@@ -646,6 +746,7 @@ pub fn render_node<'a>(
             source_range,
             max_width,
             option,
+            symbols,
         ),
     }
 }

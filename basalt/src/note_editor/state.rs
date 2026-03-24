@@ -7,14 +7,17 @@ use std::{
 
 use ratatui::layout::Size;
 
-use crate::note_editor::{
-    ast::{self},
-    cursor::{self, Cursor},
-    parser,
-    rich_text::RichText,
-    text_buffer::TextBuffer,
-    viewport::Viewport,
-    virtual_document::VirtualDocument,
+use crate::{
+    config::Symbols,
+    note_editor::{
+        ast::{self},
+        cursor::{self, Cursor},
+        parser,
+        rich_text::RichText,
+        text_buffer::TextBuffer,
+        viewport::Viewport,
+        virtual_document::VirtualDocument,
+    },
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -51,6 +54,7 @@ pub struct NoteEditorState<'a> {
     pub cursor: Cursor,
     pub ast_nodes: Vec<ast::Node>,
     pub virtual_document: VirtualDocument<'a>,
+    pub symbols: Symbols,
     filepath: PathBuf,
     filename: String,
     active: bool,
@@ -67,7 +71,7 @@ pub struct NoteEditorState<'a> {
 }
 
 impl<'a> NoteEditorState<'a> {
-    pub fn new(content: &str, filename: &str, filepath: &Path) -> Self {
+    pub fn new(content: &str, filename: &str, filepath: &Path, symbols: &Symbols) -> Self {
         let ast_nodes = parser::from_str(content);
         let content = content.to_string();
         Self {
@@ -76,7 +80,8 @@ impl<'a> NoteEditorState<'a> {
             view: View::Read,
             cursor: Cursor::default(),
             viewport: Viewport::default(),
-            virtual_document: VirtualDocument::default(),
+            symbols: symbols.clone(),
+            virtual_document: VirtualDocument::new(symbols),
             filename: filename.to_string(),
             filepath: filepath.to_path_buf(),
             ast_nodes,
@@ -574,7 +579,8 @@ mod tests {
     fn test_viewport_scrolls_with_cursor_in_edit_mode() {
         let content = "# Title\n\nLine 1\n\nLine 2\n\nLine 3\n\nLine 4\n\nLine 5\n";
 
-        let mut state = NoteEditorState::new(content, "test", Path::new("test.md"));
+        let mut state =
+            NoteEditorState::new(content, "test", Path::new("test.md"), &Symbols::unicode());
         state.resize_viewport(Size::new(40, 4));
 
         state.cursor_down(2);

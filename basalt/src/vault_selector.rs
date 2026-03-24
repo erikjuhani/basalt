@@ -54,9 +54,20 @@ impl<'a> VaultSelectorState<'a> {
     }
 }
 
-#[derive(Default)]
 pub struct VaultSelector<'a> {
     _lifetime: PhantomData<&'a ()>,
+    pub border_type: BorderType,
+    pub vault_active: String,
+}
+
+impl<'a> VaultSelector<'a> {
+    pub fn new(border_type: BorderType, vault_active: String) -> Self {
+        Self {
+            _lifetime: PhantomData,
+            border_type,
+            vault_active,
+        }
+    }
 }
 
 impl<'a> StatefulWidget for VaultSelector<'a> {
@@ -68,7 +79,7 @@ impl<'a> StatefulWidget for VaultSelector<'a> {
             .iter()
             .map(|item| {
                 if item.open {
-                    ListItem::new(format!("◆ {}", item.name))
+                    ListItem::new(format!("{} {}", self.vault_active, item.name))
                 } else {
                     ListItem::new(format!("  {}", item.name))
                 }
@@ -81,7 +92,7 @@ impl<'a> StatefulWidget for VaultSelector<'a> {
                     .dark_gray()
                     .title(" Vaults ")
                     .title_style(Style::default().italic().bold())
-                    .border_type(BorderType::Rounded),
+                    .border_type(self.border_type),
             )
             .fg(Color::default())
             .highlight_style(Style::new().reversed().dark_gray())

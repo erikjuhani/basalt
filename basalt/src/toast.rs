@@ -8,18 +8,19 @@ use ratatui::{
     widgets::{Block, BorderType, Clear, Paragraph, Widget},
 };
 
-use crate::app::Message as AppMessage;
+use crate::{app::Message as AppMessage, config::Symbols};
 
 pub const TOAST_WIDTH: u16 = 40;
-pub const TOAST_HEIGHT: u16 = 3;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Toast {
     level: Option<ToastLevel>,
     pub(super) message: String,
+    pub icon: String,
     created_at: Instant,
     duration: Duration,
     width: usize,
+    pub border_type: BorderType,
 }
 
 impl Toast {
@@ -59,8 +60,24 @@ impl Toast {
         }
     }
 
+    pub fn level_icon(&self, symbols: &Symbols) -> String {
+        match &self.level {
+            Some(ToastLevel::Success) => symbols.toast_success.clone(),
+            Some(ToastLevel::Info) => symbols.toast_info.clone(),
+            Some(ToastLevel::Error) => symbols.toast_error.clone(),
+            Some(ToastLevel::Warning) => symbols.toast_warning.clone(),
+            None => String::default(),
+        }
+    }
+
     pub fn is_expired(&self) -> bool {
         self.created_at.elapsed() >= self.duration
+    }
+
+    pub fn height(&self) -> u16 {
+        let content_width = TOAST_WIDTH.saturating_sub(6) as usize;
+        let wrapped = textwrap::wrap(&self.message, content_width);
+        wrapped.len().max(1) as u16 + 2
     }
 }
 
@@ -69,34 +86,43 @@ impl Widget for Toast {
     where
         Self: Sized,
     {
-        let (icon, color) = if let Some(level) = self.level {
-            (level.icon(), level.color())
-        } else {
-            ("", Color::default())
-        };
+        let height = self.height();
+        let color = self.level.as_ref().map(|l| l.color()).unwrap_or_default();
 
         let block = Block::bordered()
-            .border_type(BorderType::Rounded)
+            .border_type(self.border_type)
             .border_style(Style::new().fg(color));
 
         let toast_area = Rect {
             x: area.x,
             y: area.y,
             width: TOAST_WIDTH.min(area.width),
-            height: TOAST_HEIGHT.min(area.height),
+            height: height.min(area.height),
         };
 
         Clear.render(toast_area, buf);
 
-        let content = Line::from(vec![
-            Span::from(" "),
-            Span::from(icon).fg(color),
-            Span::from(" "),
-            Span::from(self.message),
-            Span::from(" "),
-        ]);
+        let content_width = TOAST_WIDTH.saturating_sub(6) as usize;
+        let wrapped = textwrap::wrap(&self.message, content_width);
 
-        Paragraph::new(content).block(block).render(toast_area, buf);
+        let lines: Vec<Line> = wrapped
+            .iter()
+            .enumerate()
+            .map(|(i, line)| {
+                if i == 0 {
+                    Line::from(vec![
+                        Span::from(" "),
+                        Span::from(self.icon.clone()).fg(color),
+                        Span::from(" "),
+                        Span::from(line.to_string()),
+                    ])
+                } else {
+                    Line::from(format!("   {line}"))
+                }
+            })
+            .collect();
+
+        Paragraph::new(lines).block(block).render(toast_area, buf);
     }
 }
 
@@ -105,8 +131,10 @@ impl Default for Toast {
         Self {
             level: Option::default(),
             message: String::default(),
+            icon: String::default(),
             created_at: Instant::now(),
             duration: Duration::default(),
+            border_type: BorderType::default(),
             width: 30,
         }
     }
@@ -222,10 +250,11 @@ mod tests {
             ),
         ];
 
-        tests.into_iter().for_each(|(name, toast)| {
+        tests.into_iter().for_each(|(name, mut toast)| {
             _ = terminal.clear();
             terminal
                 .draw(|frame| {
+                    toast.icon = toast.level_icon(&Symbols::unicode());
                     toast.render(frame.area(), frame.buffer_mut());
                 })
                 .unwrap();

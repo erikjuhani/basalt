@@ -1,4 +1,5 @@
 mod key_binding;
+mod symbol;
 
 use core::fmt;
 use std::{collections::BTreeMap, fs::read_to_string};
@@ -7,7 +8,10 @@ use etcetera::{choose_base_strategy, home_dir, BaseStrategy};
 use key_binding::KeyBinding;
 use serde::Deserialize;
 
-use crate::{app::Message, command::Command};
+use crate::{app::Message, command::Command, config::symbol::TomlSymbols};
+
+pub(crate) use symbol::Symbols;
+
 pub(crate) use key_binding::{Key, Keystroke};
 
 #[derive(Debug, thiserror::Error)]
@@ -29,6 +33,8 @@ pub enum ConfigError {
     UnknownKeyModifiers(String),
     #[error("User config not found: {0}")]
     UserConfigNotFound(String),
+    #[error("Invalid config: {0}")]
+    InvalidConfig(String),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -80,6 +86,7 @@ impl fmt::Display for ConfigSection<'_> {
 pub struct Config<'a> {
     pub experimental_editor: bool,
     pub vim_mode: bool,
+    pub symbols: Symbols,
     pub global: ConfigSection<'a>,
     pub splash: ConfigSection<'a>,
     pub explorer: ConfigSection<'a>,
@@ -99,6 +106,7 @@ impl Default for Config<'_> {
 impl From<TomlConfig> for Config<'_> {
     fn from(value: TomlConfig) -> Self {
         Self {
+            symbols: value.symbols.into(),
             experimental_editor: value.experimental_editor,
             vim_mode: value.vim_mode,
             global: value.global.into(),
@@ -128,6 +136,7 @@ impl Config<'_> {
     /// Takes self and another config and merges the `key_bindings` together overwriting the
     /// existing entries with the value from another config.
     pub(crate) fn merge(&mut self, config: Self) -> Self {
+        self.symbols = config.symbols;
         self.experimental_editor = config.experimental_editor;
         self.vim_mode = config.vim_mode;
         self.global.merge_key_bindings(config.global);
@@ -218,6 +227,8 @@ impl<const N: usize> From<[(Key, Command); N]> for KeyBindings {
 #[derive(Clone, Debug, PartialEq, Deserialize, Default)]
 struct TomlConfig {
     #[serde(default)]
+    symbols: TomlSymbols,
+    #[serde(default)]
     experimental_editor: bool,
     #[serde(default)]
     vim_mode: bool,
@@ -263,7 +274,7 @@ fn read_user_config<'a>() -> Result<Config<'a>, ConfigError> {
 
     toml::from_str::<TomlConfig>(&read_to_string(config_path)?)
         .map(Config::from)
-        .map_err(ConfigError::from)
+        .map_err(|err| ConfigError::InvalidConfig(err.message().to_string()))
 }
 
 const BASE_CONFIGURATION_STR: &str =
@@ -280,14 +291,16 @@ const VIM_CONFIGURATION_STR: &str = include_str!(concat!(env!("CARGO_MANIFEST_DI
 ///
 /// # Configuration Precedence
 /// System overrides > User config > Base config
-pub fn load<'a>() -> Result<Config<'a>, ConfigError> {
+pub fn load<'a>() -> Result<(Config<'a>, Vec<String>), ConfigError> {
     // TODO: Use compile time toml parsing instead to check the build error during compile time
     // Requires a custom proc-macro workspace crate
     let mut config: Config = toml::from_str::<TomlConfig>(BASE_CONFIGURATION_STR)?.into();
 
-    // TODO: Parsing errors related to the configuration file should ideally be surfaced as warnings.
-    // This is pending a solution for toast notifications and proper warning/error logging.
-    let user_config = read_user_config().ok();
+    let (user_config, warnings) = match read_user_config() {
+        Ok(config) => (Some(config), vec![]),
+        Err(ConfigError::UserConfigNotFound(_)) => (None, vec![]),
+        Err(err) => (None, vec![err.to_string()]),
+    };
 
     if user_config.as_ref().is_some_and(|c| c.vim_mode) {
         let vim_config: Config = toml::from_str::<TomlConfig>(VIM_CONFIGURATION_STR)
@@ -307,7 +320,7 @@ pub fn load<'a>() -> Result<Config<'a>, ConfigError> {
         .global
         .merge_key_bindings(system_key_binding_overrides);
 
-    Ok(config)
+    Ok((config, warnings))
 }
 
 #[cfg(test)]

@@ -17,18 +17,16 @@ use ratatui::{
     layout::{Alignment, Constraint, Layout, Rect},
     style::{Style, Stylize},
     text::{Line, Span},
-    widgets::{Block, BorderType, List, ListItem, StatefulWidget},
+    widgets::{Block, List, ListItem, StatefulWidget},
 };
 
 use crate::app::{
     calc_scroll_amount, ActivePane, Message as AppMessage, ScrollAmount, SelectedNote,
 };
+use crate::config::Symbols;
 use crate::input;
 use crate::input::InputModalConfig;
 use crate::outline;
-
-const SORT_SYMBOL_ASC: &str = "↑≡";
-const SORT_SYMBOL_DESC: &str = "↓≡";
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Message {
@@ -133,12 +131,13 @@ impl Explorer<'_> {
     }
 
     fn list_item<'a>(
+        symbols: &'a Symbols,
         selected_path: Option<PathBuf>,
         is_open: bool,
     ) -> impl Fn(&'a (Item, usize)) -> ListItem<'a> {
         move |(item, depth)| {
             let indentation = if *depth > 0 {
-                Span::raw("│ ".repeat(*depth)).black()
+                Span::raw(format!("{} ", symbols.tree_indent).repeat(*depth)).black()
             } else {
                 Span::raw("  ".repeat(*depth)).black()
             };
@@ -151,18 +150,42 @@ impl Explorer<'_> {
                         .as_ref()
                         .is_some_and(|selected| selected == path);
                     ListItem::new(Line::from(match (is_open, is_selected) {
-                        (true, true) => [indentation, "◆ ".into(), name.into()].to_vec(),
-                        (true, false) => [indentation, "  ".into(), name.into()].to_vec(),
-                        (false, true) => ["◆".into()].to_vec(),
-                        (false, false) => ["◦".dark_gray()].to_vec(),
+                        (true, true) => [
+                            indentation,
+                            format!("{} ", symbols.selected).into(),
+                            name.bold().underlined(),
+                        ]
+                        .to_vec(),
+                        (true, false) => [
+                            indentation,
+                            format!("{} ", symbols.unselected).dark_gray(),
+                            name.into(),
+                        ]
+                        .to_vec(),
+                        (false, true) => [symbols.selected.clone().into()].to_vec(),
+                        (false, false) => [symbols.unselected.clone().dark_gray()].to_vec(),
                     }))
                 }
                 Item::Directory { expanded, name, .. } => {
                     ListItem::new(Line::from(match (is_open, expanded) {
-                        (true, true) => [indentation, "▾ ".dark_gray(), name.into()].to_vec(),
-                        (true, false) => [indentation, "▸ ".dark_gray(), name.into()].to_vec(),
-                        (false, true) => ["▪".dark_gray()].to_vec(),
-                        (false, false) => ["▫".dark_gray()].to_vec(),
+                        (true, true) => [
+                            indentation,
+                            format!("{} ", symbols.tree_expanded).dark_gray(),
+                            name.into(),
+                        ]
+                        .to_vec(),
+                        (true, false) => [
+                            indentation,
+                            format!("{} ", symbols.tree_collapsed).dark_gray(),
+                            name.into(),
+                        ]
+                        .to_vec(),
+                        (false, true) => {
+                            [symbols.folder_expanded_collapsed.clone().dark_gray()].to_vec()
+                        }
+                        (false, false) => {
+                            [symbols.folder_collapsed_collapsed.clone().dark_gray()].to_vec()
+                        }
                     }))
                 }
             }
@@ -176,9 +199,9 @@ impl<'a> StatefulWidget for Explorer<'a> {
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         let block = Block::bordered()
             .border_type(if state.active {
-                BorderType::Thick
+                state.symbols.border_active.into()
             } else {
-                BorderType::Rounded
+                state.symbols.border_inactive.into()
             })
             .title_style(Style::default().italic().bold());
 
@@ -186,14 +209,18 @@ impl<'a> StatefulWidget for Explorer<'a> {
         state.update_offset_mut(height.into());
 
         let sort_symbol = match state.sort {
-            Sort::Asc => SORT_SYMBOL_ASC,
-            Sort::Desc => SORT_SYMBOL_DESC,
+            Sort::Asc => &state.symbols.sort_asc,
+            Sort::Desc => &state.symbols.sort_desc,
         };
 
         let items: Vec<ListItem> = state
             .flat_items
             .iter()
-            .map(Explorer::list_item(state.selected_path(), state.is_open()))
+            .map(Self::list_item(
+                &state.symbols,
+                state.selected_path(),
+                state.is_open(),
+            ))
             .collect();
 
         if state.is_open() {
@@ -203,15 +230,19 @@ impl<'a> StatefulWidget for Explorer<'a> {
                         .title(format!(
                             "{} {} ",
                             if state.visibility == Visibility::FullWidth {
-                                " ⟹ "
+                                format!(" {} ", state.symbols.pane_full)
                             } else {
-                                ""
+                                String::default()
                             },
                             state.title
                         ))
                         .title(
-                            Line::from(vec![" ".into(), sort_symbol.into(), " ◀ ".into()])
-                                .alignment(Alignment::Right),
+                            Line::from(vec![
+                                " ".into(),
+                                sort_symbol.into(),
+                                format!(" {} ", state.symbols.pane_close).into(),
+                            ])
+                            .alignment(Alignment::Right),
                         ),
                 )
                 .highlight_style(Style::new().reversed().dark_gray())
@@ -223,7 +254,7 @@ impl<'a> StatefulWidget for Explorer<'a> {
             List::new(items)
                 .block(
                     block
-                        .title(" ▶ ")
+                        .title(format!(" {} ", state.symbols.pane_open))
                         .borders(Borders::LEFT | Borders::TOP | Borders::BOTTOM),
                 )
                 .highlight_style(Style::new().reversed().dark_gray())
@@ -253,7 +284,7 @@ mod tests {
             })
             .collect();
 
-        let mut state = ExplorerState::new("Test", items);
+        let mut state = ExplorerState::new("Test", items, &Symbols::unicode());
         state.next(25);
 
         let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
@@ -321,7 +352,7 @@ mod tests {
 
         tests.into_iter().for_each(|items| {
             _ = terminal.clear();
-            let mut state = ExplorerState::new("Test", items);
+            let mut state = ExplorerState::new("Test", items, &Symbols::unicode());
             state.select();
             state.sort();
 
