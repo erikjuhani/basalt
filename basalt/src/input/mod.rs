@@ -459,7 +459,7 @@ mod tests {
             terminal
                 .draw(|frame| {
                     let mut state = state_fn();
-                    Input::new(BorderType::default()).render(
+                    Input::new(BorderType::Rounded).render(
                         frame.area(),
                         frame.buffer_mut(),
                         &mut state,

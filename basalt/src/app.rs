@@ -680,6 +680,7 @@ impl<'a> App<'a> {
             }
             let mut toast = toast.clone();
             toast.border_type = self.config.symbols.border_modal.into();
+            toast.icon = toast.level_icon(&self.config.symbols);
             toast.render(toast_area, buf)
         });
     }
