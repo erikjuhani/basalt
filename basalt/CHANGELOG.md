@@ -4,7 +4,7 @@
 
 ### Added
 
-- [c3f2b41](https://github.com/erikjuhani/basalt/commit/c3f2b412c5e6eb09992287ead881311fc25b4b08) Add `Symbols` config types with presets
+- [c3f2b41](https://github.com/erikjuhani/basalt/commit/c3f2b412c5e6eb09992287ead881311fc25b4b08) Add `Symbols` config types with presets by @erikjuhani
 
 > Introduces symbols and symbol presets  as the foundation for
 > configurable UI symbols. Each preset provides a complete set of defaults
@@ -16,7 +16,7 @@
 >
 > Related to #424
 
-- [7d53d0a](https://github.com/erikjuhani/basalt/commit/7d53d0abf84306b3207ca2115a57c00c5cc309ff) Surface config errors as warning toasts
+- [7d53d0a](https://github.com/erikjuhani/basalt/commit/7d53d0abf84306b3207ca2115a57c00c5cc309ff) Surface config errors as warning toasts by @erikjuhani
 
 > Previously config parsing errors were silently swallowed. Now we return
 > warnings alongside the config so they can be shown to the user. Invalid
@@ -32,6 +32,14 @@
 >
 > Signed-off-by: Erik Kinnunen <erik.kinn@gmail.com>
 
+- [7d3e968](https://github.com/erikjuhani/basalt/commit/7d3e968b21c116a8faa00812c19c28dc08e3b518) Add auto-detection for symbol preset based on terminal capabilities
+
+> Extend Preset with an Auto variant that detects terminal capabilities at
+> startup by inspecting TERM, LC_ALL, LC_CTYPE and LANG environment
+> variables to choose between Unicode and Ascii presets.
+>
+> Signed-off-by: Erik Kinnunen <erik.kinn@gmail.com>
+
 ### Changed
 
 - [a67ebed](https://github.com/erikjuhani/basalt/commit/a67ebed0f430f4d3a5c68be902a522731fde7249) Add `rust-version` to basalt Cargo manifest by @erikjuhani
@@ -42,13 +50,13 @@
 >
 > Signed-off-by: Erik Kinnunen <erik.kinn@gmail.com>
 
-- [9cdaa1c](https://github.com/erikjuhani/basalt/commit/9cdaa1c4f50993b7b8de1bc0f949243a88d2ca67) Use marker width instead of prefix width when rendering
+- [9cdaa1c](https://github.com/erikjuhani/basalt/commit/9cdaa1c4f50993b7b8de1bc0f949243a88d2ca67) Use marker width instead of prefix width when rendering by @erikjuhani
 
 > Related to #424
 >
 > Signed-off-by: Erik Kinnunen <erik.kinn@gmail.com>
 
-- [7cb70c5](https://github.com/erikjuhani/basalt/commit/7cb70c5a77b683233a3c2d91b533e0e5fcbe393f) Use symbols through note editor rendering
+- [7cb70c5](https://github.com/erikjuhani/basalt/commit/7cb70c5a77b683233a3c2d91b533e0e5fcbe393f) Use symbols through note editor rendering by @erikjuhani
 
 > All render functions now take `&Symbols` parameter so application
 > symbols are read from config instead of being hardcoded.
@@ -65,7 +73,7 @@
 >
 > Signed-off-by: Erik Kinnunen <erik.kinn@gmail.com>
 
-- [e6d8edf](https://github.com/erikjuhani/basalt/commit/e6d8edf7efa0dee819bd430c181bf4f048755635) Use symbols in explorer
+- [e6d8edf](https://github.com/erikjuhani/basalt/commit/e6d8edf7efa0dee819bd430c181bf4f048755635) Use symbols in explorer by @erikjuhani
 
 > Replaces hardcoded symbols in the explorer with configurable ones.
 > Unselected files also render `symbols.unselected` instead of blank space
@@ -77,7 +85,7 @@
 >
 > Signed-off-by: Erik Kinnunen <erik.kinn@gmail.com>
 
-- [de90cfd](https://github.com/erikjuhani/basalt/commit/de90cfd50b522db4a585ead7d6825e49c9400a89) Use symbols config in Outline
+- [de90cfd](https://github.com/erikjuhani/basalt/commit/de90cfd50b522db4a585ead7d6825e49c9400a89) Use symbols config in Outline by @erikjuhani
 
 > Replaces hardcoded glyphs with configurable symbols.
 >
@@ -85,7 +93,7 @@
 >
 > Signed-off-by: Erik Kinnunen <erik.kinn@gmail.com>
 
-- [dd49a8a](https://github.com/erikjuhani/basalt/commit/dd49a8a57af9753a1a49fbf5f032c44d9ec57b39) Use symbols in app and set default preset
+- [dd49a8a](https://github.com/erikjuhani/basalt/commit/dd49a8a57af9753a1a49fbf5f032c44d9ec57b39) Use symbols in app and set default preset by @erikjuhani
 
 > Config is now loaded once in `App::start` and passed into `App::new` so
 > that `config.symbols` is available when constructing component state.
@@ -95,14 +103,14 @@
 >
 > Signed-off-by: Erik Kinnunen <erik.kinn@gmail.com>
 
-- [b4e22bf](https://github.com/erikjuhani/basalt/commit/b4e22bf25684200902c634da5c414a618af0afea) Use border style from symbols config
+- [b4e22bf](https://github.com/erikjuhani/basalt/commit/b4e22bf25684200902c634da5c414a618af0afea) Use border style from symbols config by @erikjuhani
 
 > Previously border style was hardcoded in code, however, this is now also
 > controllable from the symbols map.
 >
 > Signed-off-by: Erik Kinnunen <erik.kinn@gmail.com>
 
-- [1801eea](https://github.com/erikjuhani/basalt/commit/1801eeae075c0fe3aa66d6dcdf699e93cbc812f1) Add configurable toast icons per symbol preset
+- [1801eea](https://github.com/erikjuhani/basalt/commit/1801eeae075c0fe3aa66d6dcdf699e93cbc812f1) Add configurable toast icons per symbol preset by @erikjuhani
 
 > Toast icons were hardcoded. This commit adds toast_success, toast_info,
 > toast_error and toast_warning fields to the symbol config so each preset
