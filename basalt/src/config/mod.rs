@@ -1,3 +1,4 @@
+mod env;
 mod key_binding;
 mod symbol;
 
@@ -8,11 +9,10 @@ use etcetera::{choose_base_strategy, home_dir, BaseStrategy};
 use key_binding::KeyBinding;
 use serde::Deserialize;
 
-use crate::{app::Message, command::Command, config::symbol::TomlSymbols};
-
-pub(crate) use symbol::Symbols;
+use crate::{app::Message, command::Command};
 
 pub(crate) use key_binding::{Key, Keystroke};
+pub(crate) use symbol::Symbols;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
@@ -227,7 +227,7 @@ impl<const N: usize> From<[(Key, Command); N]> for KeyBindings {
 #[derive(Clone, Debug, PartialEq, Deserialize, Default)]
 struct TomlConfig {
     #[serde(default)]
-    symbols: TomlSymbols,
+    symbols: symbol::TomlSymbols,
     #[serde(default)]
     experimental_editor: bool,
     #[serde(default)]
@@ -295,6 +295,10 @@ pub fn load<'a>() -> Result<(Config<'a>, Vec<String>), ConfigError> {
     // TODO: Use compile time toml parsing instead to check the build error during compile time
     // Requires a custom proc-macro workspace crate
     let mut config: Config = toml::from_str::<TomlConfig>(BASE_CONFIGURATION_STR)?.into();
+
+    if config.symbols.preset == symbol::Preset::Auto {
+        config.symbols.preset = symbol::detect_preset(env::SystemEnv)
+    }
 
     let (user_config, warnings) = match read_user_config() {
         Ok(config) => (Some(config), vec![]),
