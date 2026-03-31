@@ -1,12 +1,16 @@
 use ratatui::widgets;
 use serde::Deserialize;
 
-use crate::stylized_text::FontStyle;
+use crate::{
+    config::env::{self, Env},
+    stylized_text::FontStyle,
+};
 
 #[derive(Clone, Debug, PartialEq, Default, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Preset {
     #[default]
+    Auto,
     Unicode,
     Ascii,
     NerdFont,
@@ -34,7 +38,7 @@ impl From<BorderType> for widgets::BorderType {
 
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct Symbols {
-    preset: Preset,
+    pub preset: Preset,
     pub border_active: BorderType,
     pub border_inactive: BorderType,
     pub border_modal: BorderType,
@@ -299,6 +303,7 @@ impl Symbols {
 
     pub fn from_preset(preset: &Preset) -> Self {
         match preset {
+            Preset::Auto => Self::from_preset(&detect_preset(env::SystemEnv)),
             Preset::Ascii => Self::ascii(),
             Preset::Unicode => Self::unicode(),
             Preset::NerdFont => Self::nerd_font(),
@@ -352,4 +357,118 @@ pub struct TomlSymbols {
     title_font_style: Option<FontStyle>,
     h5_font_style: Option<FontStyle>,
     h6_font_style: Option<FontStyle>,
+}
+
+pub fn detect_preset(env: impl Env) -> Preset {
+    let is_dumb_terminal = || -> bool {
+        env.var("TERM")
+            .map(|value| value == "dumb")
+            .unwrap_or(false)
+    };
+
+    let is_utf8_locale = || -> bool {
+        env.var("LC_ALL")
+            .or_else(|| env.var("LC_CTYPE"))
+            .or_else(|| env.var("LANG"))
+            .map(|locale| {
+                let locale = locale.to_ascii_lowercase();
+                locale.contains("utf-8") || locale.contains("utf8")
+            })
+            .unwrap_or(false)
+    };
+
+    let is_linux_framebuffer = || -> bool {
+        env.var("TERM")
+            .map(|value| value == "linux")
+            .unwrap_or(false)
+    };
+
+    if is_dumb_terminal() || !is_utf8_locale() || is_linux_framebuffer() {
+        Preset::Ascii
+    } else {
+        Preset::Unicode
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use super::*;
+
+    struct TestEnv(HashMap<&'static str, &'static str>);
+
+    impl Env for TestEnv {
+        fn var(&self, key: &str) -> Option<String> {
+            self.0.get(key).map(|v| v.to_string())
+        }
+    }
+
+    fn env_from(pairs: &[(&'static str, &'static str)]) -> TestEnv {
+        TestEnv(pairs.iter().copied().collect())
+    }
+
+    #[test]
+    fn dumb_terminal_returns_ascii() {
+        let env = env_from(&[("TERM", "dumb"), ("LANG", "en_US.UTF-8")]);
+        assert_eq!(detect_preset(env), Preset::Ascii);
+    }
+
+    #[test]
+    fn linux_framebuffer_returns_ascii() {
+        let env = env_from(&[("TERM", "linux"), ("LANG", "en_US.UTF-8")]);
+        assert_eq!(detect_preset(env), Preset::Ascii);
+    }
+
+    #[test]
+    fn no_utf8_locale_returns_ascii() {
+        let env = env_from(&[("TERM", "xterm-256color"), ("LANG", "C")]);
+        assert_eq!(detect_preset(env), Preset::Ascii);
+    }
+
+    #[test]
+    fn no_locale_vars_returns_ascii() {
+        let env = env_from(&[("TERM", "xterm-256color")]);
+        assert_eq!(detect_preset(env), Preset::Ascii);
+    }
+
+    #[test]
+    fn utf8_locale_returns_unicode() {
+        let env = env_from(&[("TERM", "xterm-256color"), ("LANG", "en_US.UTF-8")]);
+        assert_eq!(detect_preset(env), Preset::Unicode);
+    }
+
+    #[test]
+    fn lc_all_takes_priority_over_lang() {
+        let env = env_from(&[("TERM", "xterm"), ("LC_ALL", "en_US.UTF-8"), ("LANG", "C")]);
+        assert_eq!(detect_preset(env), Preset::Unicode);
+    }
+
+    #[test]
+    fn lc_ctype_takes_priority_over_lang() {
+        let env = env_from(&[
+            ("TERM", "xterm"),
+            ("LC_CTYPE", "en_US.UTF-8"),
+            ("LANG", "C"),
+        ]);
+        assert_eq!(detect_preset(env), Preset::Unicode);
+    }
+
+    #[test]
+    fn lc_all_non_utf8_overrides_utf8_lang() {
+        let env = env_from(&[("TERM", "xterm"), ("LC_ALL", "C"), ("LANG", "en_US.UTF-8")]);
+        assert_eq!(detect_preset(env), Preset::Ascii);
+    }
+
+    #[test]
+    fn utf8_lowercase_detected() {
+        let env = env_from(&[("TERM", "xterm"), ("LANG", "en_US.utf8")]);
+        assert_eq!(detect_preset(env), Preset::Unicode);
+    }
+
+    #[test]
+    fn no_env_vars_returns_ascii() {
+        let env = env_from(&[]);
+        assert_eq!(detect_preset(env), Preset::Ascii);
+    }
 }
