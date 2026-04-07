@@ -3,7 +3,7 @@ members = ["basalt", "basalt-*"]
 resolver = "2"
 
 [workspace.dependencies]
-similar-asserts = "1.7.0"
+similar-asserts = "2.0.0"
 
 [profile.ci]
 inherits = "dev"
