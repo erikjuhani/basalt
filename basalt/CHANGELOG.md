@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.12.4](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.4) (Unreleased)
+## [0.12.4](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.4) (Apr, 09 2026)
 
 ### Added
 
@@ -32,7 +32,7 @@
 >
 > Signed-off-by: Erik Kinnunen <erik.kinn@gmail.com>
 
-- [7d3e968](https://github.com/erikjuhani/basalt/commit/7d3e968b21c116a8faa00812c19c28dc08e3b518) Add auto-detection for symbol preset based on terminal capabilities
+- [7d3e968](https://github.com/erikjuhani/basalt/commit/7d3e968b21c116a8faa00812c19c28dc08e3b518) Add auto-detection for symbol preset based on terminal capabilities by @erikjuhani
 
 > Extend Preset with an Auto variant that detects terminal capabilities at
 > startup by inspecting TERM, LC_ALL, LC_CTYPE and LANG environment
