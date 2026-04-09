@@ -43,16 +43,16 @@ If configuration files exist in multiple locations, only the first one found is 
 >
 > This behavior may change in future versions to merge all found configurations instead.
 
-See the [full configuration reference](docs/Configuration/Configuration.md) for key mappings, custom commands, and defaults.
+See the [full configuration reference](https://github.com/erikjuhani/basalt/blob/main/docs/Configuration/Configuration.md) for key mappings, custom commands, and defaults.
 
 ## Documentation
 
-- [Getting started](docs/Getting%20started/Installation.md)
-- [User interface](docs/User%20interface/User%20interface.md)
-- [Configuration](docs/Configuration/Configuration.md)
-- [Editing and Formatting](docs/Editing%20and%20Formatting.md)
-- [Files and Folders](docs/Files%20and%20Folders.md)
-- [Known Limitations](docs/Known%20Limitations.md)
+- [Getting started](https://github.com/erikjuhani/basalt/blob/main/docs/Getting%20started/Installation.md)
+- [User interface](https://github.com/erikjuhani/basalt/blob/main/docs/User%20interface/User%20interface.md)
+- [Configuration](https://github.com/erikjuhani/basalt/blob/main/docs/Configuration/Configuration.md)
+- [Editing and Formatting](https://github.com/erikjuhani/basalt/blob/main/docs/Editing%20and%20Formatting.md)
+- [Files and Folders](https://github.com/erikjuhani/basalt/blob/main/docs/Files%20and%20Folders.md)
+- [Known Limitations](https://github.com/erikjuhani/basalt/blob/main/docs/Known%20Limitations.md)
 
 ## Contributing
 
