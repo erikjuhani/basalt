@@ -20,13 +20,13 @@ cargo-fmt:
 	cargo fmt --all
 
 json-fmt:
-	find . -name "*.json" -not -path "./target/*" -exec sh -c 'jq "." "$$1" > tmp && mv tmp "$$1"' _ {} \;
+	find . -name "*.json" -not -path "./target/*" -not -path "*/.*/*" -exec sh -c 'jq "." "$$1" > tmp && mv tmp "$$1"' _ {} \;
 
 cargo-fmt-check:
 	cargo fmt --all --check
 
 json-fmt-check:
-	find . -name "*.json" -not -path "./target/*" | xargs -I {} sh -c 'jq "." "{}" | diff --color=always -u0 "{}" -'
+	find . -name "*.json" -not -path "./target/*" -not -path "*/.*/*" | xargs -I {} sh -c 'jq "." "{}" | diff --color=always -u0 "{}" -'
 
 changelog:
 	@if [ -z "$(crate)" ]; then echo "Error: crate parameter is required (e.g., CRATE=basalt-core)"; exit 1; fi
