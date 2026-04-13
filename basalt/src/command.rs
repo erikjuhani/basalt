@@ -91,6 +91,10 @@ pub(crate) enum Command {
     NoteEditorExperimentalCursorLeft,
     NoteEditorExperimentalCursorRight,
     NoteEditorInsertMode,
+    NoteEditorTableScrollLeft,
+    NoteEditorTableScrollRight,
+    NoteEditorTableScrollColumnLeft,
+    NoteEditorTableScrollColumnRight,
 
     VaultSelectorModalUp,
     VaultSelectorModalDown,
@@ -194,6 +198,10 @@ fn str_to_command(s: &str) -> Option<Command> {
         "note_editor_experimental_cursor_left" => Some(Command::NoteEditorExperimentalCursorLeft),
         "note_editor_experimental_cursor_right" => Some(Command::NoteEditorExperimentalCursorRight),
         "note_editor_insert_mode" => Some(Command::NoteEditorInsertMode),
+        "note_editor_table_scroll_left" => Some(Command::NoteEditorTableScrollLeft),
+        "note_editor_table_scroll_right" => Some(Command::NoteEditorTableScrollRight),
+        "note_editor_table_scroll_column_left" => Some(Command::NoteEditorTableScrollColumnLeft),
+        "note_editor_table_scroll_column_right" => Some(Command::NoteEditorTableScrollColumnRight),
 
         "vault_selector_modal_up" => Some(Command::VaultSelectorModalUp),
         "vault_selector_modal_down" => Some(Command::VaultSelectorModalDown),
@@ -372,6 +380,18 @@ impl From<Command> for Message<'_> {
                 Message::NoteEditor(note_editor::Message::CursorRight)
             }
             Command::NoteEditorInsertMode => Message::NoteEditor(note_editor::Message::InsertMode),
+            Command::NoteEditorTableScrollLeft => {
+                Message::NoteEditor(note_editor::Message::TableScrollLeft)
+            }
+            Command::NoteEditorTableScrollRight => {
+                Message::NoteEditor(note_editor::Message::TableScrollRight)
+            }
+            Command::NoteEditorTableScrollColumnLeft => {
+                Message::NoteEditor(note_editor::Message::TableScrollColumnLeft)
+            }
+            Command::NoteEditorTableScrollColumnRight => {
+                Message::NoteEditor(note_editor::Message::TableScrollColumnRight)
+            }
 
             Command::VaultSelectorModalClose => {
                 Message::VaultSelectorModal(vault_selector_modal::Message::Close)

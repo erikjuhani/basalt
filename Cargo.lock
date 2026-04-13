@@ -72,6 +72,7 @@ dependencies = [
  "basalt-core 0.8.3",
  "crossterm",
  "etcetera",
+ "indexmap",
  "indoc",
  "insta",
  "natord",

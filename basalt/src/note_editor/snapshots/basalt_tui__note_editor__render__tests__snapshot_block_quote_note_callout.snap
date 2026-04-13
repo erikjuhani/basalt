@@ -1,0 +1,6 @@
+---
+source: basalt/src/note_editor/render.rs
+expression: virtual_block_to_string(&block)
+---
+ℹ NOTE
+┃ Test body content.

@@ -1,0 +1,10 @@
+---
+source: basalt/src/note_editor/render.rs
+expression: s
+---
++-------+-----+--------+
+| Name  | Age |  City  |
++-------+-----+--------+
+| Alice |  28 | London |
+| Bob   |  34 | Paris  |
++-------+-----+--------+

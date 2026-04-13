@@ -112,7 +112,7 @@ impl MarkdownView {
                         .chain(content)
                         .collect::<Vec<_>>(),
                 ),
-                ItemKind::Checked => Line::from(
+                ItemKind::LooselyChecked(_) => Line::from(
                     [prefix, "󰄲 ".magenta()]
                         .into_iter()
                         .chain(content)
@@ -134,6 +134,13 @@ impl MarkdownView {
                 ),
                 ItemKind::Unordered => Line::from(
                     [prefix, "- ".black()]
+                        .into_iter()
+                        .chain(content)
+                        .collect::<Vec<_>>(),
+                ),
+                // ITS Theme markers — icon/color rendering added in 05-03
+                _ => Line::from(
+                    [prefix, "󰄱 ".dark_gray()]
                         .into_iter()
                         .chain(content)
                         .collect::<Vec<_>>(),
@@ -204,6 +211,8 @@ impl MarkdownView {
 
                 lines
             }
+            // Table rendering is implemented in plan 06-02; return empty for now.
+            markdown::MarkdownNode::Table { .. } => vec![],
         }
     }
 }

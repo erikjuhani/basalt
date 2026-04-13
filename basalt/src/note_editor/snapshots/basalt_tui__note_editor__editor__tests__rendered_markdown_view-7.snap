@@ -17,8 +17,8 @@ expression: terminal.backend()
 "│ ┃ You can use any character inside the brackets to mark it as complete.      │"
 "│                                                                              │"
 "│ ■ Oats                                                                       │"
-"│ ● [?] Flour                                                                  │"
-"│ ● [d] Apples                                                                 │"
+"│ ❓ Flour                                                                     │" Hidden by multi-width symbols: [(3, " ")]
+"│ ↻ Apples                                                                     │"
 "│                                                                              │"
 "│                                                                              │"
 "╰ READ ────────────────────────────────────────────────────────────────────────╯"

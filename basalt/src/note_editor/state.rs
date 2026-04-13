@@ -6,14 +6,16 @@ use std::{
 };
 
 use ratatui::layout::Size;
+use unicode_width::UnicodeWidthStr;
 
 use crate::{
+    app::SyntectContext,
     config::Symbols,
     note_editor::{
         ast::{self},
         cursor::{self, Cursor},
         parser,
-        rich_text::RichText,
+        rich_text::{RichText, LinkMapEntry},
         text_buffer::TextBuffer,
         viewport::Viewport,
         virtual_document::VirtualDocument,
@@ -68,10 +70,24 @@ pub struct NoteEditorState<'a> {
     /// the layout always matches the text_buffer, even when the cursor
     /// position would temporarily resolve to a different block.
     editing_block: Option<usize>,
+    /// Horizontal scroll offset (in display-width chars) for the currently active table.
+    /// Resets to 0 when the cursor leaves the table's source range (D-13).
+    pub table_h_scroll: usize,
+    /// Link map for OSC 8 hyperlink emission — populated during layout.
+    /// Stores screen positions of external links for clickability.
+    pub link_map: Vec<LinkMapEntry>,
+    /// Inner area of the note editor widget — used for OSC 8 position calculation.
+    pub inner_area: ratatui::layout::Rect,
 }
 
 impl<'a> NoteEditorState<'a> {
-    pub fn new(content: &str, filename: &str, filepath: &Path, symbols: &Symbols) -> Self {
+    pub fn new(
+        content: &str,
+        filename: &str,
+        filepath: &Path,
+        symbols: &Symbols,
+        syntect_ctx: Option<&SyntectContext>,
+    ) -> Self {
         let ast_nodes = parser::from_str(content);
         let content = content.to_string();
         Self {
@@ -81,7 +97,7 @@ impl<'a> NoteEditorState<'a> {
             cursor: Cursor::default(),
             viewport: Viewport::default(),
             symbols: symbols.clone(),
-            virtual_document: VirtualDocument::new(symbols),
+            virtual_document: VirtualDocument::new(symbols, syntect_ctx),
             filename: filename.to_string(),
             filepath: filepath.to_path_buf(),
             ast_nodes,
@@ -91,6 +107,9 @@ impl<'a> NoteEditorState<'a> {
             editor_enabled: false,
             modified: false,
             editing_block: None,
+            table_h_scroll: 0,
+            link_map: Vec::new(),
+            inner_area: ratatui::layout::Rect::default(),
         }
     }
 
@@ -240,6 +259,10 @@ impl<'a> NoteEditorState<'a> {
         self.active
     }
 
+    pub fn syntect_selection_color(&self) -> Option<ratatui::style::Color> {
+        self.virtual_document.syntect_selection_color()
+    }
+
     pub fn current_block(&self) -> usize {
         *self
             .virtual_document
@@ -291,6 +314,7 @@ impl<'a> NoteEditorState<'a> {
                 &self.ast_nodes,
                 size.width.into(),
                 self.text_buffer.clone(),
+                self.table_h_scroll,
             );
 
             self.viewport.resize(size);
@@ -430,7 +454,11 @@ impl<'a> NoteEditorState<'a> {
             &self.ast_nodes,
             self.viewport.area().width.into(),
             self.text_buffer.clone(),
+            self.table_h_scroll,
         );
+
+        // Copy link_map from virtual_document for OSC 8 emission
+        self.link_map = self.virtual_document.link_map().to_vec();
 
         self.cursor.update(
             Jump(self.cursor.source_offset()),
@@ -508,6 +536,7 @@ impl<'a> NoteEditorState<'a> {
             &self.ast_nodes,
             self.viewport.area().width.into(),
             self.text_buffer.clone(),
+            self.table_h_scroll,
         );
 
         if let Some(offset) = target_offset {
@@ -557,6 +586,56 @@ impl<'a> NoteEditorState<'a> {
             node.set_source_range(shifted_range);
         });
     }
+
+    /// Returns a reference to the `Node::Table` the cursor is currently inside, if any.
+    ///
+    /// Uses the cursor's source_offset to test containment within each top-level Table
+    /// node's source range. Tables are never nested (per scope), so a flat scan is correct.
+    pub fn cursor_in_table_node(&self) -> Option<&ast::Node> {
+        let offset = self.cursor.source_offset();
+        self.ast_nodes.iter().find(|node| {
+            matches!(node, ast::Node::Table { .. }) && node.source_range().contains(&offset)
+        })
+    }
+
+    /// Returns the pre-computed column display widths for the table the cursor is currently in.
+    ///
+    /// Replicates Pass 1 from `render.rs` to compute the same column widths used at render
+    /// time, enabling H/L column-width scroll jumps without re-rendering.
+    pub fn table_col_widths(&self) -> Option<Vec<usize>> {
+        if let Some(ast::Node::Table { header, rows, .. }) = self.cursor_in_table_node() {
+            let n_cols = header
+                .len()
+                .max(rows.iter().map(|r| r.len()).max().unwrap_or(0));
+            let widths: Vec<usize> = (0..n_cols)
+                .map(|i| {
+                    let hdr_w = header
+                        .get(i)
+                        .map(|rt| {
+                            let s: String = rt.to_string();
+                            s.width().max(1)
+                        })
+                        .unwrap_or(1);
+                    let body_w = rows
+                        .iter()
+                        .map(|row| {
+                            row.get(i)
+                                .map(|rt| {
+                                    let s: String = rt.to_string();
+                                    s.width().max(1)
+                                })
+                                .unwrap_or(1)
+                        })
+                        .max()
+                        .unwrap_or(1);
+                    hdr_w.max(body_w)
+                })
+                .collect();
+            Some(widths)
+        } else {
+            None
+        }
+    }
 }
 
 #[cfg(test)]
@@ -579,8 +658,13 @@ mod tests {
     fn test_viewport_scrolls_with_cursor_in_edit_mode() {
         let content = "# Title\n\nLine 1\n\nLine 2\n\nLine 3\n\nLine 4\n\nLine 5\n";
 
-        let mut state =
-            NoteEditorState::new(content, "test", Path::new("test.md"), &Symbols::unicode());
+        let mut state = NoteEditorState::new(
+            content,
+            "test",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+            None,
+        );
         state.resize_viewport(Size::new(40, 4));
 
         state.cursor_down(2);

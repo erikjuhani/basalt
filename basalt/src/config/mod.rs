@@ -12,7 +12,7 @@ use serde::Deserialize;
 use crate::{app::Message, command::Command};
 
 pub(crate) use key_binding::{Key, Keystroke};
-pub(crate) use symbol::Symbols;
+pub use symbol::{Preset, Symbols};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {

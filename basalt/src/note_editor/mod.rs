@@ -3,7 +3,7 @@ mod cursor;
 pub mod editor;
 pub mod parser;
 mod render;
-mod rich_text;
+pub mod rich_text;
 pub mod state;
 mod text_buffer;
 mod text_wrap;
@@ -49,6 +49,14 @@ pub enum Message {
     JumpToBlock(usize),
     Delete,
     InsertMode,
+    /// Scroll the active table left by 1 display-width char (h key when cursor in table, D-12)
+    TableScrollLeft,
+    /// Scroll the active table right by 1 display-width char (l key when cursor in table, D-12)
+    TableScrollRight,
+    /// Scroll the active table left by ~1 column width (H key when cursor in table, D-12)
+    TableScrollColumnLeft,
+    /// Scroll the active table right by ~1 column width (L key when cursor in table, D-12)
+    TableScrollColumnRight,
 }
 
 // FIXME: Add resize message to handle resize related updates like cursor positioning
@@ -58,18 +66,43 @@ pub fn update<'a>(
     state: &mut NoteEditorState,
 ) -> Option<AppMessage<'a>> {
     let vim_mode = state.vim_mode();
+
+    // Table horizontal scroll override (D-16): when cursor is in a table in Read mode,
+    // h/l keys scroll the table rather than moving the cursor.
+    if matches!(state.view, View::Read) && state.cursor_in_table_node().is_some() {
+        match message {
+            Message::CursorLeft => {
+                state.table_h_scroll = state.table_h_scroll.saturating_sub(1);
+                return None;
+            }
+            Message::CursorRight => {
+                state.table_h_scroll = state.table_h_scroll.saturating_add(1);
+                return None;
+            }
+            _ => {}
+        }
+    }
+
     match message {
         Message::CursorLeft => state.cursor_left(1),
         Message::CursorRight => state.cursor_right(1),
         Message::JumpToBlock(idx) => state.cursor_jump(idx),
         Message::CursorUp => {
             state.cursor_up(1);
+            // Reset table horizontal scroll if cursor left the table (D-13)
+            if state.cursor_in_table_node().is_none() {
+                state.table_h_scroll = 0;
+            }
             return Some(AppMessage::Outline(outline::Message::SelectAt(
                 state.current_block(),
             )));
         }
         Message::CursorDown => {
             state.cursor_down(1);
+            // Reset table horizontal scroll if cursor left the table (D-13)
+            if state.cursor_in_table_node().is_none() {
+                state.table_h_scroll = 0;
+            }
             return Some(AppMessage::Outline(outline::Message::SelectAt(
                 state.current_block(),
             )));
@@ -79,6 +112,10 @@ pub fn update<'a>(
                 &scroll_amount,
                 screen_size.height.into(),
             ));
+            // Reset table horizontal scroll if cursor left the table (D-13)
+            if state.cursor_in_table_node().is_none() {
+                state.table_h_scroll = 0;
+            }
             return Some(AppMessage::Outline(outline::Message::SelectAt(
                 state.current_block(),
             )));
@@ -88,21 +125,55 @@ pub fn update<'a>(
                 &scroll_amount,
                 screen_size.height.into(),
             ));
+            // Reset table horizontal scroll if cursor left the table (D-13)
+            if state.cursor_in_table_node().is_none() {
+                state.table_h_scroll = 0;
+            }
             return Some(AppMessage::Outline(outline::Message::SelectAt(
                 state.current_block(),
             )));
         }
         Message::ScrollToTop => {
             state.cursor_up(usize::MAX);
+            // Reset table horizontal scroll if cursor left the table (D-13)
+            if state.cursor_in_table_node().is_none() {
+                state.table_h_scroll = 0;
+            }
             return Some(AppMessage::Outline(outline::Message::SelectAt(
                 state.current_block(),
             )));
         }
         Message::ScrollToBottom => {
             state.cursor_to_end();
+            // Reset table horizontal scroll if cursor left the table (D-13)
+            if state.cursor_in_table_node().is_none() {
+                state.table_h_scroll = 0;
+            }
             return Some(AppMessage::Outline(outline::Message::SelectAt(
                 state.current_block(),
             )));
+        }
+        Message::TableScrollLeft => {
+            state.table_h_scroll = state.table_h_scroll.saturating_sub(1);
+        }
+        Message::TableScrollRight => {
+            state.table_h_scroll = state.table_h_scroll.saturating_add(1);
+        }
+        Message::TableScrollColumnLeft => {
+            // Step = first column width + 3 (left-padding + right-padding + right-border)
+            let col_w = state
+                .table_col_widths()
+                .and_then(|ws| ws.into_iter().next())
+                .unwrap_or(1);
+            state.table_h_scroll = state.table_h_scroll.saturating_sub(col_w + 3);
+        }
+        Message::TableScrollColumnRight => {
+            // Step = first column width + 3 (left-padding + right-padding + right-border)
+            let col_w = state
+                .table_col_widths()
+                .and_then(|ws| ws.into_iter().next())
+                .unwrap_or(1);
+            state.table_h_scroll = state.table_h_scroll.saturating_add(col_w + 3);
         }
         _ => {}
     };

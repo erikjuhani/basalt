@@ -6,6 +6,8 @@ use ratatui::{
     widgets::{StatefulWidget, Widget},
     DefaultTerminal,
 };
+use syntect::highlighting::ThemeSet;
+use syntect::parsing::SyntaxSet;
 
 use std::{
     cell::RefCell,
@@ -40,6 +42,47 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const HELP_TEXT: &str = include_str!("./help.txt");
 
+#[derive(Clone)]
+pub struct SyntectContext {
+    pub syntax_set: SyntaxSet,
+    pub theme: syntect::highlighting::Theme,
+    pub selection_color: Option<ratatui::style::Color>,
+}
+
+impl std::fmt::Debug for SyntectContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SyntectContext").finish_non_exhaustive()
+    }
+}
+
+impl SyntectContext {
+    pub fn new() -> Self {
+        let syntax_set = SyntaxSet::load_defaults_newlines();
+        let theme_set = ThemeSet::load_defaults();
+        let theme = theme_set
+            .themes
+            .get("base16-ocean.dark")
+            .or_else(|| theme_set.themes.values().next())
+            .cloned()
+            .unwrap_or_default();
+        let selection_color = theme
+            .settings
+            .selection
+            .map(|c| ratatui::style::Color::Rgb(c.r, c.g, c.b));
+        Self {
+            syntax_set,
+            theme,
+            selection_color,
+        }
+    }
+}
+
+impl Default for SyntectContext {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Debug, Default, Clone, PartialEq)]
 pub enum ScrollAmount {
     #[default]
@@ -72,6 +115,7 @@ pub struct AppState<'a> {
     splash_modal: SplashModalState<'a>,
     help_modal: HelpModalState,
     vault_selector_modal: VaultSelectorModalState<'a>,
+    syntect_ctx: Option<SyntectContext>,
 }
 
 impl<'a> AppState<'a> {
@@ -100,6 +144,10 @@ impl<'a> AppState<'a> {
             is_running,
             ..self.clone()
         }
+    }
+
+    pub fn syntect_ctx(&self) -> Option<&SyntectContext> {
+        self.syntect_ctx.as_ref()
     }
 }
 
@@ -237,6 +285,7 @@ impl<'a> App<'a> {
                 .into_iter()
                 .map(|message| toast::Toast::warn(&message, Duration::from_secs(5)))
                 .collect(),
+            syntect_ctx: Some(SyntectContext::new()),
             ..Default::default()
         };
 
@@ -282,11 +331,15 @@ impl<'a> App<'a> {
     fn draw(&self, state: &mut AppState<'a>) -> Result<()> {
         let mut terminal = self.terminal.borrow_mut();
 
-        terminal.draw(move |frame| {
+        terminal.draw(|frame| {
             let area = frame.area();
             let buf = frame.buffer_mut();
             self.render(area, buf, state);
         })?;
+
+        // OSC 8 hyperlink emission — secondary pass after ratatui draw
+        // Always emitted; terminals without OSC 8 support silently ignore
+        self.emit_osc8_links(state)?;
 
         Ok(())
     }
@@ -498,6 +551,7 @@ impl<'a> App<'a> {
                     &selected_note.name,
                     &selected_note.path,
                     &config.symbols,
+                    state.syntect_ctx.as_ref(),
                 );
 
                 let vim_mode = config.vim_mode;
@@ -683,6 +737,57 @@ impl<'a> App<'a> {
             toast.icon = toast.level_icon(&self.config.symbols);
             toast.render(toast_area, buf)
         });
+    }
+
+    /// Emit OSC 8 terminal hyperlink sequences for external links visible in the viewport.
+    ///
+    /// Called after `terminal.draw()` each frame. Positions are computed from `link_map`
+    /// entries (populated during layout) relative to `inner_area` (set during render).
+    ///
+    /// OSC 8 format: `\x1b]8;;<url>\x07<text>\x1b]8;;\x07`
+    /// BEL terminator (\x07) chosen for broadest terminal compatibility.
+    ///
+    /// Graceful degradation: terminals that do not support OSC 8 silently ignore the
+    /// sequences — the link text still appears with its visual style (underline + color).
+    fn emit_osc8_links(&self, state: &AppState<'_>) -> Result<()> {
+        use crate::note_editor::rich_text::LinkTarget;
+        use std::io::Write;
+
+        let inner_area = state.note_editor.inner_area;
+        let viewport_top = state.note_editor.viewport().top() as usize;
+        let viewport_height = inner_area.height as usize;
+
+        let mut stdout = std::io::stdout();
+
+        // Reset any lingering OSC 8 state from previous frame
+        let _ = write!(stdout, "\x1b]8;;\x07");
+        let _ = stdout.flush();
+
+        for entry in &state.note_editor.link_map {
+            if let LinkTarget::External(url) = &entry.target {
+                let line_idx = entry.line_idx;
+
+                // Skip lines outside viewport
+                if line_idx < viewport_top {
+                    continue;
+                }
+                let visible_row = line_idx - viewport_top;
+                if visible_row >= viewport_height {
+                    continue;
+                }
+
+                let screen_x = inner_area.x + entry.col_start as u16;
+                let screen_y = inner_area.y + visible_row as u16;
+
+                // Emit OSC 8: open hyperlink, print text, close hyperlink
+                let osc8 = format!("\x1b[{};{}H\x1b]8;;{}\x07{}\x1b]8;;\x07",
+                    screen_y + 1, screen_x + 1, url, entry.text);
+                let _ = write!(stdout, "{osc8}");
+            }
+        }
+
+        let _ = stdout.flush();
+        Ok(())
     }
 }
 
