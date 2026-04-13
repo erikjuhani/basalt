@@ -8,9 +8,9 @@ expression: terminal.backend()
 "│                                                                              │"
 "│ Callout Blocks                                                               │"
 "│ ──────────────────────────────────────────────────────────────────────────── │"
+"│ ✨ TIP                                                                       │" Hidden by multi-width symbols: [(3, " ")]
 "│ ┃ You can turn your quote into a callout by adding [!info] as the first line │"
 "│ ┃ ⤷ in a quote.                                                              │"
-"│                                                                              │"
 "│                                                                              │"
 "│                                                                              │"
 "│                                                                              │"

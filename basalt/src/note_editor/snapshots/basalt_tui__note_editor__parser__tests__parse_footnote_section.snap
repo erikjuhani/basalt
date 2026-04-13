@@ -1,0 +1,10 @@
+---
+source: basalt/src/note_editor/parser.rs
+expression: sexp
+---
+(paragraph @0..33
+  "Text with a reference "
+  (footnote-ref "1")
+  " here.")
+(footnote-section @33..33
+  (footnote "1"     "This is the footnote definition."))

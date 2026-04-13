@@ -1,0 +1,7 @@
+---
+source: basalt/src/note_editor/render.rs
+expression: "lines.join(\"\\n\")"
+---
+════════════════════════════════════════
+[1]: First footnote content
+[2]: Second footnote content

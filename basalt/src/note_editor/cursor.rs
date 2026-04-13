@@ -3,7 +3,7 @@ use std::ops::ControlFlow;
 use ratatui::{
     buffer::Buffer,
     layout::{Offset, Rect},
-    style::Style,
+    style::{Color, Style},
     widgets::StatefulWidget,
 };
 use unicode_width::UnicodeWidthChar;
@@ -381,11 +381,19 @@ impl Cursor {
 #[derive(Clone, Debug, Default)]
 pub struct CursorWidget {
     offset: Offset,
+    code_block_selection_bg: Option<Color>,
 }
 
 impl CursorWidget {
     pub fn with_offset(self, offset: Offset) -> Self {
-        Self { offset }
+        Self { offset, ..self }
+    }
+
+    pub fn with_code_block_selection_bg(self, color: Option<Color>) -> Self {
+        Self {
+            code_block_selection_bg: color,
+            ..self
+        }
     }
 }
 
@@ -404,10 +412,12 @@ impl StatefulWidget for CursorWidget {
 
         match state.mode {
             CursorMode::Read => {
-                buf.set_style(
-                    Rect::new(x, y, area.width, 1),
-                    Style::default().reversed().dark_gray(),
-                );
+                let style = if let Some(bg) = self.code_block_selection_bg {
+                    Style::default().bg(bg)
+                } else {
+                    Style::default().reversed().dark_gray()
+                };
+                buf.set_style(Rect::new(x, y, area.width, 1), style);
             }
             CursorMode::Edit => {
                 buf.set_style(
@@ -445,6 +455,8 @@ mod tests {
                     &RenderStyle::Raw,
                     &Symbols::unicode(),
                     0,
+                    None, // Tests don't need syntax highlighting
+                    0,    // No table h_scroll in tests
                 )
                 .lines
             })
@@ -689,6 +701,8 @@ mod tests {
                     &RenderStyle::Visual,
                     &Symbols::unicode(),
                     0,
+                    None, // Tests don't need syntax highlighting
+                    0,    // No table h_scroll in tests
                 )
                 .lines
             })

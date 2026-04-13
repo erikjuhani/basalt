@@ -9,6 +9,8 @@ pub enum Style {
     Emphasis,
     Strong,
     Strikethrough,
+    /// Inline math style (e.g. `$formula$`).
+    InlineMath,
 }
 
 impl fmt::Display for Style {
@@ -18,6 +20,7 @@ impl fmt::Display for Style {
             Style::Emphasis => write!(f, "Emphasis"),
             Style::Strong => write!(f, "Strong"),
             Style::Strikethrough => write!(f, "Strikethrough"),
+            Style::InlineMath => write!(f, "InlineMath"),
         }
     }
 }
@@ -90,16 +93,36 @@ impl From<&str> for TextSegment {
     }
 }
 
+/// Target of a hyperlink or navigation action.
+#[derive(Clone, Debug, PartialEq)]
+pub enum LinkTarget {
+    /// An external URL (e.g. https://example.com). Phase 7: OSC 8 hyperlink.
+    External(String),
+    /// A footnote reference label (e.g. "1"). Future: scroll to definition.
+    FootnoteRef(String),
+}
+
+/// A typed inline node within a RichText sequence.
+#[derive(Clone, Debug, PartialEq)]
+pub enum InlineNode {
+    /// Existing styled text segment.
+    Text(TextSegment),
+    /// A hyperlink with display text and a target.
+    Link { text: String, target: LinkTarget },
+    /// An inline footnote reference marker (example: 1 for footnote reference syntax).
+    FootnoteRef(String),
+}
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct RichText {
-    segments: Vec<TextSegment>,
+    nodes: Vec<InlineNode>,
 }
 
 impl IntoIterator for RichText {
-    type Item = TextSegment;
+    type Item = InlineNode;
     type IntoIter = IntoIter<Self::Item>;
     fn into_iter(self) -> Self::IntoIter {
-        self.segments.into_iter()
+        self.nodes.into_iter()
     }
 }
 
@@ -108,9 +131,13 @@ impl fmt::Display for RichText {
         write!(
             f,
             "{}",
-            self.segments
+            self.nodes
                 .iter()
-                .map(|segment| segment.to_string())
+                .map(|node| match node {
+                    InlineNode::Text(seg) => seg.to_string(),
+                    InlineNode::Link { text, .. } => text.clone(),
+                    InlineNode::FootnoteRef(label) => format!("[{label}]"),
+                })
                 .collect::<Vec<_>>()
                 .join("")
         )
@@ -123,24 +150,48 @@ impl RichText {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.segments.is_empty()
+        self.nodes.is_empty()
     }
 
-    pub fn segments(&self) -> &[TextSegment] {
-        &self.segments
+    pub fn nodes(&self) -> &[InlineNode] {
+        &self.nodes
     }
 }
 
 impl From<Vec<TextSegment>> for RichText {
     fn from(segments: Vec<TextSegment>) -> Self {
-        Self { segments }
+        Self {
+            nodes: segments.into_iter().map(InlineNode::Text).collect(),
+        }
     }
 }
 
 impl<const N: usize> From<[TextSegment; N]> for RichText {
     fn from(segments: [TextSegment; N]) -> Self {
         Self {
-            segments: segments.to_vec(),
+            nodes: segments.into_iter().map(InlineNode::Text).collect(),
         }
     }
+}
+
+impl From<Vec<InlineNode>> for RichText {
+    fn from(nodes: Vec<InlineNode>) -> Self {
+        Self { nodes }
+    }
+}
+
+/// An entry in the link map, recording the screen position of a rendered link.
+/// Used by the draw loop to emit OSC 8 hyperlink sequences at the correct position.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LinkMapEntry {
+    /// Virtual line index in the document (0-based, relative to content lines, not meta).
+    pub line_idx: usize,
+    /// Display column start (inclusive) within the line.
+    pub col_start: usize,
+    /// Display column end (exclusive) within the line.
+    pub col_end: usize,
+    /// The link text (needed for OSC 8 re-emission).
+    pub text: String,
+    /// The link target.
+    pub target: LinkTarget,
 }
