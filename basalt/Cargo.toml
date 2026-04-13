@@ -23,6 +23,7 @@ thiserror = "2.0.16"
 unicode-width = "0.2.0"
 indexmap = "2"
 natord = "1.0.9"
+synctect = { version = "5.3.0", default-features = false, features = ["default-fancy"]}
 
 [dev-dependencies]
 indoc = "2"
