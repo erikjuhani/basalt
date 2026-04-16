@@ -1,14 +1,23 @@
-.PHONY: fmt cargo-fmt json-fmt fmt-check cargo-fmt-check json-fmt-check gifs check changelog
+.PHONY: fmt cargo-fmt json-fmt fmt-check cargo-fmt-check json-fmt-check gifs gifs-dark gifs-light check changelog
 
 DARK_TAPES := $(wildcard tapes/dark/*.tape)
 DARK_GIFS := $(DARK_TAPES:tapes/dark/%.tape=assets/dark/%.gif)
 
-gifs: gifs-dark
+LIGHT_TAPES := $(wildcard tapes/light/*.tape)
+LIGHT_GIFS := $(LIGHT_TAPES:tapes/light/%.tape=assets/light/%.gif)
+
+gifs: gifs-dark gifs-light
 
 gifs-dark: $(DARK_GIFS)
 
+gifs-light: $(LIGHT_GIFS)
+
 assets/dark/%.gif: tapes/dark/%.tape
 	@mkdir -p assets/dark
+	vhs $<
+
+assets/light/%.gif: tapes/light/%.tape
+	@mkdir -p assets/light
 	vhs $<
 
 check:
