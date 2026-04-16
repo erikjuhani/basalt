@@ -1,7 +1,15 @@
-.PHONY: fmt cargo-fmt json-fmt fmt-check cargo-fmt-check json-fmt-check vhs check changelog
+.PHONY: fmt cargo-fmt json-fmt fmt-check cargo-fmt-check json-fmt-check gifs check changelog
 
-vhs:
-	./scripts/vhs
+DARK_TAPES := $(wildcard tapes/dark/*.tape)
+DARK_GIFS := $(DARK_TAPES:tapes/dark/%.tape=assets/dark/%.gif)
+
+gifs: gifs-dark
+
+gifs-dark: $(DARK_GIFS)
+
+assets/dark/%.gif: tapes/dark/%.tape
+	@mkdir -p assets/dark
+	vhs $<
 
 check:
 	@$(MAKE) fmt-check
