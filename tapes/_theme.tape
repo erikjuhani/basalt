@@ -1,0 +1,23 @@
+Set Theme { 
+  "name": "Basalt Causeway",
+  "background": "#1a1d21",
+  "foreground": "#c4bfb6",
+  "cursor": "#7a9e8e",
+  "selection": "#2e3439",
+  "black": "#2a2e33",
+  "red": "#a65d57",
+  "green": "#7a9e8e",
+  "yellow": "#c4a672",
+  "blue": "#5b7e8a",
+  "magenta": "#8a7190",
+  "cyan": "#5e9b9b",
+  "white": "#c4bfb6",
+  "brightBlack": "#4a4f55",
+  "brightRed": "#c47a73",
+  "brightGreen": "#92b8a6",
+  "brightYellow": "#d9bf8a",
+  "brightBlue": "#7a9eb0",
+  "brightMagenta": "#a68aac",
+  "brightCyan": "#7ab5b5",
+  "brightWhite": "#ddd8cf"
+}
