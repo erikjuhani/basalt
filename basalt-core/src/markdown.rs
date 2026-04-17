@@ -504,13 +504,20 @@ impl<'a> Parser<'a> {
                 },
                 range,
             )),
-            Tag::CodeBlock(_) => self.push_node(Node::new(
-                MarkdownNode::CodeBlock {
-                    lang: None,
-                    text: Text::default(),
-                },
-                range,
-            )),
+            Tag::CodeBlock(kind) => {
+                use pulldown_cmark::CodeBlockKind;
+                let lang = match kind {
+                    CodeBlockKind::Fenced(lang) if !lang.is_empty() => Some(lang.to_string()),
+                    _ => None,
+                };
+                self.push_node(Node::new(
+                    MarkdownNode::CodeBlock {
+                        lang,
+                        text: Text::default(),
+                    },
+                    range,
+                ))
+            }
             Tag::Item => self.push_node(Node::new(
                 MarkdownNode::Item {
                     kind: None,
@@ -600,7 +607,8 @@ impl<'a> Parser<'a> {
                 // end tag will be ignored because current_node is cleared here.
                 if let Some(node) = self.current_node.take() {
                     // Only push the preceding node if it has content (not the empty wrapper).
-                    if !matches!(&node.markdown_node, MarkdownNode::Paragraph { text } if text.0.is_empty()) {
+                    if !matches!(&node.markdown_node, MarkdownNode::Paragraph { text } if text.0.is_empty())
+                    {
                         self.output.push(node);
                     }
                 }
@@ -731,7 +739,53 @@ mod tests {
         heading(HeadingLevel::H6, str, range)
     }
 
+    fn code_block(lang: Option<&str>, text: &str, range: Range<usize>) -> Node {
+        Node::new(
+            MarkdownNode::CodeBlock {
+                lang: lang.map(|s| s.to_string()),
+                text: text.into(),
+            },
+            range,
+        )
+    }
+
     use super::*;
+
+    #[test]
+    fn test_code_block_lang_extraction() {
+        // Fenced with language
+        let input = indoc! {"
+            ```rust
+            let x = 1;
+            ```
+        "};
+        let nodes = from_str(input);
+        assert_eq!(nodes.len(), 1);
+        assert_eq!(nodes[0], code_block(Some("rust"), "let x = 1;\n", 0..22));
+
+        // Fenced without language
+        let input2 = indoc! {"
+            ```
+            plain code
+            ```
+        "};
+        let nodes2 = from_str(input2);
+        assert_eq!(nodes2.len(), 1);
+        assert_eq!(nodes2[0], code_block(None, "plain code\n", 0..18));
+
+        // Fenced with python
+        let input3 = indoc! {"
+            ```python
+            print('hi')
+            ```
+        "};
+        let nodes3 = from_str(input3);
+        assert_eq!(nodes3.len(), 1);
+        assert_eq!(
+            nodes3[0],
+            code_block(Some("python"), "print('hi')\n", 0..25)
+        );
+    }
 
     #[test]
     fn test_parse() {

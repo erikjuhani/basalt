@@ -1,5 +1,6 @@
 ---
 source: basalt/src/note_editor/editor.rs
+assertion_line: 550
 expression: terminal.backend()
 ---
 "╭──────────────────────────────────────────────────────────────────────────────╮"
@@ -11,13 +12,13 @@ expression: terminal.backend()
 "│ You can add syntax highlighting to a code block, by adding a language code   │"
 "│ ⤷ after the first set of backticks.                                          │"
 "│                                                                              │"
-"│                                                                              │"
+"│                                                                           js │"
 "│  function fancyAlert(arg) {                                                  │"
 "│    if(arg) {                                                                 │"
 "│      $.facebox({div:'#foo'})                                                 │"
 "│    }                                                                         │"
 "│  }                                                                           │"
-"│                                                                              │"
+"│                                                                           js │"
 "│                                                                              │"
 "│                                                                              │"
 "│                                                                              │"

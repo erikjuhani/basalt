@@ -6,6 +6,7 @@ use ratatui::{
 use unicode_width::UnicodeWidthStr;
 
 use crate::{
+    app::SyntectContext,
     config::Symbols,
     note_editor::{
         ast::{self, SourceRange},
@@ -481,16 +482,17 @@ pub fn paragraph<'a>(
     VirtualBlock::new(&lines, source_range)
 }
 
+// FIXME: Use options struct or similar
+#[allow(clippy::too_many_arguments)]
 pub fn code_block<'a>(
     content: &str,
     prefix: Span<'static>,
-    // TODO: Add lang support
-    // Ref: https://github.com/erikjuhani/basalt/issues/96
-    _lang: &Option<String>,
+    lang: &Option<String>,
     text: &RichText,
     source_range: &SourceRange<usize>,
     max_width: usize,
     option: &RenderStyle,
+    syntect_ctx: Option<&SyntectContext>,
 ) -> VirtualBlock<'a> {
     let lines = match option {
         RenderStyle::Raw => {
@@ -522,34 +524,137 @@ pub fn code_block<'a>(
         }
         RenderStyle::Visual => {
             let text = text.to_string();
+            let available_width = max_width.saturating_sub(prefix.width());
 
-            let padding_line = virtual_line!([
-                synthetic_span!(prefix.clone()),
-                synthetic_span!(" "
-                    .repeat(max_width.saturating_sub(prefix.width()))
-                    .bg(Color::Black))
-            ]);
-
-            let mut current_range_start = source_range.start;
-
-            let mut lines = vec![padding_line.clone()];
-            lines.extend(text.lines().map(|line| {
-                let source_range = line_range(current_range_start, line.len(), true);
-                current_range_start = source_range.end;
-
+            // Top padding line with optional language label (D-10)
+            let padding_line = if let Some(ref lang_str) = lang {
+                let label = lang_str.as_str();
+                let label_display: String = if label.chars().count() <= available_width {
+                    label.to_string()
+                } else {
+                    label
+                        .char_indices()
+                        .take_while(|(i, _)| *i < available_width)
+                        .map(|(_, c)| c)
+                        .collect()
+                };
+                let pad_count =
+                    available_width.saturating_sub(UnicodeWidthStr::width(label_display.as_str()));
                 virtual_line!([
                     synthetic_span!(prefix.clone()),
-                    synthetic_span!(Span::styled(" ", Style::new().bg(Color::Black))),
-                    content_span!(line.to_string().bg(Color::Black), source_range),
-                    synthetic_span!(" "
-                        .repeat(
-                            max_width
-                                .saturating_sub(prefix.width() + line.chars().count())
-                                .saturating_sub(1)
-                        )
-                        .bg(Color::Black)),
+                    synthetic_span!(Span::styled(
+                        " ".repeat(pad_count),
+                        Style::default().bg(Color::Black)
+                    )),
+                    synthetic_span!(Span::styled(
+                        label_display,
+                        Style::default().fg(Color::DarkGray).bg(Color::Black)
+                    )),
                 ])
-            }));
+            } else {
+                virtual_line!([
+                    synthetic_span!(prefix.clone()),
+                    synthetic_span!(" ".repeat(available_width).bg(Color::Black)),
+                ])
+            };
+
+            // Determine syntax for highlighting; pair syntax with its context so
+            // the type system guarantees both are present together.
+            let highlight_pair = syntect_ctx.and_then(|ctx| {
+                lang.as_deref()
+                    .and_then(|l| ctx.syntax_set.find_syntax_by_token(l))
+                    .map(|syntax| (syntax, ctx))
+            });
+
+            let mut current_range_start = source_range.start;
+            let mut lines = vec![padding_line.clone()];
+
+            match highlight_pair {
+                Some((syntax, ctx)) => {
+                    // Highlighted path (D-09, CODE-02)
+                    use syntect::easy::HighlightLines;
+                    use syntect::util::LinesWithEndings;
+
+                    let mut highlighter = HighlightLines::new(syntax, &ctx.theme);
+
+                    for line in LinesWithEndings::from(&text) {
+                        let line_trimmed = line.trim_end_matches('\n');
+                        let source_range =
+                            line_range(current_range_start, line_trimmed.len(), true);
+                        current_range_start = source_range.end;
+
+                        // Get highlighted tokens; fallback to monochrome on error
+                        let ranges = highlighter
+                            .highlight_line(line, &ctx.syntax_set)
+                            .unwrap_or_else(|_| {
+                                vec![(syntect::highlighting::Style::default(), line)]
+                            });
+
+                        let mut token_spans: Vec<VirtualSpan> = Vec::new();
+                        token_spans.push(synthetic_span!(prefix.clone()));
+                        token_spans.push(synthetic_span!(Span::styled(
+                            " ",
+                            Style::default().bg(Color::Black)
+                        )));
+
+                        for (style, token) in &ranges {
+                            let token_text = token.trim_end_matches('\n');
+                            if token_text.is_empty() {
+                                continue;
+                            }
+                            let fg = Color::Rgb(
+                                style.foreground.r,
+                                style.foreground.g,
+                                style.foreground.b,
+                            );
+                            token_spans.push(synthetic_span!(Span::styled(
+                                token_text.to_string(),
+                                Style::default().fg(fg).bg(Color::Black)
+                            )));
+                        }
+
+                        // Right padding to fill the code block width
+                        let right_pad = max_width
+                            .saturating_sub(prefix.width() + UnicodeWidthStr::width(line_trimmed))
+                            .saturating_sub(1);
+                        token_spans.push(synthetic_span!(Span::styled(
+                            " ".repeat(right_pad),
+                            Style::default().bg(Color::Black)
+                        )));
+
+                        // D-12: Zero-width content anchor so has_content() returns true,
+                        // allowing cursor navigation through highlighted code lines.
+                        // Padding lines (top/bottom) remain synthetic-only and non-navigable.
+                        token_spans
+                            .push(content_span!("".to_string().bg(Color::Black), source_range));
+
+                        lines.push(VirtualLine::new(&token_spans));
+                    }
+                }
+                None => {
+                    // Monochrome fallback path (D-11, CODE-03)
+                    lines.extend(text.lines().map(|line| {
+                        let source_range = line_range(current_range_start, line.len(), true);
+                        current_range_start = source_range.end;
+
+                        virtual_line!([
+                            synthetic_span!(prefix.clone()),
+                            synthetic_span!(Span::styled(" ", Style::new().bg(Color::Black))),
+                            content_span!(line.to_string().bg(Color::Black), source_range),
+                            synthetic_span!(" "
+                                .repeat(
+                                    max_width
+                                        .saturating_sub(
+                                            prefix.width() + UnicodeWidthStr::width(line),
+                                        )
+                                        .saturating_sub(1)
+                                )
+                                .bg(Color::Black)),
+                        ])
+                    }));
+                }
+            }
+
             lines.extend([padding_line]);
             lines.extend([empty_virtual_line!()]);
             lines
@@ -570,6 +675,7 @@ pub fn list<'a>(
     option: &RenderStyle,
     symbols: &Symbols,
     list_depth: usize,
+    syntect_ctx: Option<&SyntectContext>,
 ) -> VirtualBlock<'a> {
     let lines = match option {
         RenderStyle::Raw => render_raw(content, source_range, max_width, prefix, symbols),
@@ -589,6 +695,7 @@ pub fn list<'a>(
                         option,
                         symbols,
                         list_depth,
+                        syntect_ctx,
                     )
                     .lines
                 })
@@ -616,6 +723,7 @@ pub fn task<'a>(
     option: &RenderStyle,
     symbols: &Symbols,
     list_depth: usize,
+    syntect_ctx: Option<&SyntectContext>,
 ) -> VirtualBlock<'a> {
     let lines = match option {
         RenderStyle::Raw => render_raw(content, source_range, max_width, prefix, symbols),
@@ -666,6 +774,7 @@ pub fn task<'a>(
                     option,
                     symbols,
                     list_depth + 1,
+                    syntect_ctx,
                 )
                 .lines
             }));
@@ -689,6 +798,7 @@ pub fn item<'a>(
     option: &RenderStyle,
     symbols: &Symbols,
     list_depth: usize,
+    syntect_ctx: Option<&SyntectContext>,
 ) -> VirtualBlock<'a> {
     let lines = match option {
         RenderStyle::Raw => render_raw(content, source_range, max_width, prefix, symbols),
@@ -734,6 +844,7 @@ pub fn item<'a>(
                     option,
                     symbols,
                     list_depth + 1,
+                    syntect_ctx,
                 )
                 .lines
             }));
@@ -803,10 +914,7 @@ fn display_math<'a>(
             synthetic_span!(prefix.clone()),
             synthetic_span!(formula_span)
         ]),
-        virtual_line!([
-            synthetic_span!(prefix),
-            synthetic_span!(sep_span)
-        ]),
+        virtual_line!([synthetic_span!(prefix), synthetic_span!(sep_span)]),
         empty_virtual_line!(),
     ];
     VirtualBlock::new(&lines, source_range)
@@ -827,6 +935,7 @@ pub fn block_quote<'a>(
     max_width: usize,
     option: &RenderStyle,
     symbols: &Symbols,
+    syntect_ctx: Option<&SyntectContext>,
 ) -> VirtualBlock<'a> {
     let lines = match option {
         RenderStyle::Raw => render_raw(content, source_range, max_width, prefix, symbols),
@@ -842,6 +951,7 @@ pub fn block_quote<'a>(
                     option,
                     symbols,
                     0,
+                    syntect_ctx,
                 )
                 .lines;
                 if prefix.to_string().is_empty() && i != nodes.len().saturating_sub(1) {
@@ -858,6 +968,8 @@ pub fn block_quote<'a>(
     VirtualBlock::new(&lines, source_range)
 }
 
+// FIXME: Use options struct or similar
+#[allow(clippy::too_many_arguments)]
 pub fn render_node<'a>(
     content: String,
     node: &ast::Node,
@@ -866,6 +978,7 @@ pub fn render_node<'a>(
     option: &RenderStyle,
     symbols: &Symbols,
     list_depth: usize,
+    syntect_ctx: Option<&SyntectContext>,
 ) -> VirtualBlock<'a> {
     use ast::Node::*;
     match node {
@@ -904,6 +1017,7 @@ pub fn render_node<'a>(
             source_range,
             max_width,
             option,
+            syntect_ctx,
         ),
         List {
             nodes,
@@ -917,6 +1031,7 @@ pub fn render_node<'a>(
             option,
             symbols,
             list_depth,
+            syntect_ctx,
         ),
         Item {
             kind,
@@ -932,6 +1047,7 @@ pub fn render_node<'a>(
             option,
             symbols,
             list_depth,
+            syntect_ctx,
         ),
         Task {
             kind,
@@ -947,6 +1063,7 @@ pub fn render_node<'a>(
             option,
             symbols,
             list_depth,
+            syntect_ctx,
         ),
         BlockQuote {
             kind,
@@ -961,6 +1078,7 @@ pub fn render_node<'a>(
             max_width,
             option,
             symbols,
+            syntect_ctx,
         ),
         Rule { source_range } => rule(source_range, max_width, prefix, symbols),
         DisplayMath {
@@ -1034,7 +1152,10 @@ mod tests {
         // First line (separator): contains "─" repeated to formula width
         let sep_line = vline_content(&block.lines[0]);
         assert!(sep_line.contains("\u{2500}"), "Separator should use U+2500");
-        assert!(!sep_line.contains('═'), "Separator should NOT use horizontal_rule char");
+        assert!(
+            !sep_line.contains('═'),
+            "Separator should NOT use horizontal_rule char"
+        );
 
         // Second line (formula): contains trimmed formula text
         let formula_line = vline_content(&block.lines[1]);
@@ -1043,7 +1164,10 @@ mod tests {
 
         // Third line (separator): same as first
         let sep_line_2 = vline_content(&block.lines[2]);
-        assert_eq!(sep_line, sep_line_2, "Top and bottom separators should match");
+        assert_eq!(
+            sep_line, sep_line_2,
+            "Top and bottom separators should match"
+        );
 
         // Verify formula span has Magenta + ITALIC
         let formula_vspan = block.lines[1]
@@ -1060,5 +1184,136 @@ mod tests {
         };
         assert_eq!(formula_rspan.style.fg, Some(Color::Magenta));
         assert!(formula_rspan.style.add_modifier.contains(Modifier::ITALIC));
+    }
+
+    #[test]
+    fn test_syntect_context_init() {
+        use crate::app::SyntectContext;
+        // SyntectContext::new() should not panic
+        let ctx = SyntectContext::new();
+        // Should find Rust syntax
+        assert!(ctx.syntax_set.find_syntax_by_token("rust").is_some());
+        // Should find Python syntax
+        assert!(ctx.syntax_set.find_syntax_by_token("py").is_some());
+        // Unknown should return None, not panic
+        assert!(ctx
+            .syntax_set
+            .find_syntax_by_token("nonexistent_lang_xyz")
+            .is_none());
+        // Plain text should always be present
+        let _pt = ctx.syntax_set.find_syntax_plain_text();
+    }
+
+    #[test]
+    fn test_code_block_syntect_visual() {
+        use crate::app::SyntectContext;
+
+        let ctx = SyntectContext::new();
+        let content = "fn main() {}";
+        let text = RichText::from(vec![TextSegment::plain(content)]);
+        let source_range = 0..12;
+        let prefix = Span::raw("");
+        let block = code_block(
+            content,
+            prefix,
+            &Some("rust".to_string()),
+            &text,
+            &source_range,
+            40,
+            &RenderStyle::Visual,
+            Some(&ctx),
+        );
+        // Should not panic; should have lines: top padding + content + bottom padding + empty
+        assert!(
+            block.lines.len() >= 4,
+            "Expected at least 4 lines (top pad + content + bottom pad + empty), got {}",
+            block.lines.len()
+        );
+        // Top padding line should contain "rust" label
+        let top_line_content: String = block.lines[0]
+            .virtual_spans()
+            .iter()
+            .map(|s| match s {
+                VirtualSpan::Synthetic(span) | VirtualSpan::Content(span, _) => {
+                    span.content.to_string()
+                }
+            })
+            .collect();
+        assert!(
+            top_line_content.contains("rust"),
+            "Top padding line should contain language label"
+        );
+    }
+
+    #[test]
+    fn test_code_block_unknown_lang() {
+        use crate::app::SyntectContext;
+
+        let ctx = SyntectContext::new();
+        let content = "some code here";
+        let text = RichText::from(vec![TextSegment::plain(content)]);
+        let source_range = 0..14;
+        let prefix = Span::raw("");
+        // Should not panic with unknown language — falls back to monochrome (D-11)
+        let block = code_block(
+            content,
+            prefix,
+            &Some("unknownlang123".to_string()),
+            &text,
+            &source_range,
+            40,
+            &RenderStyle::Visual,
+            Some(&ctx),
+        );
+        assert!(block.lines.len() >= 4);
+        // Top padding line should still show the unknown lang label
+        let top_content: String = block.lines[0]
+            .virtual_spans()
+            .iter()
+            .map(|s| match s {
+                VirtualSpan::Synthetic(span) | VirtualSpan::Content(span, _) => {
+                    span.content.to_string()
+                }
+            })
+            .collect();
+        assert!(top_content.contains("unknownlang123"));
+    }
+
+    #[test]
+    fn test_code_block_no_lang() {
+        use crate::app::SyntectContext;
+
+        let ctx = SyntectContext::new();
+        let content = "plain code";
+        let text = RichText::from(vec![TextSegment::plain(content)]);
+        let source_range = 0..10;
+        let prefix = Span::raw("");
+        let block = code_block(
+            content,
+            prefix,
+            &None,
+            &text,
+            &source_range,
+            40,
+            &RenderStyle::Visual,
+            Some(&ctx),
+        );
+        assert!(block.lines.len() >= 4);
+        // Top padding line should NOT contain any language label text
+        let top_content: String = block.lines[0]
+            .virtual_spans()
+            .iter()
+            .map(|s| match s {
+                VirtualSpan::Synthetic(span) | VirtualSpan::Content(span, _) => {
+                    span.content.to_string()
+                }
+            })
+            .collect();
+        // Should be all spaces (padding) — no alphabetic content
+        assert!(
+            !top_content.chars().any(|c| c.is_alphabetic()),
+            "No lang label should appear when lang is None, got: {:?}",
+            top_content
+        );
     }
 }

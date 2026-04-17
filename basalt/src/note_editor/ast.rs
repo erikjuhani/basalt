@@ -104,9 +104,7 @@ pub enum Node {
         source_range: SourceRange<usize>,
     },
     /// A horizontal rule (thematic break) rendered as a separator line.
-    Rule {
-        source_range: SourceRange<usize>,
-    },
+    Rule { source_range: SourceRange<usize> },
     /// A display math block (e.g. `$$...$$`), storing the formula content.
     DisplayMath {
         content: String,
@@ -257,7 +255,12 @@ pub fn node_to_sexp(node: &Node, indent_level: usize) -> String {
             )
         }
         Node::Rule { source_range } => {
-            format!("{:indent$}(rule @{:?})", "", source_range, indent = indent_level)
+            format!(
+                "{:indent$}(rule @{:?})",
+                "",
+                source_range,
+                indent = indent_level
+            )
         }
         Node::DisplayMath {
             content,

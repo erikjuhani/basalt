@@ -6,6 +6,8 @@ use ratatui::{
     widgets::{StatefulWidget, Widget},
     DefaultTerminal,
 };
+use syntect::highlighting::ThemeSet;
+use syntect::parsing::SyntaxSet;
 
 use std::{
     cell::RefCell,
@@ -40,6 +42,47 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const HELP_TEXT: &str = include_str!("./help.txt");
 
+#[derive(Clone)]
+pub struct SyntectContext {
+    pub syntax_set: SyntaxSet,
+    pub theme: syntect::highlighting::Theme,
+    pub selection_color: Option<ratatui::style::Color>,
+}
+
+impl std::fmt::Debug for SyntectContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SyntectContext").finish_non_exhaustive()
+    }
+}
+
+impl SyntectContext {
+    pub fn new() -> Self {
+        let syntax_set = SyntaxSet::load_defaults_newlines();
+        let theme_set = ThemeSet::load_defaults();
+        let theme = theme_set
+            .themes
+            .get("base16-ocean.dark")
+            .or_else(|| theme_set.themes.values().next())
+            .cloned()
+            .unwrap_or_default();
+        let selection_color = theme
+            .settings
+            .selection
+            .map(|c| ratatui::style::Color::Rgb(c.r, c.g, c.b));
+        Self {
+            syntax_set,
+            theme,
+            selection_color,
+        }
+    }
+}
+
+impl Default for SyntectContext {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Debug, Default, Clone, PartialEq)]
 pub enum ScrollAmount {
     #[default]
@@ -72,6 +115,7 @@ pub struct AppState<'a> {
     splash_modal: SplashModalState<'a>,
     help_modal: HelpModalState,
     vault_selector_modal: VaultSelectorModalState<'a>,
+    syntect_ctx: Option<SyntectContext>,
 }
 
 impl<'a> AppState<'a> {
@@ -100,6 +144,10 @@ impl<'a> AppState<'a> {
             is_running,
             ..self.clone()
         }
+    }
+
+    pub fn syntect_ctx(&self) -> Option<&SyntectContext> {
+        self.syntect_ctx.as_ref()
     }
 }
 
@@ -237,6 +285,7 @@ impl<'a> App<'a> {
                 .into_iter()
                 .map(|message| toast::Toast::warn(&message, Duration::from_secs(5)))
                 .collect(),
+            syntect_ctx: Some(SyntectContext::new()),
             ..Default::default()
         };
 
@@ -498,6 +547,7 @@ impl<'a> App<'a> {
                     &selected_note.name,
                     &selected_note.path,
                     &config.symbols,
+                    state.syntect_ctx.as_ref(),
                 );
 
                 let vim_mode = config.vim_mode;
