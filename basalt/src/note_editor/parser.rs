@@ -65,12 +65,21 @@ impl<'a> Parser<'a> {
         let mut result = Vec::new();
         let mut state = ParserState::default();
 
-        while let Some((event, _)) = self.next() {
+        while let Some((event, source_range)) = self.next() {
             match event {
                 Event::Start(tag) if Self::is_container_tag(&tag) => {
                     if let Some(node) = self.parse_container(tag, &mut state) {
                         result.push(node);
                     }
+                }
+                Event::Rule => {
+                    result.push(Node::Rule { source_range });
+                }
+                Event::DisplayMath(content) => {
+                    result.push(Node::DisplayMath {
+                        content: content.to_string(),
+                        source_range,
+                    });
                 }
                 _ => {}
             }
@@ -83,6 +92,9 @@ impl<'a> Parser<'a> {
         let mut nodes = Vec::new();
         let mut text_segments = Vec::new();
         let mut inline_styles = Vec::new();
+        // Stores display math content when DisplayMath fires inside a Paragraph container.
+        // pulldown-cmark wraps $$...$$ blocks in Start(Paragraph)/End(Paragraph).
+        let mut paragraph_display_math: Option<(String, SourceRange<usize>)> = None;
 
         match tag {
             Tag::List(Some(start)) => {
@@ -119,6 +131,17 @@ impl<'a> Parser<'a> {
                 Event::Code(text) => {
                     let text_segment = TextSegment::styled(&text, Style::Code);
                     text_segments.push(text_segment);
+                }
+
+                Event::InlineMath(text) => {
+                    let text_segment = TextSegment::styled(&text, Style::InlineMath);
+                    text_segments.push(text_segment);
+                }
+
+                // DisplayMath fires inside a Paragraph container in pulldown-cmark.
+                // Capture it so we can return Node::DisplayMath instead of Node::Paragraph.
+                Event::DisplayMath(content) => {
+                    paragraph_display_math = Some((content.to_string(), source_range));
                 }
 
                 Event::Text(text) => {
@@ -208,7 +231,18 @@ impl<'a> Parser<'a> {
                             nodes,
                             source_range,
                         }),
-                        Tag::Paragraph => Some(Node::Paragraph { text, source_range }),
+                        Tag::Paragraph => {
+                            // If this paragraph contained a display math block, return that
+                            // instead. pulldown-cmark wraps $$...$$ in a Paragraph container.
+                            if let Some((content, math_range)) = paragraph_display_math {
+                                Some(Node::DisplayMath {
+                                    content,
+                                    source_range: math_range,
+                                })
+                            } else {
+                                Some(Node::Paragraph { text, source_range })
+                            }
+                        }
                         _ => None,
                     };
                 }
@@ -381,23 +415,37 @@ mod tests {
                   - [ ] Subtask 2
                 "#},
             ),
-            // TODO: Implement horizontal rule
-            // (
-            //     "horizontal_rule",
-            //     indoc! { r#"## Horizontal rule
-            //     You can use three or more stars `***`, hyphens `---`, or underscore `___` on its own line to add a horizontal bar. You can also separate symbols using spaces.
-            //
-            //     ***
-            //     ****
-            //     * * *
-            //     ---
-            //     ----
-            //     - - -
-            //     ___
-            //     ____
-            //     _ _ _
-            //     "#},
-            // ),
+            (
+                "horizontal_rule",
+                indoc! { r#"## Horizontal rule
+                You can use three or more stars `***`, hyphens `---`, or underscore `___` on its own line to add a horizontal bar. You can also separate symbols using spaces.
+
+                ***
+                ****
+                * * *
+                ---
+                ----
+                - - -
+                ___
+                ____
+                _ _ _
+                "#},
+            ),
+            (
+                "inline_math",
+                indoc! { r#"## Math
+                Euler's identity: $e^{i\pi} + 1 = 0$ is beautiful.
+                "#},
+            ),
+            (
+                "display_math",
+                indoc! { r#"## Display Math
+
+                $$
+                \int_0^\infty e^{-x} dx = 1
+                $$
+                "#},
+            ),
             (
                 "code_blocks",
                 indoc! { r#"## Code blocks

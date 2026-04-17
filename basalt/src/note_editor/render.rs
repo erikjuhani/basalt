@@ -9,7 +9,7 @@ use crate::{
     config::Symbols,
     note_editor::{
         ast::{self, SourceRange},
-        rich_text::RichText,
+        rich_text::{self, RichText},
         text_wrap::wrap_preserve_trailing,
         virtual_document::{
             content_span, empty_virtual_line, synthetic_span, virtual_line, VirtualBlock,
@@ -115,6 +115,101 @@ fn render_raw_line<'a>(
         &RenderStyle::Raw,
         symbols,
     )
+}
+
+/// Convert a `RichText` into a list of ratatui `Span`s, one per `TextSegment`,
+/// each carrying the appropriate ratatui style for that segment's `rich_text::Style`.
+fn rich_text_to_spans(text: &rich_text::RichText) -> Vec<Span<'static>> {
+    text.segments()
+        .iter()
+        .map(|seg| {
+            let span = Span::raw(seg.content.clone());
+            match &seg.style {
+                Some(rich_text::Style::Strong) => span.bold(),
+                Some(rich_text::Style::Emphasis) => span.italic(),
+                Some(rich_text::Style::Strikethrough) => span.add_modifier(Modifier::CROSSED_OUT),
+                Some(rich_text::Style::Code) => span.fg(Color::Yellow).bg(Color::Rgb(30, 30, 30)),
+                Some(rich_text::Style::InlineMath) => span.fg(Color::Magenta).italic(),
+                None => span,
+            }
+        })
+        .collect()
+}
+
+/// Word-wrap a slice of styled `Span`s to `max_width` columns, preserving per-span
+/// styles. Each display line is a `Vec<Span<'static>>`.
+///
+/// This mirrors the wrapping logic in `text_wrap_internal` by concatenating span contents
+/// to obtain the plain-text wrap result, then re-applying styles via byte-offset mapping.
+fn wrap_styled_spans(
+    spans: &[Span<'static>],
+    max_width: usize,
+    wrap_marker: &str,
+) -> Vec<Vec<Span<'static>>> {
+    if spans.is_empty() {
+        return vec![vec![]];
+    }
+
+    // Build flat plain text and record the (start_byte, end_byte, Style) for each span.
+    let mut plain = String::new();
+    let mut span_ranges: Vec<(usize, usize, ratatui::style::Style)> = Vec::new();
+    for span in spans {
+        let start = plain.len();
+        plain.push_str(&span.content);
+        span_ranges.push((start, plain.len(), span.style));
+    }
+
+    // Wrap the plain text using the same function as `text_wrap_internal`.
+    let wrap_marker_display_width = UnicodeWidthStr::width(wrap_marker);
+    let wrapped = wrap_preserve_trailing(&plain, max_width, wrap_marker_display_width + 1);
+
+    if wrapped.is_empty() {
+        return vec![vec![]];
+    }
+
+    // Map each display line back to styled spans.
+    let mut result: Vec<Vec<Span<'static>>> = Vec::new();
+    let mut byte_cursor: usize = 0;
+    let mut span_iter_idx: usize = 0;
+
+    for line_str in &wrapped {
+        let line_bytes = line_str.len();
+        let line_end = byte_cursor + line_bytes;
+        let mut line_spans: Vec<Span<'static>> = Vec::new();
+
+        let mut pos = byte_cursor;
+        while pos < line_end && span_iter_idx < span_ranges.len() {
+            let (span_start, span_end, style) = span_ranges[span_iter_idx];
+            if span_end <= pos {
+                span_iter_idx += 1;
+                continue;
+            }
+            let chunk_start = pos.max(span_start);
+            let chunk_end = line_end.min(span_end);
+            if chunk_start < chunk_end {
+                if let Some(chunk) = plain.get(chunk_start..chunk_end) {
+                    if !chunk.is_empty() {
+                        line_spans.push(Span::styled(chunk.to_string(), style));
+                    }
+                }
+                pos = chunk_end;
+                if chunk_end >= span_end {
+                    span_iter_idx += 1;
+                }
+            } else {
+                break;
+            }
+        }
+
+        result.push(line_spans);
+        byte_cursor = line_end;
+    }
+
+    if result.is_empty() {
+        result.push(vec![]);
+    }
+
+    result
 }
 
 // # Example:
@@ -294,27 +389,86 @@ pub fn paragraph<'a>(
     let lines = match option {
         RenderStyle::Raw => render_raw(content, source_range, max_width, prefix, symbols),
         RenderStyle::Visual => {
-            let text = text.to_string();
+            let styled_spans = rich_text_to_spans(text);
+            let wrap_width = max_width;
+            let wrap_marker = symbols.wrap_marker.clone();
             let mut current_range_start = source_range.start;
+            let mut lines: Vec<VirtualLine<'a>> = Vec::new();
 
-            let mut lines = text
-                .to_string()
-                .lines()
-                .flat_map(|line| {
-                    let line_range = line_range(current_range_start, line.len(), true);
-                    current_range_start = line_range.end;
+            // Collect logical lines by splitting on '\n' within segment content.
+            // Each logical line is then word-wrapped using wrap_styled_spans which
+            // preserves per-segment styles while reproducing the same line-break
+            // positions as the original text_wrap_internal path.
+            let mut logical_line: Vec<Span<'static>> = Vec::new();
+            for span in &styled_spans {
+                let content = span.content.as_ref();
+                let parts: Vec<&str> = content.split('\n').collect();
+                for (j, part) in parts.iter().enumerate() {
+                    if !part.is_empty() {
+                        logical_line.push(Span::styled(part.to_string(), span.style));
+                    }
+                    let is_last_part = j == parts.len() - 1;
+                    if !is_last_part {
+                        // Flush current logical line (explicit '\n' in source).
+                        let display_lines =
+                            wrap_styled_spans(&logical_line, wrap_width, &wrap_marker);
+                        for (di, display_line_spans) in display_lines.iter().enumerate() {
+                            let is_wrap_continuation = di > 0;
+                            let line_byte_len: usize =
+                                display_line_spans.iter().map(|s| s.content.len()).sum();
+                            let line_range = current_range_start
+                                ..(current_range_start + line_byte_len).min(source_range.end);
+                            current_range_start += line_byte_len;
 
-                    text_wrap(
-                        &line.to_string().into(),
-                        prefix.clone(),
-                        &line_range,
-                        max_width,
-                        None,
-                        option,
-                        symbols,
-                    )
-                })
-                .collect::<Vec<_>>();
+                            let mut vspans: Vec<VirtualSpan<'a>> =
+                                vec![synthetic_span!(prefix.clone())];
+                            if is_wrap_continuation {
+                                vspans.push(synthetic_span!(Span::styled(
+                                    wrap_marker.clone(),
+                                    Style::new().black()
+                                )));
+                            }
+                            for s in display_line_spans {
+                                vspans.push(content_span!(s.clone(), line_range));
+                            }
+                            lines.push(VirtualLine::new(&vspans));
+                        }
+                        // +1 for the '\n' byte.
+                        current_range_start += 1;
+                        logical_line = Vec::new();
+                    }
+                }
+            }
+
+            // Flush the final (or only) logical line.
+            {
+                let display_lines = wrap_styled_spans(&logical_line, wrap_width, &wrap_marker);
+                for (di, display_line_spans) in display_lines.iter().enumerate() {
+                    let is_wrap_continuation = di > 0;
+                    let line_byte_len: usize =
+                        display_line_spans.iter().map(|s| s.content.len()).sum();
+                    let line_range = current_range_start
+                        ..(current_range_start + line_byte_len).min(source_range.end);
+                    current_range_start += line_byte_len;
+
+                    let mut vspans: Vec<VirtualSpan<'a>> = vec![synthetic_span!(prefix.clone())];
+                    if is_wrap_continuation {
+                        vspans.push(synthetic_span!(Span::styled(
+                            wrap_marker.clone(),
+                            Style::new().black()
+                        )));
+                    }
+                    for s in display_line_spans {
+                        vspans.push(content_span!(s.clone(), line_range));
+                    }
+                    lines.push(VirtualLine::new(&vspans));
+                }
+            }
+
+            if lines.is_empty() {
+                // Empty paragraph — push a line with just the prefix so cursor has a home.
+                lines.push(VirtualLine::new(&[synthetic_span!(prefix.clone())]));
+            }
 
             if prefix.to_string().is_empty() {
                 lines.extend([empty_virtual_line!()]);
@@ -598,6 +752,66 @@ pub fn line_range(start: usize, line_width: usize, newline: bool) -> SourceRange
     start..end
 }
 
+/// Renders a horizontal rule as a full-width separator line using the
+/// configured `symbols.horizontal_rule` character (default: "═").
+fn rule<'a>(
+    source_range: &SourceRange<usize>,
+    max_width: usize,
+    prefix: Span<'static>,
+    symbols: &Symbols,
+) -> VirtualBlock<'a> {
+    let separator = symbols
+        .horizontal_rule
+        .repeat(max_width.saturating_sub(prefix.width()));
+    let lines = vec![
+        virtual_line!([
+            synthetic_span!(prefix),
+            synthetic_span!(Span::raw(separator))
+        ]),
+        empty_virtual_line!(),
+    ];
+    VirtualBlock::new(&lines, source_range)
+}
+
+/// Renders a display math block as a three-line layout:
+/// separator line (thin "─"), formula content, separator line.
+/// Separator width matches the formula text width (not full terminal width).
+/// All lines styled in Magenta; formula is italic.
+fn display_math<'a>(
+    content: &str,
+    source_range: &SourceRange<usize>,
+    prefix: Span<'static>,
+) -> VirtualBlock<'a> {
+    let formula = content.trim();
+    let formula_width = UnicodeWidthStr::width(formula);
+    let separator = "\u{2500}".repeat(formula_width); // U+2500 BOX DRAWINGS LIGHT HORIZONTAL
+
+    let sep_span = Span::styled(separator, Style::default().fg(Color::Magenta));
+    let formula_span = Span::styled(
+        formula.to_string(),
+        Style::default()
+            .fg(Color::Magenta)
+            .add_modifier(Modifier::ITALIC),
+    );
+
+    let lines = vec![
+        virtual_line!([
+            synthetic_span!(prefix.clone()),
+            synthetic_span!(sep_span.clone())
+        ]),
+        virtual_line!([
+            synthetic_span!(prefix.clone()),
+            synthetic_span!(formula_span)
+        ]),
+        virtual_line!([
+            synthetic_span!(prefix),
+            synthetic_span!(sep_span)
+        ]),
+        empty_virtual_line!(),
+    ];
+    VirtualBlock::new(&lines, source_range)
+}
+
 // FIXME: Use options struct or similar
 #[allow(clippy::too_many_arguments)]
 pub fn block_quote<'a>(
@@ -748,5 +962,103 @@ pub fn render_node<'a>(
             option,
             symbols,
         ),
+        Rule { source_range } => rule(source_range, max_width, prefix, symbols),
+        DisplayMath {
+            content,
+            source_range,
+        } => display_math(content, source_range, prefix),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::note_editor::rich_text::{Style as RichStyle, TextSegment};
+
+    #[test]
+    fn test_rich_text_to_spans_inline_math() {
+        let text = RichText::from(vec![TextSegment::styled("E = mc^2", RichStyle::InlineMath)]);
+        let spans = rich_text_to_spans(&text);
+        assert_eq!(spans.len(), 1);
+        assert_eq!(spans[0].content, "E = mc^2");
+        let expected = ratatui::style::Style::default()
+            .fg(Color::Magenta)
+            .add_modifier(Modifier::ITALIC);
+        assert_eq!(spans[0].style, expected);
+    }
+
+    #[test]
+    fn test_rule_render() {
+        use crate::config::Symbols;
+        let symbols = Symbols::default();
+        let source_range = 0..3;
+        let max_width = 20;
+        let prefix = Span::raw("");
+        let block = rule(&source_range, max_width, prefix, &symbols);
+        // Block should have 2 lines: separator + empty
+        assert_eq!(block.lines.len(), 2);
+        // First line should contain the repeated horizontal_rule character
+        let first_line = &block.lines[0];
+        let content: String = first_line
+            .virtual_spans()
+            .iter()
+            .map(|s| match s {
+                VirtualSpan::Synthetic(span) | VirtualSpan::Content(span, _) => {
+                    span.content.to_string()
+                }
+            })
+            .collect();
+        assert!(content.contains(&symbols.horizontal_rule.repeat(20)));
+    }
+
+    fn vline_content(line: &VirtualLine<'_>) -> String {
+        line.virtual_spans()
+            .iter()
+            .map(|s| match s {
+                VirtualSpan::Synthetic(span) | VirtualSpan::Content(span, _) => {
+                    span.content.to_string()
+                }
+            })
+            .collect()
+    }
+
+    #[test]
+    fn test_display_math_render() {
+        let content = "\n\\int_0^\\infty e^{-x} dx = 1\n";
+        let source_range = 0..35;
+        let prefix = Span::raw("");
+        let block = display_math(content, &source_range, prefix);
+        // Block should have 4 lines: separator + formula + separator + empty
+        assert_eq!(block.lines.len(), 4);
+
+        // First line (separator): contains "─" repeated to formula width
+        let sep_line = vline_content(&block.lines[0]);
+        assert!(sep_line.contains("\u{2500}"), "Separator should use U+2500");
+        assert!(!sep_line.contains('═'), "Separator should NOT use horizontal_rule char");
+
+        // Second line (formula): contains trimmed formula text
+        let formula_line = vline_content(&block.lines[1]);
+        assert!(formula_line.contains("\\int_0^\\infty"));
+        assert!(!formula_line.starts_with('\n'), "Formula should be trimmed");
+
+        // Third line (separator): same as first
+        let sep_line_2 = vline_content(&block.lines[2]);
+        assert_eq!(sep_line, sep_line_2, "Top and bottom separators should match");
+
+        // Verify formula span has Magenta + ITALIC
+        let formula_vspan = block.lines[1]
+            .virtual_spans()
+            .iter()
+            .find(|s| match s {
+                VirtualSpan::Synthetic(span) | VirtualSpan::Content(span, _) => {
+                    span.content.contains("\\int")
+                }
+            })
+            .expect("formula span not found");
+        let formula_rspan = match formula_vspan {
+            VirtualSpan::Synthetic(span) | VirtualSpan::Content(span, _) => span,
+        };
+        assert_eq!(formula_rspan.style.fg, Some(Color::Magenta));
+        assert!(formula_rspan.style.add_modifier.contains(Modifier::ITALIC));
     }
 }

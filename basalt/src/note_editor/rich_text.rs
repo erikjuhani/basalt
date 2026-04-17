@@ -9,6 +9,8 @@ pub enum Style {
     Emphasis,
     Strong,
     Strikethrough,
+    /// Inline math style (e.g. `$formula$`).
+    InlineMath,
 }
 
 impl fmt::Display for Style {
@@ -18,6 +20,7 @@ impl fmt::Display for Style {
             Style::Emphasis => write!(f, "Emphasis"),
             Style::Strong => write!(f, "Strong"),
             Style::Strikethrough => write!(f, "Strikethrough"),
+            Style::InlineMath => write!(f, "InlineMath"),
         }
     }
 }

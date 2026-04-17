@@ -103,6 +103,15 @@ pub enum Node {
         nodes: Vec<Node>,
         source_range: SourceRange<usize>,
     },
+    /// A horizontal rule (thematic break) rendered as a separator line.
+    Rule {
+        source_range: SourceRange<usize>,
+    },
+    /// A display math block (e.g. `$$...$$`), storing the formula content.
+    DisplayMath {
+        content: String,
+        source_range: SourceRange<usize>,
+    },
 }
 
 impl Node {
@@ -114,7 +123,9 @@ impl Node {
             | Self::List { source_range, .. }
             | Self::BlockQuote { source_range, .. }
             | Self::Item { source_range, .. }
-            | Self::Task { source_range, .. } => source_range,
+            | Self::Task { source_range, .. }
+            | Self::Rule { source_range, .. }
+            | Self::DisplayMath { source_range, .. } => source_range,
         }
     }
 
@@ -126,7 +137,9 @@ impl Node {
             | Self::List { source_range, .. }
             | Self::BlockQuote { source_range, .. }
             | Self::Item { source_range, .. }
-            | Self::Task { source_range, .. } => *source_range = new_range,
+            | Self::Task { source_range, .. }
+            | Self::Rule { source_range, .. }
+            | Self::DisplayMath { source_range, .. } => *source_range = new_range,
         }
     }
 
@@ -241,6 +254,23 @@ pub fn node_to_sexp(node: &Node, indent_level: usize) -> String {
                 source_range,
                 nodes_to_sexp(nodes, indent_level + indent_increment),
                 indent = indent_level
+            )
+        }
+        Node::Rule { source_range } => {
+            format!("{:indent$}(rule @{:?})", "", source_range, indent = indent_level)
+        }
+        Node::DisplayMath {
+            content,
+            source_range,
+        } => {
+            format!(
+                "{:indent$}(display_math @{:?}\n{:inner_indent$}\"{}\")",
+                "",
+                source_range,
+                "",
+                content.trim(),
+                indent = indent_level,
+                inner_indent = indent_level + indent_increment,
             )
         }
     }

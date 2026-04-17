@@ -1,0 +1,15 @@
+---
+source: basalt/src/note_editor/parser.rs
+expression: "format!(\"{}\\n ---\\n\\n{}\", text, ast::nodes_to_sexp(&from_str(text), 0))"
+---
+## Math
+Euler's identity: $e^{i\pi} + 1 = 0$ is beautiful.
+
+ ---
+
+(heading H2 @0..8
+  "Math")
+(paragraph @8..59
+  "Euler's identity: "
+  (InlineMath "e^{i\pi} + 1 = 0")
+  " is beautiful.")

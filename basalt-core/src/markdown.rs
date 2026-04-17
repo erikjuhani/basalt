@@ -65,6 +65,8 @@ pub enum Style {
     Strikethrough,
     /// Bold/strong style (e.g. `**strong**`).
     Strong,
+    /// Inline math style (e.g. `$formula$`).
+    InlineMath,
 }
 
 /// Represents the variant of a list or task item (checked, unchecked, etc.).
@@ -299,6 +301,8 @@ impl Node {
                     last_node.push_text_node(node);
                 }
             }
+            // Rule and DisplayMath store no inline text — no-op.
+            MarkdownNode::Rule | MarkdownNode::DisplayMath { .. } => {}
         }
     }
 }
@@ -338,6 +342,12 @@ pub enum MarkdownNode {
     Item {
         kind: Option<ItemKind>,
         text: Text,
+    },
+    /// A horizontal rule (thematic break) rendered as a separator line.
+    Rule,
+    /// A display math block (e.g. `$$...$$`), storing the formula content.
+    DisplayMath {
+        content: String,
     },
 }
 
@@ -574,13 +584,37 @@ impl<'a> Parser<'a> {
                     ));
                 }
             }
-            Event::InlineMath(_)
-            | Event::DisplayMath(_)
-            | Event::Html(_)
+            Event::Rule => {
+                // Finalize any in-progress node before pushing Rule.
+                if let Some(node) = self.current_node.take() {
+                    self.output.push(node);
+                }
+                self.output.push(Node::new(MarkdownNode::Rule, range));
+            }
+            Event::InlineMath(text) => {
+                self.push_text_node(TextNode::new(text.to_string(), Some(Style::InlineMath)))
+            }
+            Event::DisplayMath(content) => {
+                // Finalize any in-progress node before pushing DisplayMath.
+                // pulldown-cmark wraps $$...$$ in a Paragraph container; the Paragraph
+                // end tag will be ignored because current_node is cleared here.
+                if let Some(node) = self.current_node.take() {
+                    // Only push the preceding node if it has content (not the empty wrapper).
+                    if !matches!(&node.markdown_node, MarkdownNode::Paragraph { text } if text.0.is_empty()) {
+                        self.output.push(node);
+                    }
+                }
+                self.output.push(Node::new(
+                    MarkdownNode::DisplayMath {
+                        content: content.to_string(),
+                    },
+                    range,
+                ));
+            }
+            Event::Html(_)
             | Event::InlineHtml(_)
             | Event::SoftBreak
             | Event::HardBreak
-            | Event::Rule
             | Event::FootnoteReference(_) => {
                 // TODO: Not yet implemented
             }
@@ -774,5 +808,53 @@ mod tests {
         tests
             .iter()
             .for_each(|test| assert_eq!(from_str(test.0), test.1));
+    }
+
+    #[test]
+    fn test_rule_and_math() {
+        // Horizontal rule produces a single Rule node.
+        let rule_nodes = from_str("---");
+        assert_eq!(rule_nodes.len(), 1);
+        assert_eq!(rule_nodes[0].markdown_node, MarkdownNode::Rule);
+
+        // Inline math produces a Paragraph with an InlineMath-styled TextNode.
+        let inline_math_nodes = from_str("$E = mc^2$");
+        assert_eq!(inline_math_nodes.len(), 1);
+        if let MarkdownNode::Paragraph { text } = &inline_math_nodes[0].markdown_node {
+            let nodes: Vec<_> = text.clone().into_iter().collect();
+            assert_eq!(nodes.len(), 1);
+            assert_eq!(nodes[0].content, "E = mc^2");
+            assert_eq!(nodes[0].style, Some(Style::InlineMath));
+        } else {
+            panic!("Expected Paragraph node for inline math");
+        }
+
+        // Inline math mixed with plain text produces three TextNodes.
+        let mixed_nodes = from_str("Hello $x$ world");
+        assert_eq!(mixed_nodes.len(), 1);
+        if let MarkdownNode::Paragraph { text } = &mixed_nodes[0].markdown_node {
+            let nodes: Vec<_> = text.clone().into_iter().collect();
+            assert_eq!(nodes.len(), 3);
+            assert_eq!(nodes[0].content, "Hello ");
+            assert_eq!(nodes[0].style, None);
+            assert_eq!(nodes[1].content, "x");
+            assert_eq!(nodes[1].style, Some(Style::InlineMath));
+            assert_eq!(nodes[2].content, " world");
+            assert_eq!(nodes[2].style, None);
+        } else {
+            panic!("Expected Paragraph node for mixed inline math");
+        }
+
+        // Display math produces a single DisplayMath node with the formula content.
+        let display_math_nodes = from_str("$$\n\\int_0^\\infty e^{-x} dx = 1\n$$");
+        assert_eq!(display_math_nodes.len(), 1);
+        if let MarkdownNode::DisplayMath { content } = &display_math_nodes[0].markdown_node {
+            assert!(content.contains("\\int_0^\\infty"));
+        } else {
+            panic!(
+                "Expected DisplayMath node, got {:?}",
+                display_math_nodes[0].markdown_node
+            );
+        }
     }
 }
