@@ -80,5 +80,5 @@ Type "q"
 
 # Cleanup
 Hide
-Type "git checkout 'docs/Known Limitations.md' && rm 'docs/Caveats.md'"
+Type "git checkout 'docs/' && rm 'docs/Caveats.md'"
 Enter
