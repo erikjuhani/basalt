@@ -1,4 +1,4 @@
-.PHONY: fmt cargo-fmt json-fmt fmt-check cargo-fmt-check json-fmt-check gifs gifs-dark gifs-light check changelog
+.PHONY: fmt cargo-fmt json-fmt fmt-check cargo-fmt-check json-fmt-check gifs gifs-dark gifs-light release-build check changelog
 
 DARK_TAPES := $(wildcard tapes/dark/*.tape)
 DARK_GIFS := $(DARK_TAPES:tapes/dark/%.tape=assets/dark/%.gif)
@@ -8,9 +8,12 @@ LIGHT_GIFS := $(LIGHT_TAPES:tapes/light/%.tape=assets/light/%.gif)
 
 gifs: gifs-dark gifs-light
 
-gifs-dark: $(DARK_GIFS)
+gifs-dark: release-build $(DARK_GIFS)
 
-gifs-light: $(LIGHT_GIFS)
+gifs-light: release-build $(LIGHT_GIFS)
+
+release-build:
+	cargo build --release -q
 
 assets/dark/%.gif: tapes/dark/%.tape
 	@mkdir -p assets/dark
