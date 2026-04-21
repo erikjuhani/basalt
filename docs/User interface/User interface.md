@@ -1,6 +1,6 @@
 Basalt's interface is divided into panes, modals, and a status bar.
 
-![[screenshot-ui-overview.png]]
+![[demo.gif]]
 
 Only one pane has focus at a time. The active pane is indicated by a thicker border, and the status bar at the bottom shows which pane is active. Switch between panes with `Tab` and `Shift+Tab`.
 
@@ -10,19 +10,19 @@ Only one pane has focus at a time. The active pane is indicated by a thicker bor
 
 The [[Explorer]] is the sidebar on the left side. It displays folders and notes in the current vault.
 
-![[screenshot-explorer.png]]
+![[explorer.gif]]
 
 ### Note editor
 
 The [[Note editor]] is the main pane in the center. It displays the selected note with rendered markdown — headings, lists, code blocks, and other elements are rendered with WYSIWYG-style formatting.
 
-![[screenshot-note-editor.png]]
+![[note-editor.gif]]
 
 ### Outline
 
 The [[Outline]] is the pane on the right side. It lists the headings in the current note and lets you jump to a specific section.
 
-![[screenshot-outline.png]]
+![[outline.gif]]
 
 ## Modals
 
@@ -32,13 +32,13 @@ Modals open on top of the interface. While a modal is open, key mappings for the
 
 Press `?` to open the help modal. It shows the available key mappings for the currently active pane. Use `j`/`k` or arrow keys to scroll and `Esc` to close.
 
-![[screenshot-help-modal.png]]
+![[help-modal.gif]]
 
 ### Vault selector modal
 
 Press `Ctrl+g` to open the vault selector. It lists all your Obsidian vaults and lets you switch between them. Use `j`/`k` or arrow keys to navigate, `Enter` to open, and `Esc` to close.
 
-![[screenshot-vault-selector.png]]
+![[vault-selector.gif]]
 
 ### Input modal
 

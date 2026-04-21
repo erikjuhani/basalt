@@ -8,6 +8,8 @@ To enable the experimental editor, add the following to your [[Configuration]] f
 experimental_editor = true
 ```
 
+![[editing.gif]]
+
 ## Views
 
 [[Basalt]] follows Obsidian's view model with a reading view and an edit view.

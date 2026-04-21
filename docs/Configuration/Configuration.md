@@ -1,5 +1,9 @@
 [[Basalt]] can be customized using a TOML configuration file. The file does not exist by default — create it manually when you want to override the defaults.
 
+Press `?` at any time to see the active keymap for the current pane:
+
+![[help-modal.gif]]
+
 ## Configuration file location
 
 [[Basalt]] looks for a configuration file in the following locations:

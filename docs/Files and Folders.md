@@ -31,11 +31,15 @@ Press `s` in the [[Explorer]] to toggle between ascending and descending sort or
 
 Press `n` in the [[Explorer]] to create a new untitled note, or `N` to create a new untitled folder. The newly created item is automatically selected in the explorer after creation.
 
+![[create.gif]]
+
 ## Renaming
 
 Select an item in the [[Explorer]] and press `r` to open the rename dialog. Modify the name and press `Enter` to confirm or `Esc` to cancel.
 
 When renaming a note, all wiki-links referencing that note are automatically updated throughout the vault.
+
+![[rename.gif]]
 
 ## Current limitations
 
