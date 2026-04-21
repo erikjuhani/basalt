@@ -1,6 +1,6 @@
 The Explorer is the sidebar pane on the left side, displaying folders and notes in the current vault.
 
-![[screenshot-explorer.png]]
+![[explorer.gif]]
 
 Use `j`/`k` or arrow keys to move through the file list and `Enter` to open a note in the [[Note editor]]. You can sort the list with `s`, resize the pane with `h`/`l`, and rename notes or directories with `r` (press `i` in the rename dialog to start typing).
 

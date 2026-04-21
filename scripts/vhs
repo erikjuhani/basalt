@@ -1,6 +1,0 @@
-#!/usr/bin/env sh
-
-set -e
-
-root="$(git rev-parse --show-toplevel)"
-vhs "${root}/basalt_demo.tape" -o "${root}/assets/basalt_demo.gif"

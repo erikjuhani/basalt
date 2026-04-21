@@ -1,0 +1,5 @@
+{% set alt = alt | default(value=name ~ " demo") %}
+<span class="gif" data-name="{{ name }}">
+  <img class="gif--dark"  src="{{ get_url(path='assets/dark/'  ~ name ~ '.gif') }}" alt="{{ alt }}" loading="lazy" decoding="async">
+  <img class="gif--light" src="{{ get_url(path='assets/light/' ~ name ~ '.gif') }}" alt="{{ alt }}" loading="lazy" decoding="async" aria-hidden="true">
+</span>

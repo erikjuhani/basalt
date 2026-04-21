@@ -1,0 +1,56 @@
+:root[data-theme="dark"] {
+  --bg:           #282828;
+  --bg-soft:      #1d2021;
+  --bg-elevated:  #3c3836;
+  --border:       #504945;
+  --fg:           #ebdbb2;
+  --fg-dim:       #a89984;
+  --accent:       #ebdbb2;
+  --accent-2:     #fb4934;
+  --link:         #83a598;
+  --link-hover:   #8ec07c;
+  --code:         #8ec07c;
+  --selection:    #665c54;
+
+  --logo-1:       #ebdbb2;
+  --logo-2:       #d5c4a1;
+  --logo-3:       #928374;
+  --logo-4:       #504945;
+
+  --logo-aura-1:  rgba(131, 165, 152, 0.30);
+  --logo-aura-2:  rgba(142, 192, 124, 0.12);
+
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --bg:           #fbf1c7;
+  --bg-soft:      #f2e5bc;
+  --bg-elevated:  #ebdbb2;
+  --border:       #bdae93;
+  --fg:           #3c3836;
+  --fg-dim:       #7c6f64;
+  --accent:       #3c3836;
+  --accent-2:     #9d0006;
+  --link:         #076678;
+  --link-hover:   #427b58;
+  --code:         #79740e;
+  --selection:    #d5c4a1;
+
+  --logo-1:       #282828;
+  --logo-2:       #504945;
+  --logo-3:       #7c6f64;
+  --logo-4:       #bdae93;
+
+  --logo-aura-1:  rgba(7, 102, 120, 0.18);
+  --logo-aura-2:  rgba(215, 153, 33, 0.10);
+
+  color-scheme: light;
+}
+
+:root {
+  --font-mono: "JetBrains Mono", "Fira Code", "Menlo", "DejaVu Sans Mono", ui-monospace, monospace;
+  --max-reading-width: 72ch;
+  --sidebar-width: 16rem;
+  --toc-width: 14rem;
+}

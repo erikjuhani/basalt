@@ -1,5 +1,5 @@
 [workspace]
-members = ["basalt", "basalt-*"]
+members = ["basalt", "basalt-*", "obsidian-to-zola"]
 resolver = "2"
 
 [workspace.dependencies]

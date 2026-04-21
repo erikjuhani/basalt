@@ -219,16 +219,34 @@ impl<'a> App<'a> {
         }
     }
 
-    pub fn start(terminal: DefaultTerminal, vaults: Vec<&Vault>) -> Result<()> {
+    pub fn start(
+        terminal: DefaultTerminal,
+        vaults: Vec<&Vault>,
+        initial_vault: Option<Vault>,
+    ) -> Result<()> {
         let version = stylized_text::stylize(VERSION, FontStyle::Script);
         let size = terminal.size()?;
         let (config, warnings) = config::load().unwrap();
 
+        let vault = initial_vault.clone().unwrap_or_default();
+        let explorer = match &initial_vault {
+            Some(v) => ExplorerState::new(&v.name, v.entries(), &config.symbols),
+            None => ExplorerState::default(),
+        };
+        let active_pane = if initial_vault.is_some() {
+            ActivePane::Explorer
+        } else {
+            ActivePane::default()
+        };
+
         let state = AppState {
+            vault,
+            explorer,
+            active_pane,
             screen_size: size,
             help_modal: HelpModalState::new(&help_text(&version)),
             vault_selector_modal: VaultSelectorModalState::new(vaults.clone()),
-            splash_modal: SplashModalState::new(&version, vaults, true),
+            splash_modal: SplashModalState::new(&version, vaults, initial_vault.is_none()),
             outline: OutlineState {
                 symbols: config.symbols.clone(),
                 ..Default::default()

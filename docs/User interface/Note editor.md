@@ -1,6 +1,6 @@
 The Note editor is the main pane in the center of the interface. It displays the selected note with rendered markdown, including headings, lists, code blocks, and other elements.
 
-![[screenshot-note-editor.png]]
+![[note-editor.gif]]
 
 Use `j`/`k` or arrow keys to scroll through the note. You can scroll faster with `Ctrl+U` and `Ctrl+D` for half-page jumps.
 

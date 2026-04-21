@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ config.title }}{% endblock %}</title>
+  <meta name="description" content="{% block description %}{{ config.description }}{% endblock %}">
+
+  {# Set the theme before any CSS paints to prevent a flash. #}
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem('theme');
+        var system = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.dataset.theme = stored || system;
+      } catch (e) { /* ignore */ }
+    })();
+  </script>
+
+  <link rel="stylesheet" href="{{ get_url(path='main.css', trailing_slash=false) }}">
+  <link rel="icon" href="data:,">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header class="topbar">
+    <a class="topbar__brand" href="{{ get_url(path='@/_index.md') }}">⋅𝕭𝖆𝖘𝖆𝖑𝖙⋅</a>
+    <nav class="topbar__nav">
+      <a href="{{ get_url(path='@/basalt.md') }}">docs</a>
+      <a href="{{ get_url(path='@/devlog/_index.md') }}">devlog</a>
+      <a href="{{ get_url(path='@/changelog.md') }}">changelog</a>
+      <a href="{{ config.extra.github_url }}" rel="noopener">github</a>
+      <a href="{{ config.extra.releases_url }}" rel="noopener">releases</a>
+    </nav>
+    <div class="topbar__spacer"></div>
+    <div style="position: relative;">
+      <input id="search" class="topbar__search" type="search" placeholder="search /" aria-label="Search" autocomplete="off">
+      <div id="search-results" class="search-results" role="listbox"></div>
+    </div>
+    <button id="theme-toggle" class="topbar__toggle" type="button" aria-label="Toggle theme">☾ / ☀</button>
+  </header>
+
+  {% block body %}{% endblock %}
+
+  <footer class="site-footer">
+    <a href="{{ config.extra.github_url }}" rel="noopener">github</a>
+    <a href="{{ config.extra.releases_url }}" rel="noopener">releases</a>
+    <a href="{{ config.extra.github_url }}/blob/main/LICENSE" rel="noopener">MIT license</a>
+    <span>press <code>?</code> for shortcuts</span>
+  </footer>
+
+  <div id="help-modal" class="modal-backdrop" data-open="false" aria-hidden="true">
+    <div class="modal" role="dialog" aria-label="Keyboard shortcuts">
+      <h2>Keyboard shortcuts</h2>
+      <dl>
+        <dt>/</dt>        <dd>focus search</dd>
+        <dt>?</dt>        <dd>show this help</dd>
+        <dt>Esc</dt>      <dd>close / unfocus</dd>
+        <dt>t</dt>        <dd>toggle theme</dd>
+      </dl>
+      <p style="color: var(--fg-dim); font-size: 0.85rem; margin-bottom: 0;">
+        For basalt's own keymap, see <a href="{{ get_url(path='@/configuration/configuration.md') }}">Configuration</a>.
+      </p>
+    </div>
+  </div>
+
+  <script>window.SEARCH_INDEX_URL = "{{ get_url(path='search_index.en.js', trailing_slash=false) }}";</script>
+  <script src="{{ get_url(path='main.js', trailing_slash=false) }}" defer></script>
+</body>
+</html>

@@ -1,7 +1,27 @@
-.PHONY: fmt cargo-fmt json-fmt fmt-check cargo-fmt-check json-fmt-check vhs check changelog
+.PHONY: fmt cargo-fmt json-fmt fmt-check cargo-fmt-check json-fmt-check gifs gifs-dark gifs-light release-build check changelog
 
-vhs:
-	./scripts/vhs
+DARK_TAPES := $(wildcard tapes/dark/*.tape)
+DARK_GIFS := $(DARK_TAPES:tapes/dark/%.tape=assets/dark/%.gif)
+
+LIGHT_TAPES := $(wildcard tapes/light/*.tape)
+LIGHT_GIFS := $(LIGHT_TAPES:tapes/light/%.tape=assets/light/%.gif)
+
+gifs: gifs-dark gifs-light
+
+gifs-dark: release-build $(DARK_GIFS)
+
+gifs-light: release-build $(LIGHT_GIFS)
+
+release-build:
+	cargo build --release -q
+
+assets/dark/%.gif: tapes/dark/%.tape
+	@mkdir -p assets/dark
+	vhs $<
+
+assets/light/%.gif: tapes/light/%.tape
+	@mkdir -p assets/light
+	vhs $<
 
 check:
 	@$(MAKE) fmt-check

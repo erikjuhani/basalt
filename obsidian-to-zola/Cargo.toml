@@ -1,0 +1,16 @@
+[package]
+name = "obsidian-to-zola"
+description = "Transforms an Obsidian vault into Zola-ready content."
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+walkdir = "2.5"
+regex = "1.10"
+toml = "1.0.0"
+serde = { version = "1.0.224", features = ["derive"] }
+
+[[bin]]
+name = "obsidian-to-zola"
+path = "src/main.rs"

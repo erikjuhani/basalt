@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ page.title }} — {{ config.title }}{% endblock %}
+
+{% block body %}
+<main class="shell">
+  {% include "partials/sidebar.html" %}
+  <article class="article">
+    {% if page.ancestors | length > 1 %}
+      {% set crumb_path = page.ancestors | last %}
+      {% set crumb = get_section(path=crumb_path) %}
+      <div class="article__crumb">{{ crumb.title | upper }}</div>
+    {% endif %}
+    <h1>{{ page.title }}</h1>
+    {{ page.content | safe }}
+  </article>
+
+  {% if page.toc and page.toc | length > 0 %}
+    <aside class="toc">
+      <h4>On this page</h4>
+      <ul>
+        {% for h in page.toc %}
+          <li><a href="#{{ h.id }}">{{ h.title }}</a>
+            {% if h.children %}
+              <ul>
+                {% for sub in h.children %}
+                  <li><a href="#{{ sub.id }}">{{ sub.title }}</a></li>
+                {% endfor %}
+              </ul>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    </aside>
+  {% endif %}
+</main>
+{% endblock %}

@@ -28,7 +28,7 @@ basalt
 
 [[Basalt]] opens in the splash screen, showing a list of your Obsidian vaults discovered automatically from Obsidian's configuration. Use `j`/`k` or arrow keys to navigate and `Enter` to open a vault.
 
-![[screenshot-splash.png]]
+![[vault-selector.gif]]
 
 ## Navigating a vault
 
@@ -37,8 +37,6 @@ Once inside a vault, the interface is divided into three panes:
 - **[[Explorer]]** on the left — browse folders and notes
 - **[[Note editor]]** in the center — view the selected note with rendered markdown
 - **[[Outline]]** on the right — navigate headings in the current note
-
-![[screenshot-vault.png]]
 
 Use `Tab` and `Shift+Tab` to move focus between panes. The status bar at the bottom shows which pane is active.
 

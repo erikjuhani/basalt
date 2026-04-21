@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}{{ config.title }} — {{ section.extra.tagline_line1 | default(value=config.description) }}{% endblock %}
+
+{% block body %}
+<main class="shell shell--plain">
+  <section class="splash">
+    <span class="splash__help">
+        <span class="splash__logo-wrap splash__logo">
+   ▒▓█▒░
+  ▒█▓▓░▒░
+ ██▓█▒▒▒▒
+▒▓██▓░▒▒▒░
+▓▒▒█▒▒░░░░
+ ░▒▒░░░▒░
+  ░░▒▒▒░
+        </span>
+      <span class="splash__title">
+⋅𝕭𝖆𝖘𝖆𝖑𝖙⋅
+      </span>
+      <span class="splash__heading">
+TUI Application to manage Obsidian
+vaults and notes directly from the terminal.
+      </span>
+<a style="font-weight: 600" href="{{ get_url(path='@/changelog.md') }}">v{{ config.extra.basalt_version }}</a>
+<br/>
+   </span>
+    {% if section.extra.demo_gif %}
+      {% set name = section.extra.demo_gif %}
+      <div class="splash__gif gif" data-name="{{ name }}">
+        <img class="gif--dark"  src="{{ get_url(path='assets/dark/' ~ name ~ '.gif') }}" alt="{{ name }} demo">
+        <img class="gif--light" src="{{ get_url(path='assets/light/' ~ name ~ '.gif') }}" alt="{{ name }} demo" aria-hidden="true">
+      </div>
+    {% endif %}
+
+    <div class="install">
+      {% for row in section.extra.install_commands %}
+        <div class="install__row">
+          <span class="install__label">{{ row.label }}</span>
+          <span class="install__cmd">$ {{ row.cmd }}</span>
+          <button class="install__copy" type="button" data-copy="{{ row.cmd }}">copy</button>
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="cards">
+      {% for card in section.extra.cards %}
+        <a class="card" href="{{ get_url(path=card.href) }}">
+          <div class="card__title">▸ {{ card.title }}</div>
+          <div class="card__blurb">{{ card.blurb }}</div>
+        </a>
+      {% endfor %}
+    </div>
+
+    {{ section.content | safe }}
+  </section>
+</main>
+{% endblock %}

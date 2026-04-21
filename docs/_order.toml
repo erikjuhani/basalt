@@ -1,0 +1,29 @@
+# Nav order for the generated site. Keys match the source names in `docs/`
+# (spaces and casing preserved). Lower weights appear first. Entries missing
+# from here fall back to weight = 10.
+
+[sections]
+"Getting started"        = 1
+"User interface"         = 2
+"Configuration"          = 3
+"Contributing to Basalt" = 90
+
+[pages]
+"Home"                                  = 0
+"Basalt"                                = 5
+"Editing and Formatting"                = 6
+"Files and Folders"                     = 7
+"Known Limitations"                     = 80
+
+"Getting started/Installation"          = 1
+
+"User interface/User interface"         = 1
+"User interface/Explorer"               = 2
+"User interface/Note editor"            = 3
+"User interface/Outline"                = 4
+"User interface/Editor (experimental)"  = 5
+
+"Configuration/Configuration"           = 1
+"Configuration/Key mappings"            = 2
+"Configuration/Custom commands"         = 3
+"Configuration/Symbols"                 = 4
