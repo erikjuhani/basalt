@@ -2,7 +2,8 @@
 {% block title %}devlog — {{ config.title }}{% endblock %}
 
 {% block body %}
-<main class="shell shell--plain">
+<main class="shell shell--no-toc">
+  {% include "partials/devlog-sidebar.html" %}
   <article class="article article--devlog">
     <div class="article__crumb">DEVLOG</div>
     <h1>{{ section.title }}</h1>

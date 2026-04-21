@@ -80,11 +80,6 @@
   overflow: hidden;
   font-family: var(--font-mono);
 }
-.splash__gif {
-  margin: 1.6rem auto 1.6rem;
-  max-width: 60rem;
-}
-
 /* GIF swap (theme-aware) */
 .gif {
   display: block;
@@ -100,6 +95,67 @@
 }
 :root[data-theme="dark"]  .gif .gif--light { display: none; }
 :root[data-theme="light"] .gif .gif--dark  { display: none; }
+
+.splash__gif {
+  margin: 1.6rem auto;
+  max-width: 60rem;
+}
+
+.splash__devlog {
+  max-width: 60rem;
+  margin: 2.2rem auto 0;
+}
+.splash__devlog-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+.splash__devlog-eyebrow {
+  color: var(--fg-dim);
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.splash__devlog-all {
+  color: var(--fg-dim);
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+.splash__devlog-all:hover { color: var(--accent); }
+.splash__devlog-card {
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg-soft);
+  padding: 0.9rem 1.1rem;
+  text-decoration: none;
+  color: var(--fg);
+  transition: border-color 100ms, color 100ms;
+}
+.splash__devlog-card:hover { border-color: var(--accent); text-decoration: none; }
+.splash__devlog-meta {
+  color: var(--fg-dim);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  display: flex;
+  gap: 0.9rem;
+  align-items: baseline;
+  margin-bottom: 0.25rem;
+}
+.splash__devlog-title {
+  color: var(--accent);
+  font-size: 1.1rem;
+  font-weight: 500;
+  margin-bottom: 0.3rem;
+}
+.splash__devlog-excerpt {
+  color: var(--fg-dim);
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
 
 /* Landing hero */
 .hero {
@@ -133,22 +189,55 @@
 }
 
 .install {
-  display: grid;
-  gap: 0.5rem;
-  margin: 1.2rem 0 1.8rem;
+  max-width: 60rem;
+  margin: 1.2rem auto 1.8rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-soft);
+  overflow: hidden;
 }
-.install__row {
+.install__tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+.install__tab {
+  background: transparent;
+  border: 0;
+  border-right: 1px solid var(--border);
+  color: var(--fg-dim);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  padding: 0.45rem 1rem;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  transition: color 100ms, background 100ms;
+}
+.install__tab:last-child { border-right: 0; }
+.install__tab:hover { color: var(--fg); }
+.install__tab[aria-selected="true"] {
+  color: var(--accent);
+  background: var(--bg-soft);
+  box-shadow: inset 0 -1px 0 var(--bg-soft);
+}
+.install__pane {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  background: var(--bg-soft);
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  padding: 0.5rem 0.9rem;
+  gap: 0.6rem;
+  padding: 0.7rem 0.9rem;
   font-family: var(--font-mono);
 }
-.install__label { color: var(--fg-dim); min-width: 4rem; font-size: 0.85rem; }
-.install__cmd   { color: var(--code); flex: 1; overflow-x: auto; white-space: nowrap; }
+.install__pane[hidden] { display: none; }
+.install__prompt { color: var(--fg-dim); }
+.install__cmd {
+  color: var(--code);
+  background: transparent;
+  padding: 0;
+  flex: 1;
+  overflow-x: auto;
+  white-space: nowrap;
+}
 .install__copy {
   background: transparent;
   border: 1px solid var(--border);
@@ -157,6 +246,7 @@
   font-size: 0.75rem;
   padding: 0.15rem 0.55rem;
   cursor: pointer;
+  border-radius: 3px;
 }
 .install__copy:hover { color: var(--accent); border-color: var(--accent); }
 
@@ -244,6 +334,7 @@
 .callout-title   { color: var(--accent); font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; font-size: 0.8rem; margin-bottom: 0.3rem; }
 
 /* Devlog */
+.sidebar__date { color: var(--fg-dim); font-variant-numeric: tabular-nums; margin-right: 0.35em; }
 .article--devlog { max-width: var(--max-reading-width); margin: 0 auto; }
 .article--devlog .article__crumb a { color: var(--fg-dim); text-decoration: none; }
 .article--devlog .article__crumb a:hover { color: var(--accent); }

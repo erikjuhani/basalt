@@ -1,0 +1,12 @@
+{% set devlog = get_section(path="devlog/_index.md") %}
+<nav class="sidebar" aria-label="Devlog navigation">
+  <div class="sidebar__title">devlog/</div>
+  <ul>
+    {% for p in devlog.pages %}
+      <li>
+        <a href="{{ p.permalink }}"
+           class="{% if current_path == p.path %}active{% endif %}">{% if current_path == p.path %}●{% else %}○{% endif %} <span class="sidebar__date">{{ p.date | date(format='%Y-%m-%d') }}</span> {{ p.title }}</a>
+      </li>
+    {% endfor %}
+  </ul>
+</nav>

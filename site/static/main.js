@@ -27,6 +27,24 @@
     });
   });
 
+  // ── install tabs ──────────────────────────────────────────────────────────
+  document.querySelectorAll('[data-install]').forEach(function (root) {
+    var tabs = root.querySelectorAll('[data-install-tab]');
+    var panes = root.querySelectorAll('[data-install-pane]');
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        var name = tab.getAttribute('data-install-tab');
+        tabs.forEach(function (t) {
+          t.setAttribute('aria-selected', t === tab ? 'true' : 'false');
+        });
+        panes.forEach(function (p) {
+          if (p.getAttribute('data-install-pane') === name) p.removeAttribute('hidden');
+          else p.setAttribute('hidden', '');
+        });
+      });
+    });
+  });
+
   // ── help modal ────────────────────────────────────────────────────────────
   var modal = document.getElementById('help-modal');
   function openModal() { if (modal) { modal.dataset.open = 'true'; modal.setAttribute('aria-hidden', 'false'); } }
