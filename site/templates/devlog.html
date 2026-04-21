@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}devlog — {{ config.title }}{% endblock %}
+
+{% block body %}
+<main class="shell shell--plain">
+  <article class="article article--devlog">
+    <div class="article__crumb">DEVLOG</div>
+    <h1>{{ section.title }}</h1>
+    {{ section.content | safe }}
+
+    {% if section.pages %}
+      <ul class="devlog__list">
+        {% for page in section.pages %}
+          <li class="devlog__item">
+            <div class="devlog__meta">
+              <span class="devlog__date">{{ page.date | date(format='%Y-%m-%d') }}</span>
+              <span class="devlog__reading">{{ page.reading_time }} min read</span>
+            </div>
+            <a class="devlog__title" href="{{ page.permalink }}">{{ page.title }}</a>
+            {% if page.description %}
+              <p class="devlog__desc">{{ page.description }}</p>
+            {% endif %}
+            {% set excerpt = page.summary | default(value=page.content) | striptags | trim %}
+            {% if excerpt %}
+              <p class="devlog__excerpt">{{ excerpt | truncate(length=260) }}</p>
+            {% endif %}
+            <a class="devlog__more" href="{{ page.permalink }}">read more →</a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </article>
+</main>
+{% endblock %}

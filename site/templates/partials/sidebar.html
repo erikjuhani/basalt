@@ -1,0 +1,30 @@
+{% set root = get_section(path="_index.md") %}
+<nav class="sidebar" aria-label="Docs navigation">
+  <div class="sidebar__title">docs/</div>
+  <ul>
+    {# Subsections first (folders), then pages (top-level files). #}
+    {% for sub_path in root.subsections %}
+      {% set sub = get_section(path=sub_path) %}
+      <li>
+        <a class="section-label{% if current_path is starting_with(sub.path) %} active{% endif %}"
+           href="{{ sub.permalink }}">▸ {{ sub.title }}</a>
+        {% if current_path is starting_with(sub.path) %}
+          <ul class="section-children">
+            {% for p in sub.pages %}
+              <li>
+                <a href="{{ p.permalink }}"
+                   class="{% if current_path == p.path %}active{% endif %}">{% if current_path == p.path %}●{% else %}○{% endif %} {{ p.title }}</a>
+              </li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      </li>
+    {% endfor %}
+    {% for p in root.pages %}
+      <li>
+        <a href="{{ p.permalink }}"
+           class="{% if current_path == p.path %}active{% endif %}">{% if current_path == p.path %}●{% else %}○{% endif %} {{ p.title }}</a>
+      </li>
+    {% endfor %}
+  </ul>
+</nav>

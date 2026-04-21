@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}{{ section.title }} — {{ config.title }}{% endblock %}
+
+{% block body %}
+<main class="shell shell--no-toc">
+  {% include "partials/sidebar.html" %}
+  <article class="article">
+    <div class="article__crumb">{{ section.title | upper }}</div>
+    <h1>{{ section.title }}</h1>
+    {{ section.content | safe }}
+
+    {% if section.pages %}
+      <ul>
+        {% for page in section.pages %}
+          <li><a href="{{ page.permalink }}">{{ page.title }}</a>{% if page.description %} — {{ page.description }}{% endif %}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    {% if section.subsections %}
+      <ul>
+        {% for sub_path in section.subsections %}
+          {% set sub = get_section(path=sub_path) %}
+          <li><a href="{{ sub.permalink }}">{{ sub.title }}</a></li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </article>
+</main>
+{% endblock %}

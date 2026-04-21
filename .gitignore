@@ -20,3 +20,8 @@ target/
 
 # Obsidian metadata
 .obsidian
+
+# Zola site build artifacts
+/site/content/
+/site/public/
+/site/static/assets/

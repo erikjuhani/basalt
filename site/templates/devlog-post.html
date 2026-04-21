@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}{{ page.title }} — devlog{% endblock %}
+{% block description %}{{ page.description | default(value=config.description) }}{% endblock %}
+
+{% block body %}
+<main class="shell shell--plain">
+  <article class="article article--devlog">
+    <div class="article__crumb">
+      <a href="{{ get_url(path='@/devlog/_index.md') }}">DEVLOG</a>
+    </div>
+    <h1>{{ page.title }}</h1>
+    <div class="devlog__meta devlog__meta--post">
+      <span class="devlog__date">{{ page.date | date(format='%Y-%m-%d') }}</span>
+    </div>
+    {{ page.content | safe }}
+
+    <nav class="devlog__nav">
+      {% if page.earlier %}
+        <a class="devlog__nav-link" href="{{ page.earlier.permalink }}">← {{ page.earlier.title }}</a>
+      {% endif %}
+      {% if page.later %}
+        <a class="devlog__nav-link devlog__nav-link--next" href="{{ page.later.permalink }}">{{ page.later.title }} →</a>
+      {% endif %}
+    </nav>
+  </article>
+</main>
+{% endblock %}
