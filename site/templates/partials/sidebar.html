@@ -5,6 +5,7 @@
     {# Subsections first (folders), then pages (top-level files). #}
     {% for sub_path in root.subsections %}
       {% set sub = get_section(path=sub_path) %}
+      {% if sub.path is starting_with("/devlog") %}{% continue %}{% endif %}
       <li>
         <a class="section-label{% if current_path is starting_with(sub.path) %} active{% endif %}"
            href="{{ sub.permalink }}">▸ {{ sub.title }}</a>

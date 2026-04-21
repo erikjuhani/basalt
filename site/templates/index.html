@@ -17,10 +17,6 @@
       <span class="splash__title">
 ⋅𝕭𝖆𝖘𝖆𝖑𝖙⋅
       </span>
-      <span class="splash__heading">
-TUI Application to manage Obsidian
-vaults and notes directly from the terminal.
-      </span>
 <a style="font-weight: 600" href="{{ get_url(path='@/changelog.md') }}">v{{ config.extra.basalt_version }}</a>
 <br/>
    </span>
@@ -32,26 +28,51 @@ vaults and notes directly from the terminal.
       </div>
     {% endif %}
 
-    <div class="install">
-      {% for row in section.extra.install_commands %}
-        <div class="install__row">
-          <span class="install__label">{{ row.label }}</span>
-          <span class="install__cmd">$ {{ row.cmd }}</span>
-          <button class="install__copy" type="button" data-copy="{{ row.cmd }}">copy</button>
+    {% if section.extra.install_commands %}
+      <div class="install" data-install>
+        <div class="install__tabs" role="tablist">
+          {% for row in section.extra.install_commands %}
+            <button class="install__tab" type="button" role="tab"
+                    data-install-tab="{{ row.label }}"
+                    aria-selected="{% if loop.first %}true{% else %}false{% endif %}">
+              {{ row.label }}
+            </button>
+          {% endfor %}
         </div>
-      {% endfor %}
-    </div>
+        {% for row in section.extra.install_commands %}
+          <div class="install__pane" data-install-pane="{{ row.label }}"
+               {% if not loop.first %}hidden{% endif %}>
+            <span class="install__prompt">$</span>
+            <code class="install__cmd">{{ row.cmd }}</code>
+            <button class="install__copy" type="button"
+                    data-copy="{{ row.cmd }}" aria-label="Copy command">copy</button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
 
-    <div class="cards">
-      {% for card in section.extra.cards %}
-        <a class="card" href="{{ get_url(path=card.href) }}">
-          <div class="card__title">▸ {{ card.title }}</div>
-          <div class="card__blurb">{{ card.blurb }}</div>
+    {% set devlog = get_section(path="devlog/_index.md") %}
+    {% if devlog.pages | length > 0 %}
+      {% set latest = devlog.pages | first %}
+      <section class="splash__devlog">
+        <div class="splash__devlog-header">
+          <span class="splash__devlog-eyebrow">LATEST DEVLOG</span>
+          <a class="splash__devlog-all" href="{{ get_url(path='@/devlog/_index.md') }}">all posts →</a>
+        </div>
+        <a class="splash__devlog-card" href="{{ latest.permalink }}">
+          <div class="splash__devlog-meta">
+            <span class="devlog__date">{{ latest.date | date(format='%Y-%m-%d') }}</span>
+            <span class="devlog__reading">{{ latest.reading_time }} min read</span>
+          </div>
+          <div class="splash__devlog-title">{{ latest.title }}</div>
+          {% set excerpt = latest.summary | default(value=latest.content) | striptags | trim %}
+          {% if excerpt %}
+            <p class="splash__devlog-excerpt">{{ excerpt | truncate(length=220) }}</p>
+          {% endif %}
         </a>
-      {% endfor %}
-    </div>
+      </section>
+    {% endif %}
 
-    {{ section.content | safe }}
   </section>
 </main>
 {% endblock %}

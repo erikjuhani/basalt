@@ -3,7 +3,8 @@
 {% block description %}{{ page.description | default(value=config.description) }}{% endblock %}
 
 {% block body %}
-<main class="shell shell--plain">
+<main class="shell shell--no-toc">
+  {% include "partials/devlog-sidebar.html" %}
   <article class="article article--devlog">
     <div class="article__crumb">
       <a href="{{ get_url(path='@/devlog/_index.md') }}">DEVLOG</a>
