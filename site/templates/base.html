@@ -24,7 +24,7 @@
 <body>
   <header class="topbar">
     <a class="topbar__brand" href="{{ get_url(path='@/_index.md') }}">⋅𝕭𝖆𝖘𝖆𝖑𝖙⋅</a>
-    <nav class="topbar__nav">
+    <nav id="topbar-nav" class="topbar__nav" data-open="false">
       <a href="{{ get_url(path='@/basalt.md') }}">docs</a>
       <a href="{{ get_url(path='@/devlog/_index.md') }}">devlog</a>
       <a href="{{ get_url(path='@/changelog.md') }}">changelog</a>
@@ -32,11 +32,16 @@
       <a href="{{ config.extra.releases_url }}" rel="noopener">releases</a>
     </nav>
     <div class="topbar__spacer"></div>
-    <div style="position: relative;">
+    <div class="topbar__search-wrap">
       <input id="search" class="topbar__search" type="search" placeholder="search /" aria-label="Search" autocomplete="off">
       <div id="search-results" class="search-results" role="listbox"></div>
     </div>
     <button id="theme-toggle" class="topbar__toggle" type="button" aria-label="Toggle theme">☾ / ☀</button>
+    <button id="nav-toggle" class="topbar__menu-toggle" type="button"
+            aria-label="Toggle navigation" aria-expanded="false" aria-controls="topbar-nav">
+      <span class="topbar__menu-toggle__icon topbar__menu-toggle__icon--open" aria-hidden="true">≡</span>
+      <span class="topbar__menu-toggle__icon topbar__menu-toggle__icon--close" aria-hidden="true">✕</span>
+    </button>
   </header>
 
   {% block body %}{% endblock %}

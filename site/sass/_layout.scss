@@ -127,6 +127,32 @@ img { max-width: 100%; height: auto; }
   cursor: pointer;
 }
 .topbar__toggle:hover { border-color: var(--accent); color: var(--accent); }
+.topbar__search-wrap { position: relative; }
+.topbar__menu-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  line-height: 1;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border-radius: 0;
+  cursor: pointer;
+}
+.topbar__menu-toggle:hover { border-color: var(--accent); color: var(--accent); }
+.topbar__menu-toggle[aria-expanded="true"] {
+  background: var(--bg-elevated);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.topbar__menu-toggle__icon { display: block; }
+.topbar__menu-toggle[aria-expanded="true"] .topbar__menu-toggle__icon--open { display: none; }
+.topbar__menu-toggle[aria-expanded="false"] .topbar__menu-toggle__icon--close { display: none; }
 
 .shell {
   display: grid;
@@ -207,5 +233,32 @@ footer.site-footer a:hover { color: var(--accent); }
 @media (max-width: 720px) {
   .shell { grid-template-columns: 1fr; padding: 1rem; }
   .sidebar { position: static; border-right: 0; border-bottom: 1px solid var(--border); padding: 0 0 1rem; max-height: none; }
-  .topbar__search { width: 9rem; }
+
+  .topbar {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.5rem 0.8rem;
+  }
+  .topbar__spacer { flex: 1; }
+  .topbar__search-wrap {
+    order: 5;
+    width: 100%;
+    min-width: 0;
+  }
+  .topbar__search { width: 100%; }
+  .topbar__menu-toggle { display: inline-flex; }
+
+  .topbar__nav {
+    order: 10;
+    width: calc(100% + 1.6rem);
+    margin: 0 -0.8rem -0.5rem;
+    flex-direction: column;
+    gap: 0;
+    padding: 0.4rem 0.8rem 0.5rem;
+    border-top: 1px solid var(--border);
+  }
+  .topbar__nav[data-open="false"] { display: none; }
+  .topbar__nav a { padding: 0.45rem 0.2rem; }
+
+  .search-results { left: 0; right: 0; top: 2.2rem; width: 100%; max-width: none; }
 }
