@@ -5,7 +5,7 @@
 
 TUI Application to manage Obsidian vaults and notes directly from the terminal ✨.
 
-![Demo](https://raw.githubusercontent.com/erikjuhani/basalt/refs/heads/main/docs/assets/demo.gif)
+![Demo](https://raw.githubusercontent.com/erikjuhani/basalt/refs/heads/main/assets/dark/demo.gif)
 
 Basalt is a cross-platform TUI (Terminal User Interface) for managing Obsidian vaults and notes. It runs on Windows, macOS, and Linux. Basalt is not a replacement for Obsidian. Instead, it provides a minimalist terminal interface with a [WYSIWYG](https://en.wikipedia.org/wiki/WYSIWYG) experience.
 
