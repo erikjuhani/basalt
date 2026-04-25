@@ -45,6 +45,23 @@
     });
   });
 
+  // ── mobile nav toggle ─────────────────────────────────────────────────────
+  var navToggle = document.getElementById('nav-toggle');
+  var topbarNav = document.getElementById('topbar-nav');
+  function setNavOpen(open) {
+    if (!topbarNav || !navToggle) return;
+    topbarNav.dataset.open = open ? 'true' : 'false';
+    navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  if (navToggle && topbarNav) {
+    navToggle.addEventListener('click', function () {
+      setNavOpen(topbarNav.dataset.open !== 'true');
+    });
+    topbarNav.addEventListener('click', function (e) {
+      if (e.target.tagName === 'A') setNavOpen(false);
+    });
+  }
+
   // ── help modal ────────────────────────────────────────────────────────────
   var modal = document.getElementById('help-modal');
   function openModal() { if (modal) { modal.dataset.open = 'true'; modal.setAttribute('aria-hidden', 'false'); } }
@@ -59,6 +76,7 @@
     if (e.key === 'Escape') {
       closeModal();
       closeSearch();
+      setNavOpen(false);
       if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
       return;
     }
