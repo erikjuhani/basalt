@@ -1,0 +1,39 @@
+---
+source: basalt/src/note_editor/parser.rs
+assertion_line: 481
+expression: "format!(\"{}\\n ---\\n\\n{}\", text, ast::nodes_to_sexp(&from_str(text), 0))"
+---
+## Horizontal rule
+You can use three or more stars `***`, hyphens `---`, or underscore `___` on its own line to add a horizontal bar. You can also separate symbols using spaces.
+
+***
+****
+* * *
+---
+----
+- - -
+___
+____
+_ _ _
+
+ ---
+
+(heading H2 @0..19
+  "Horizontal rule")
+(paragraph @19..178
+  "You can use three or more stars "
+  (Code "***")
+  ", hyphens "
+  (Code "---")
+  ", or underscore "
+  (Code "___")
+  " on its own line to add a horizontal bar. You can also separate symbols using spaces.")
+(rule @179..183)
+(rule @183..188)
+(rule @188..194)
+(rule @194..198)
+(rule @198..203)
+(rule @203..209)
+(rule @209..213)
+(rule @213..218)
+(rule @218..224)

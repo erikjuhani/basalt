@@ -6,6 +6,7 @@ use std::{
 use ratatui::text::{Line, Span};
 
 use crate::{
+    app::SyntectContext,
     config::Symbols,
     note_editor::{
         ast::{self, SourceRange},
@@ -171,6 +172,7 @@ impl<'a> VirtualBlock<'a> {
 #[derive(Clone, Debug, Default)]
 pub struct VirtualDocument<'a> {
     symbols: Symbols,
+    syntect_ctx: Option<SyntectContext>,
     meta: Vec<VirtualLine<'a>>,
     blocks: Vec<VirtualBlock<'a>>,
     lines: Vec<VirtualLine<'a>>,
@@ -178,9 +180,10 @@ pub struct VirtualDocument<'a> {
 }
 
 impl<'a> VirtualDocument<'a> {
-    pub fn new(symbols: &Symbols) -> Self {
+    pub fn new(symbols: &Symbols, syntect_ctx: Option<&SyntectContext>) -> Self {
         Self {
             symbols: symbols.clone(),
+            syntect_ctx: syntect_ctx.cloned(),
             ..Default::default()
         }
     }
@@ -202,6 +205,12 @@ impl<'a> VirtualDocument<'a> {
 
     pub fn get_block(&self, block_idx: usize) -> Option<(usize, &VirtualBlock<'_>)> {
         self.blocks().get(block_idx).map(|block| (block_idx, block))
+    }
+
+    pub fn syntect_selection_color(&self) -> Option<ratatui::style::Color> {
+        self.syntect_ctx
+            .as_ref()
+            .and_then(|ctx| ctx.selection_color)
     }
 
     // FIXME: Refactor. Too many arguments.
@@ -260,6 +269,7 @@ impl<'a> VirtualDocument<'a> {
                         &RenderStyle::Raw,
                         &self.symbols,
                         0,
+                        None, // No syntax highlighting in Raw/Edit mode
                     )
                 } else {
                     render_node(
@@ -270,6 +280,7 @@ impl<'a> VirtualDocument<'a> {
                         &RenderStyle::Visual,
                         &self.symbols,
                         0,
+                        self.syntect_ctx.as_ref(), // Pass syntect context for Visual rendering
                     )
                 };
                 let block_lines = block.lines.clone();

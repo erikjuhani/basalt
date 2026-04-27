@@ -14,6 +14,7 @@ use ratatui::{
 use crate::note_editor::{
     cursor::CursorWidget,
     state::{NoteEditorState, View},
+    virtual_document::VirtualSpan,
 };
 
 #[derive(Default)]
@@ -83,11 +84,34 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
         Paragraph::new(visible_lines).block(block).render(area, buf);
 
         if !state.content.is_empty() || state.is_editing() {
+            // D-13: Detect if cursor is on a highlighted code block row by checking
+            // for any span with explicit Color::Black background — code blocks are the
+            // only elements that use Color::Black as an explicit background color.
+            let is_code_block_row = {
+                let all_lines = state.virtual_document.lines();
+                let cursor_row = state.cursor.virtual_row();
+                all_lines.get(cursor_row).is_some_and(|line| {
+                    line.virtual_spans().iter().any(|span| {
+                        let s = match span {
+                            VirtualSpan::Synthetic(s) | VirtualSpan::Content(s, _) => s,
+                        };
+                        s.style.bg == Some(Color::Black)
+                    })
+                })
+            };
+
+            let selection_bg = if is_code_block_row {
+                state.syntect_selection_color()
+            } else {
+                None
+            };
+
             CursorWidget::default()
                 .with_offset(Offset {
                     x: inner_area.x as i32,
                     y: inner_area.y as i32 + meta_lines_count as i32,
                 })
+                .with_code_block_selection_bg(selection_bg)
                 .render(state.viewport().area(), buf, &mut state.cursor);
         }
 
@@ -226,8 +250,13 @@ mod tests {
 
         tests.iter().for_each(|text| {
             _ = terminal.clear();
-            let mut state =
-                NoteEditorState::new(text, "Test", Path::new("test.md"), &Symbols::unicode());
+            let mut state = NoteEditorState::new(
+                text,
+                "Test",
+                Path::new("test.md"),
+                &Symbols::unicode(),
+                None,
+            );
             terminal
                 .draw(|frame| {
                     NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut state)
@@ -264,7 +293,13 @@ mod tests {
             (
                 "read_mode_with_content",
                 Box::new(|_| {
-                    NoteEditorState::new(content, "Test", Path::new("test.md"), &Symbols::unicode())
+                    NoteEditorState::new(
+                        content,
+                        "Test",
+                        Path::new("test.md"),
+                        &Symbols::unicode(),
+                        None,
+                    )
                 }),
             ),
             (
@@ -275,6 +310,7 @@ mod tests {
                         "Test",
                         Path::new("test.md"),
                         &Symbols::unicode(),
+                        None,
                     );
                     state.set_view(View::Edit(EditMode::Source));
                     state
@@ -288,6 +324,7 @@ mod tests {
                         "Test",
                         Path::new("test.md"),
                         &Symbols::unicode(),
+                        None,
                     );
                     state.resize_viewport(area.as_size());
                     state.set_view(View::Edit(EditMode::Source));
@@ -305,6 +342,7 @@ mod tests {
                         "Test",
                         Path::new("test.md"),
                         &Symbols::unicode(),
+                        None,
                     );
                     state.resize_viewport(area.as_size());
                     state.set_view(View::Edit(EditMode::Source));
@@ -329,6 +367,7 @@ mod tests {
                         "Test",
                         Path::new("test.md"),
                         &Symbols::unicode(),
+                        None,
                     );
                     state.resize_viewport(area.as_size());
                     state.cursor_down(1);
@@ -519,8 +558,13 @@ mod tests {
         let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
 
         tests.into_iter().for_each(|(name, content)| {
-            let mut state =
-                NoteEditorState::new(content, name, Path::new("test.md"), &Symbols::unicode());
+            let mut state = NoteEditorState::new(
+                content,
+                name,
+                Path::new("test.md"),
+                &Symbols::unicode(),
+                None,
+            );
             _ = terminal.clear();
             terminal
                 .draw(|frame| {

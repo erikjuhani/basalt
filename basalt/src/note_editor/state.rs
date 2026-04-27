@@ -8,6 +8,7 @@ use std::{
 use ratatui::layout::Size;
 
 use crate::{
+    app::SyntectContext,
     config::Symbols,
     note_editor::{
         ast::{self},
@@ -71,7 +72,13 @@ pub struct NoteEditorState<'a> {
 }
 
 impl<'a> NoteEditorState<'a> {
-    pub fn new(content: &str, filename: &str, filepath: &Path, symbols: &Symbols) -> Self {
+    pub fn new(
+        content: &str,
+        filename: &str,
+        filepath: &Path,
+        symbols: &Symbols,
+        syntect_ctx: Option<&SyntectContext>,
+    ) -> Self {
         let ast_nodes = parser::from_str(content);
         let content = content.to_string();
         Self {
@@ -81,7 +88,7 @@ impl<'a> NoteEditorState<'a> {
             cursor: Cursor::default(),
             viewport: Viewport::default(),
             symbols: symbols.clone(),
-            virtual_document: VirtualDocument::new(symbols),
+            virtual_document: VirtualDocument::new(symbols, syntect_ctx),
             filename: filename.to_string(),
             filepath: filepath.to_path_buf(),
             ast_nodes,
@@ -238,6 +245,10 @@ impl<'a> NoteEditorState<'a> {
 
     pub fn active(&self) -> bool {
         self.active
+    }
+
+    pub fn syntect_selection_color(&self) -> Option<ratatui::style::Color> {
+        self.virtual_document.syntect_selection_color()
     }
 
     pub fn current_block(&self) -> usize {
@@ -579,8 +590,13 @@ mod tests {
     fn test_viewport_scrolls_with_cursor_in_edit_mode() {
         let content = "# Title\n\nLine 1\n\nLine 2\n\nLine 3\n\nLine 4\n\nLine 5\n";
 
-        let mut state =
-            NoteEditorState::new(content, "test", Path::new("test.md"), &Symbols::unicode());
+        let mut state = NoteEditorState::new(
+            content,
+            "test",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+            None,
+        );
         state.resize_viewport(Size::new(40, 4));
 
         state.cursor_down(2);
