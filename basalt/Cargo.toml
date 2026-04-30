@@ -9,6 +9,7 @@ license = "MIT"
 version = "0.12.4"
 edition = "2021"
 rust-version = "1.91.0"
+default-run = "basalt"
 
 [dependencies]
 basalt-core = { path = "../basalt-core", version = "0.8.2" }
