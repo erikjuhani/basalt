@@ -152,21 +152,6 @@ impl<'a> NoteEditorState<'a> {
         }
     }
 
-    /// Write the current text_buffer back to self.content if it was modified,
-    /// re-parse AST nodes. Returns true if content changed.
-    pub fn commit_text_buffer(&mut self) -> bool {
-        if let Some(buffer) = self.text_buffer() {
-            let new_content = buffer.write(&self.content);
-            if self.content != new_content {
-                self.content = new_content;
-                self.ast_nodes = parser::from_str(&self.content);
-                self.modified = true;
-                return true;
-            }
-        }
-        false
-    }
-
     pub fn exit_insert(&mut self) {
         if matches!(self.view, View::Read) {
             return;
@@ -175,6 +160,22 @@ impl<'a> NoteEditorState<'a> {
         self.commit_text_buffer();
         self.text_buffer = None;
         self.editing_block = None;
+    }
+
+    /// Write the current text_buffer back to self.content if it was modified,
+    /// re-parse AST nodes. Returns Some if content changed.
+    pub fn commit_text_buffer(&mut self) -> Option<()> {
+        let buffer = self.text_buffer()?;
+        if buffer.modified {
+            let new_content = buffer.write(&self.content);
+            let changed = self.content != new_content;
+            self.content = new_content;
+            self.ast_nodes = parser::from_str(&self.content);
+            self.modified = self.modified || changed;
+            Some(())
+        } else {
+            None
+        }
     }
 
     pub fn set_filename(&mut self, name: &str) {
@@ -187,18 +188,18 @@ impl<'a> NoteEditorState<'a> {
 
     pub fn insert_char(&mut self, c: char) {
         if let Some(buffer) = &mut self.text_buffer {
-            let insertion_offset = self.cursor.source_offset();
-            buffer.insert_char(c, insertion_offset);
+            let source_pos = self.cursor.source_offset();
+            buffer.insert_char(c, source_pos);
 
             // Shift source ranges of all nodes after the insertion point by the character's byte length
             let char_byte_len = c.len_utf8();
-            self.shift_source_ranges(insertion_offset, char_byte_len as isize);
+            self.shift_source_ranges(source_pos, char_byte_len as isize);
 
             self.update_layout();
 
             // Jump cursor to position after the inserted character
             self.cursor.update(
-                cursor::Message::Jump(insertion_offset + char_byte_len),
+                cursor::Message::Jump(source_pos + char_byte_len),
                 self.virtual_document.lines(),
                 &self.text_buffer,
             );
@@ -240,16 +241,18 @@ impl<'a> NoteEditorState<'a> {
         self.active
     }
 
-    pub fn current_block(&self) -> usize {
-        *self
-            .virtual_document
-            .line_to_block()
-            .get(self.cursor.virtual_row())
-            .unwrap_or(&0)
+    pub fn previous_block_idx(&self) -> usize {
+        let prev_line = self.cursor.virtual_row().saturating_sub(1);
+        self.virtual_document.line_to_block_idx(prev_line)
+    }
+
+    pub fn current_block_idx(&self) -> usize {
+        let current_line = self.cursor.virtual_row();
+        self.virtual_document.line_to_block_idx(current_line)
     }
 
     pub fn set_view(&mut self, view: View) {
-        let block_idx = self.current_block();
+        let block_idx = self.current_block_idx();
 
         self.view = view;
 
@@ -390,7 +393,7 @@ impl<'a> NoteEditorState<'a> {
     }
 
     pub fn cursor_jump(&mut self, idx: usize) {
-        let prev_block_idx = self.current_block();
+        let prev_block_idx = self.current_block_idx();
 
         if let Some(block) = self.virtual_document.blocks().get(idx) {
             self.cursor.update(
@@ -440,7 +443,7 @@ impl<'a> NoteEditorState<'a> {
     }
 
     pub fn cursor_up(&mut self, amount: usize) {
-        let prev_block_idx = self.current_block();
+        let prev_block_idx = self.current_block_idx();
 
         self.cursor.update(
             cursor::Message::MoveUp(amount),
@@ -453,7 +456,7 @@ impl<'a> NoteEditorState<'a> {
     }
 
     pub fn cursor_down(&mut self, amount: usize) {
-        let prev_block_idx = self.current_block();
+        let prev_block_idx = self.current_block_idx();
 
         self.cursor.update(
             cursor::Message::MoveDown(amount),
@@ -480,7 +483,7 @@ impl<'a> NoteEditorState<'a> {
             return;
         }
 
-        let target_block_idx = self.current_block();
+        let target_block_idx = self.current_block_idx();
         if target_block_idx == prev_block_idx {
             return;
         }

@@ -21,7 +21,7 @@ pub enum Message {
     MoveLeft(usize),
     MoveRight(usize),
     // Move(i32, i32),
-    /// Jump the cursor according to the given byte intex
+    /// Jump the cursor according to the given byte index
     Jump(usize),
     SwitchMode(CursorMode),
 }
