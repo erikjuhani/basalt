@@ -138,6 +138,16 @@ impl Node {
             _ => None,
         }
     }
+
+    pub fn children_as_mut(&mut self) -> Option<&mut Vec<Self>> {
+        match self {
+            Self::List { nodes, .. }
+            | Self::Item { nodes, .. }
+            | Self::Task { nodes, .. }
+            | Self::BlockQuote { nodes, .. } => Some(nodes),
+            _ => None,
+        }
+    }
 }
 
 pub fn nodes_to_sexp(nodes: &[Node], indent_level: usize) -> String {

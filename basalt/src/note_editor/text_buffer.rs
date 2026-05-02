@@ -42,6 +42,13 @@ impl TextBuffer {
         }
     }
 
+    pub fn insert_at_start(&mut self, source_start: usize, text: &str) {
+        self.content.insert_str(0, text);
+        self.source_range.start = source_start;
+        self.original_source_range.start = source_start;
+        self.modified = true;
+    }
+
     pub fn write(&self, original_content: &str) -> String {
         if self.modified {
             let str_start = &original_content[..self.original_source_range.start];

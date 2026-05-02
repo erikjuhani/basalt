@@ -208,33 +208,58 @@ impl<'a> NoteEditorState<'a> {
         }
     }
 
-    pub fn delete_char(&mut self) {
-        if let Some(buffer) = &mut self.text_buffer {
-            if buffer.source_range.start == self.cursor.source_offset() {
-                // TODO: Get previous block source range start
-                // Get current block source range end
-                // Get content with source range
-                // Create new text buffer that has merged the previous and current blocks
-            } else {
-                let deletion_offset = self.cursor.source_offset();
-                if let Some(char_byte_len) = buffer.delete_char(deletion_offset) {
-                    // We shift by the negative character byte length to move ranges backwards
-                    self.shift_source_ranges(deletion_offset, -(char_byte_len as isize));
+    pub fn delete_char(&mut self) -> Option<()> {
+        // Comments for my own sanity :)
+        // 1. Check if we have a text buffer return if not
+        let buffer = self.text_buffer()?;
 
-                    self.update_layout();
+        // 2. Check if we are at the start of range, which means we need to merge with previous
+        //    block
+        let at_buffer_start = buffer.source_range.start == self.cursor.source_offset();
 
-                    // Position cursor at where the deleted character was.
-                    let new_cursor_pos = deletion_offset.saturating_sub(char_byte_len);
-                    self.cursor.update(
-                        cursor::Message::Jump(new_cursor_pos),
-                        self.virtual_document.lines(),
-                        &self.text_buffer,
-                    );
+        // 3. Get previous and current block idx
+        let previous_block_idx = self.previous_block_idx();
+        let current_block_idx = self.current_block_idx();
 
-                    self.ensure_cursor_visible();
-                }
-            }
+        let should_merge = at_buffer_start && previous_block_idx < current_block_idx;
+
+        if should_merge {
+            let prev_start = self.ast_nodes.get(previous_block_idx)?.source_range().start;
+            let buffer_start = self.text_buffer.as_ref()?.source_range.start;
+
+            let prefix = self.content.get(prev_start..buffer_start)?;
+            // 4. Extend the current text buffer to contain the prev node
+            self.text_buffer
+                .as_mut()?
+                .insert_at_start(prev_start, prefix);
+            // 5. Set the previous block as the current editing block
+            self.editing_block = Some(previous_block_idx);
+            // 6. Delete current ast node
+            self.ast_nodes.remove(current_block_idx);
         }
+
+        // 7. Get the buffer again since it might have been updated
+        let buffer = self.text_buffer.as_mut()?;
+
+        let source_pos = self.cursor.source_offset();
+        let deleted_char_byte_len = buffer.delete_char(source_pos)?;
+
+        // We shift by the negative character byte length to move ranges backwards
+        self.shift_source_ranges(source_pos, -(deleted_char_byte_len as isize));
+
+        self.update_layout();
+
+        // Position cursor at where the deleted character was.
+        let new_cursor_pos = source_pos.saturating_sub(deleted_char_byte_len);
+        self.cursor.update(
+            cursor::Message::Jump(new_cursor_pos),
+            self.virtual_document.lines(),
+            &self.text_buffer,
+        );
+
+        self.ensure_cursor_visible();
+
+        Some(())
     }
 
     pub fn active(&self) -> bool {
@@ -413,8 +438,26 @@ impl<'a> NoteEditorState<'a> {
         // Deferred initialization: if Edit mode was set before the viewport was
         // sized (e.g. vim_mode at note open), initialize the text buffer now that
         // the virtual document has been laid out.
+        //
+        // When re-entering insert mode after an exit_insert (e.g. ESC then `i`
+        // again in vim mode), the virtual_document still reflects the layout
+        // from before commit_text_buffer re-parsed `ast_nodes`, so
+        // `current_block_idx` derived from `cursor.virtual_row` would point at
+        // a stale block. Instead pick the block whose source range contains
+        // the cursor's source offset, so the new buffer starts where the
+        // cursor actually is.
         if matches!(self.view, View::Edit(..)) && self.text_buffer.is_none() {
-            let block_idx = self.current_block();
+            let offset = self.cursor.source_offset();
+            let block_idx = self
+                .ast_nodes
+                .iter()
+                .position(|node| node.source_range().contains(&offset))
+                .or_else(|| {
+                    self.ast_nodes
+                        .iter()
+                        .rposition(|node| node.source_range().end <= offset)
+                })
+                .unwrap_or_else(|| self.current_block_idx());
             self.enter_insert(block_idx);
             self.cursor.update(
                 SwitchMode(cursor::CursorMode::Edit),
@@ -533,32 +576,36 @@ impl<'a> NoteEditorState<'a> {
 
     /// The shift amount can be positive (insertion) or negative (deletion).
     fn shift_source_ranges(&mut self, offset: usize, shift: isize) {
-        self.shift_nodes(offset, shift);
+        self.ast_nodes
+            .iter_mut()
+            .for_each(|node| shift_node(node, offset, shift));
+    }
+}
+
+/// Shifts source ranges of top-level AST nodes and any nested children.
+///
+/// This function is a helper function intended to shift the source ranges when editing the
+/// document. After exiting the edit mode, the source ranges are calculated by the parser, so
+/// we don't have to be precise here.
+fn shift_node(node: &mut ast::Node, offset: usize, shift: isize) {
+    let shift_value = |v: usize| v.checked_add_signed(shift).unwrap_or(0);
+    let range = node.source_range();
+
+    if range.end <= offset {
+        return;
     }
 
-    /// Shifts source ranges of top-level AST nodes.
-    ///
-    /// This function is a helper function intended to shift the source ranges when editing the
-    /// document. After exiting the edit mode, the source ranges are calculated by the parser, so
-    /// we don't have to be precise here.
-    fn shift_nodes(&mut self, offset: usize, shift: isize) {
-        let shift_value = |v: usize| v.checked_add_signed(shift).unwrap_or(0);
+    let shifted_range = if range.start > offset {
+        shift_value(range.start)..shift_value(range.end)
+    } else {
+        range.start..shift_value(range.end)
+    };
+    node.set_source_range(shifted_range);
 
-        // We only take the current node and the rest after it
-        let nodes = self
-            .ast_nodes
+    if let Some(children) = node.children_as_mut() {
+        children
             .iter_mut()
-            .filter(|node| node.source_range().end > offset);
-
-        nodes.for_each(|node| {
-            let range = node.source_range();
-            let shifted_range = if range.start > offset {
-                shift_value(range.start)..shift_value(range.end)
-            } else {
-                range.start..shift_value(range.end)
-            };
-            node.set_source_range(shifted_range);
-        });
+            .for_each(|child| shift_node(child, offset, shift));
     }
 }
 
