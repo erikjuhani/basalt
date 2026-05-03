@@ -337,18 +337,16 @@ impl<'a> NoteEditorState<'a> {
     /// This method should be called after any operation that might cause the cursor
     /// to move outside the visible area (e.g., resize, cursor movement).
     fn ensure_cursor_visible(&mut self) {
-        let cursor_row = self.cursor.virtual_row() as i32;
+        let meta_len = self.virtual_document.meta().len() as i32;
+        let cursor_screen_row = self.cursor.virtual_row() as i32 + meta_len;
         let viewport_top = self.viewport.top() as i32;
         let viewport_bottom = self.viewport.bottom() as i32;
-        let meta_len = self.virtual_document.meta().len() as i32;
 
-        let effective_bottom = viewport_bottom.saturating_sub(meta_len);
-
-        if cursor_row < viewport_top {
-            let scroll_offset = cursor_row - viewport_top;
+        if cursor_screen_row < viewport_top {
+            let scroll_offset = cursor_screen_row - viewport_top;
             self.viewport.scroll_by((scroll_offset, 0));
-        } else if cursor_row >= effective_bottom {
-            let scroll_offset = cursor_row - effective_bottom + 1;
+        } else if cursor_screen_row >= viewport_bottom {
+            let scroll_offset = cursor_screen_row - viewport_bottom + 1;
             self.viewport.scroll_by((scroll_offset, 0));
         }
     }
@@ -487,12 +485,15 @@ impl<'a> NoteEditorState<'a> {
 
     pub fn cursor_up(&mut self, amount: usize) {
         let prev_block_idx = self.current_block_idx();
+        let prev_row = self.cursor.virtual_row();
 
         self.cursor.update(
             cursor::Message::MoveUp(amount),
             self.virtual_document.lines(),
             &self.text_buffer,
         );
+        let consumed = prev_row.saturating_sub(self.cursor.virtual_row());
+        self.viewport.scroll_up(amount.saturating_sub(consumed));
 
         self.relayout_on_block_change(prev_block_idx);
         self.ensure_cursor_visible();
@@ -616,12 +617,13 @@ mod tests {
     use std::path::Path;
 
     fn assert_cursor_visible(state: &NoteEditorState, context: &str) {
-        let cursor_row = state.cursor.virtual_row() as i32;
+        let meta_len = state.virtual_document.meta().len() as i32;
+        let cursor_screen_row = state.cursor.virtual_row() as i32 + meta_len;
         let top = state.viewport().top() as i32;
         let bottom = state.viewport().bottom() as i32;
         assert!(
-            cursor_row >= top && cursor_row < bottom,
-            "{context}: cursor row {cursor_row} outside viewport [{top}, {bottom})",
+            cursor_screen_row >= top && cursor_screen_row < bottom,
+            "{context}: cursor screen row {cursor_screen_row} outside viewport [{top}, {bottom})",
         );
     }
 

@@ -381,11 +381,18 @@ impl Cursor {
 #[derive(Clone, Debug, Default)]
 pub struct CursorWidget {
     offset: Offset,
+    meta_len: u16,
 }
 
 impl CursorWidget {
-    pub fn with_offset(self, offset: Offset) -> Self {
-        Self { offset }
+    pub fn with_offset(mut self, offset: Offset) -> Self {
+        self.offset = offset;
+        self
+    }
+
+    pub fn with_meta_len(mut self, meta_len: u16) -> Self {
+        self.meta_len = meta_len;
+        self
     }
 }
 
@@ -397,10 +404,10 @@ impl StatefulWidget for CursorWidget {
         Self: Sized,
     {
         let x = area.x.saturating_add(self.offset.x as u16);
-        let y = state
-            .virtual_row
-            .saturating_sub(area.top() as usize)
-            .saturating_add(self.offset.y as usize) as u16;
+        let y = (state.virtual_row as u16)
+            .saturating_add(self.meta_len)
+            .saturating_sub(area.top())
+            .saturating_add(self.offset.y as u16);
 
         match state.mode {
             CursorMode::Read => {
