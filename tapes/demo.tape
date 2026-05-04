@@ -88,31 +88,10 @@ Sleep 3s
 
 # Enter edit mode again
 Type "i"
-Sleep 2s
-Down
-Sleep 1.5s
-Left
-Left
-Left
-Left
-Left
-Left
-Left
-Left
-Left
-Left
-Left
-Left
-Left
-Left
-Left
+Sleep 1s
 Enter
 Sleep 1.5s
 Enter
-Sleep 1.5s
-Up
-Sleep 1.0s
-Up
 Sleep 1.0s
 Type@200ms "Basalt is a mafic, extrusive igneous rock formed from the rapid cooling of viscosity lava rich in magnesium and iron."
 Sleep 3s
