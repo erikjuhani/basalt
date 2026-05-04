@@ -196,8 +196,8 @@ impl<'a> VirtualDocument<'a> {
         &self.lines
     }
 
-    pub fn line_to_block(&self) -> &[usize] {
-        &self.line_to_block
+    pub fn line_to_block_idx(&self, line: usize) -> usize {
+        self.line_to_block.get(line).cloned().unwrap_or(0)
     }
 
     pub fn get_block(&self, block_idx: usize) -> Option<(usize, &VirtualBlock<'_>)> {

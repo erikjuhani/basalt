@@ -27,7 +27,7 @@ struct Page {
     source_path: PathBuf,
     title: String,
     slug: String,
-    /// Key used to look up weight in `_order.toml`'s `[pages]`, e.g.
+    /// Key used to look up weight in `.order.toml`'s `[pages]`, e.g.
     /// `User interface/Explorer` (no extension).
     order_key: String,
 }
@@ -244,7 +244,7 @@ fn inject_devlog_slug(src: &str, stem: &str) -> String {
 }
 
 fn read_order(docs: &Path) -> Result<Order, String> {
-    let path = docs.join("_order.toml");
+    let path = docs.join(".order.toml");
     if !path.exists() {
         return Ok(Order::default());
     }

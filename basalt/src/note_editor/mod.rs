@@ -65,13 +65,13 @@ pub fn update<'a>(
         Message::CursorUp => {
             state.cursor_up(1);
             return Some(AppMessage::Outline(outline::Message::SelectAt(
-                state.current_block(),
+                state.current_block_idx(),
             )));
         }
         Message::CursorDown => {
             state.cursor_down(1);
             return Some(AppMessage::Outline(outline::Message::SelectAt(
-                state.current_block(),
+                state.current_block_idx(),
             )));
         }
         Message::ScrollUp(scroll_amount) => {
@@ -80,7 +80,7 @@ pub fn update<'a>(
                 screen_size.height.into(),
             ));
             return Some(AppMessage::Outline(outline::Message::SelectAt(
-                state.current_block(),
+                state.current_block_idx(),
             )));
         }
         Message::ScrollDown(scroll_amount) => {
@@ -89,19 +89,19 @@ pub fn update<'a>(
                 screen_size.height.into(),
             ));
             return Some(AppMessage::Outline(outline::Message::SelectAt(
-                state.current_block(),
+                state.current_block_idx(),
             )));
         }
         Message::ScrollToTop => {
             state.cursor_up(usize::MAX);
             return Some(AppMessage::Outline(outline::Message::SelectAt(
-                state.current_block(),
+                state.current_block_idx(),
             )));
         }
         Message::ScrollToBottom => {
             state.cursor_to_end();
             return Some(AppMessage::Outline(outline::Message::SelectAt(
-                state.current_block(),
+                state.current_block_idx(),
             )));
         }
         _ => {}

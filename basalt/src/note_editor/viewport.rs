@@ -35,4 +35,11 @@ impl Viewport {
             x: offset.1,
         })
     }
+
+    pub fn scroll_up(&mut self, amount: usize) {
+        let scroll = amount.min(self.area.y as usize) as i32;
+        if scroll > 0 {
+            self.scroll_by((-scroll, 0));
+        }
+    }
 }

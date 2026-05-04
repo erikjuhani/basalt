@@ -117,14 +117,6 @@ fn render_raw_line<'a>(
     )
 }
 
-// # Example:
-//
-// | Basalt is a TUI (Terminal User Interface)
-// |  ⤷ application to manage Obsidian vaults and
-// |  ⤷ notes from the terminal. Basalt is
-// |  ⤷ cross-platform and can be installed and run
-// |  ⤷ in the major operating systems on Windows,
-// |  ⤷ macOS; and Linux.
 pub fn text_wrap<'a>(
     text: &Span<'a>,
     prefix: Span<'static>,
@@ -159,13 +151,16 @@ pub fn heading<'a>(
     symbols: &Symbols,
 ) -> VirtualBlock<'a> {
     use ast::HeadingLevel::*;
-    // FIXME: Support new lines when editing
-    // Currently when editing the heading and inserting new lines, the new lines are invisible and
-    // only take affect visually when exiting (commiting edit changes)
-    let text = text.to_string();
-    let text = match option {
-        RenderStyle::Visual => text,
-        RenderStyle::Raw => content.to_string(),
+
+    let (text, heading_source_range, remaining) = match option {
+        RenderStyle::Visual => (text.to_string(), source_range.clone(), None),
+        RenderStyle::Raw => match content.split_once('\n') {
+            Some((first, rest)) => {
+                let end = (source_range.start + first.len()).min(source_range.end);
+                (first.to_string(), source_range.start..end, Some(rest))
+            }
+            None => (content.to_string(), source_range.clone(), None),
+        },
     };
 
     let prefix_width = prefix.width();
@@ -174,14 +169,16 @@ pub fn heading<'a>(
         let mut wrapped_heading = text_wrap(
             &content,
             prefix.clone(),
-            source_range,
+            &heading_source_range,
             max_width,
             Some(marker),
             option,
             symbols,
         );
 
-        wrapped_heading.push(empty_virtual_line!());
+        if matches!(option, RenderStyle::Visual) {
+            wrapped_heading.push(empty_virtual_line!());
+        }
         wrapped_heading
     };
 
@@ -189,7 +186,7 @@ pub fn heading<'a>(
         let mut wrapped_heading = text_wrap(
             &content,
             prefix.clone(),
-            source_range,
+            &heading_source_range,
             max_width,
             None,
             option,
@@ -199,7 +196,7 @@ pub fn heading<'a>(
         wrapped_heading
     };
 
-    let lines = match level {
+    let mut lines = match level {
         H1 => h_with_underline(
             if *option == RenderStyle::Visual {
                 text.to_uppercase().bold()
@@ -239,6 +236,19 @@ pub fn heading<'a>(
         ),
     };
 
+    if let Some(remaining) = remaining.filter(|str| !str.is_empty()) {
+        // +1 skip the `\n` that we split on.
+        let remaining_start = (heading_source_range.end + 1).min(source_range.end);
+        let remaining_range = remaining_start..source_range.end;
+        lines.extend(render_raw(
+            remaining,
+            &remaining_range,
+            max_width,
+            prefix.clone(),
+            symbols,
+        ));
+    }
+
     VirtualBlock::new(&lines, source_range)
 }
 
@@ -273,7 +283,7 @@ pub fn render_raw<'a>(
     // cursor has something to land on.
     if lines.is_empty() {
         lines.push(virtual_line!([
-            synthetic_span!(prefix),
+            synthetic_span!(prefix.clone()),
             content_span!("".to_string(), source_range)
         ]));
     }

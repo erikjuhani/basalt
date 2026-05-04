@@ -1,5 +1,84 @@
 # Changelog
 
+## [0.12.5](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.5) (Unreleased)
+
+### Added
+
+- [d8eb23e](https://github.com/erikjuhani/basalt/commit/d8eb23e62a260d01ff31fc3690b7fe221504e6c5) Add experimental vault path override via BASALT_EXP_VAULT_PATH by @erikjuhani
+
+> Allows opening an arbitrary directory as a vault by setting the env var,
+> skipping the splash screen and going straight to the explorer.
+
+### Fixed
+
+- [8f0852f](https://github.com/erikjuhani/basalt/commit/8f0852fcb3b84f54668a93ea10bedd1343700bb2) Merge with previous block when backspacing at block start
+
+> When the cursor sits at the very start of a block's text buffer,
+> backspace previously did nothing. Now it merges the current block
+> into the previous one by extending the buffer leftward to swallow
+> the previous block's source, removing the merged-away AST node,
+> and deleting one byte from the joined buffer. In-progress edits in
+> the current buffer are preserved.
+>
+> Guards against merging a block with itself: at the start of the
+> very first block (or any case where previous and current block
+> index coincide) the operation is a no-op rather than collapsing
+> the only AST node.
+>
+> Supporting changes:
+>
+> - Add `previous_block_idx` and rename `current_block` →
+>   `current_block_idx`; both now return owned `usize`. The new
+>   helper drives the "is there a real previous block?" check.
+> - Add `TextBuffer::insert_at_start`, which prepends bytes and
+>   moves both the live and original source range starts so commit
+>   later overwrites the joined region instead of just the original
+>   block.
+> - Add `ast::Node::children_as_mut` and walk children recursively
+>   in `shift_nodes`, so List/Item/Task/BlockQuote children stay in
+>   sync with their containers' shifted ranges. Without this, the
+>   cursor could land on a stale child range after editing the
+>   paragraph above it.
+> - `commit_text_buffer` re-parses whenever `buffer.modified`, not
+>   just when the byte content differs. The merge mutates
+>   `ast_nodes` in-place, so a buffer that round-trips back to the
+>   same string still needs a re-parse to restore the AST.
+> - Pick the deferred-init block in `update_layout` by the cursor's
+>   source offset, not by the (stale) `virtual_row` lookup. After
+>   exit_insert + commit, the layout hasn't been rebuilt yet, and
+>   the old lookup put the cursor in the wrong block on re-entry.
+> - Rename `insertion_offset` → `source_pos` in insert/delete for
+>   consistency.
+
+- [c63cf05](https://github.com/erikjuhani/basalt/commit/c63cf0553c070f3ea20d56057fe9e817a50c3fc8) Render trailing content after a heading in edit mode
+
+> A heading's source range can include a paragraph that follows it
+> when the user types a newline mid-edit. The raw renderer was
+> treating the whole range as a single heading line and the extra
+> content was invisible until the user exited edit mode. Split on
+> the first `\n` in raw mode: render the leading line as the
+> heading, then render the rest with `render_raw` so new lines are
+> immediately visible.
+>
+> Also drop the synthetic empty trailer in raw mode so paragraphs
+> don't gain a stray blank row when entering edit mode.
+
+- [31982e2](https://github.com/erikjuhani/basalt/commit/31982e229c7edaccc3ba7bfadbf84a1bb7013356) Account for meta header rows when scrolling the editor
+
+> `ensure_cursor_visible` was comparing `cursor.virtual_row`
+> directly against `viewport.top()` and a `viewport.bottom()`
+> shrunk by `meta_len`. The meta rows live above the content, so
+> the cursor's screen row is `virtual_row + meta_len`, not
+> `virtual_row` — the old comparison scrolled the editor up too
+> early whenever the meta header was visible, hiding the first
+> content rows.
+>
+> Add `meta_len` to the cursor's screen position before comparing
+> against the viewport bounds, thread the meta length through
+> `CursorWidget` so it draws at the same offset, and add
+> `Viewport::scroll_up` so vertical cursor motion that consumes
+> more rows than the viewport contains scrolls the document.
+
 ## [0.12.4](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.4) (Apr, 09 2026)
 
 ### Added

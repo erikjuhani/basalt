@@ -533,7 +533,7 @@ impl<'a> App<'a> {
                 // TODO: This should be behind an event/message
                 state.outline = OutlineState::new(
                     &state.note_editor.ast_nodes,
-                    state.note_editor.current_block(),
+                    state.note_editor.current_block_idx(),
                     state.outline.is_open(),
                     &config.symbols,
                 );

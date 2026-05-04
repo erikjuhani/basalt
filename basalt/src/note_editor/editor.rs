@@ -86,8 +86,9 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
             CursorWidget::default()
                 .with_offset(Offset {
                     x: inner_area.x as i32,
-                    y: inner_area.y as i32 + meta_lines_count as i32,
+                    y: inner_area.y as i32,
                 })
+                .with_meta_len(meta_lines_count as u16)
                 .render(state.viewport().area(), buf, &mut state.cursor);
         }
 

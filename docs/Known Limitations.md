@@ -32,13 +32,11 @@ The [[Editor (experimental)|experimental editor]] is disabled by default and req
 - No text selection
 - No multi-line deletion
 - No line/word deletion commands
-- No jumping to start/end of line or document
-- Edit mode key mappings cannot be customized
+- No jumping to start/end of line
 - The editor works on individual blocks (paragraphs, headings, etc.) rather than the full document
 
 ## Configuration
 
-- Edit view key mappings cannot be customized
 - Multiple config files are not merged (first found is used)
 - Shell expansion in commands is not supported
 - Piping in commands is not supported
