@@ -416,7 +416,7 @@ impl<'a> App<'a> {
                     .zip(state.explorer.selected_item_index)
                     .is_some_and(|(a, b)| a == b)
                 {
-                    if let Some(Item::File(note)) = state.explorer.current_item() {
+                    if let Some(Item::File { note, .. }) = state.explorer.current_item() {
                         Some(SelectedNote::from(note))
                     } else {
                         None
@@ -631,7 +631,7 @@ impl<'a> App<'a> {
         NoteEditor::default().render(note, buf, &mut state.note_editor);
         Outline.render(outline, buf, &mut state.outline);
         let border_modal = self.config.symbols.border_modal.into();
-        Input::new(border_modal).render(area, buf, &mut state.input_modal);
+        Input::new(border_modal).render(explorer_pane, buf, &mut state.input_modal);
 
         let (_, counts) = state
             .selected_note

@@ -81,7 +81,7 @@ fn calculate_offset(row: usize, items_count: usize, window_height: usize) -> usi
 
 pub fn flatten(sort: Sort, depth: usize) -> impl Fn(&Item) -> Vec<(Item, usize)> {
     move |item| match item {
-        Item::File(..) => vec![(item.clone(), depth)],
+        Item::File { .. } => vec![(item.clone(), depth)],
         Item::Directory {
             expanded: true,
             items,
@@ -145,7 +145,7 @@ impl ExplorerState {
         self.active = active;
     }
 
-    fn map_to_item(&self, entry: VaultEntry) -> Item {
+    fn map_to_item(&self, depth: usize, entry: VaultEntry) -> Item {
         match entry {
             VaultEntry::Directory {
                 name,
@@ -169,9 +169,10 @@ impl ExplorerState {
                     name,
                     path,
                     expanded,
+                    depth,
                     items: entries
                         .into_iter()
-                        .map(|entry| self.map_to_item(entry))
+                        .map(|entry| self.map_to_item(depth + 1, entry))
                         .collect(),
                 }
             }
@@ -182,14 +183,14 @@ impl ExplorerState {
     pub fn with_entries(&mut self, entries: Vec<VaultEntry>, select: Option<PathBuf>) {
         let items: Vec<Item> = entries
             .into_iter()
-            .map(|entry| self.map_to_item(entry))
+            .map(|entry| self.map_to_item(0, entry))
             .collect();
 
         self.flatten_with_items(&items);
 
         if let Some(path) = select {
             if let Some(index) = self.flat_items.iter().position(|(item, _)| match item {
-                Item::File(note) => note.path() == path,
+                Item::File { note, .. } => note.path() == path,
                 Item::Directory { path: dir_path, .. } => dir_path == &path,
             }) {
                 self.list_state.select(Some(index));
@@ -272,6 +273,7 @@ impl ExplorerState {
                 path,
                 name,
                 items,
+                depth,
             } => {
                 let expanded = if path == identifier {
                     !expanded
@@ -283,6 +285,7 @@ impl ExplorerState {
                     name,
                     path,
                     expanded,
+                    depth,
                     items: items
                         .iter()
                         .map(|child| Self::toggle_item_in_tree(child, identifier))
@@ -313,7 +316,7 @@ impl ExplorerState {
 
                 self.flatten_with_items(&items)
             }
-            (Item::File(note), _) => {
+            (Item::File { note, .. }, _) => {
                 self.selected_note = Some(note.clone());
                 self.selected_item_index = Some(selected_item_index);
                 self.selected_item_path = Some(note.path().to_path_buf());

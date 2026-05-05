@@ -304,7 +304,9 @@ impl StatefulWidget for Input {
         // Input widget height is set to 3 since we include the borders
         let height = 3;
 
-        let width = 40.min(area.width);
+        let width = 40u16
+            .saturating_sub((state.offset_x * 2) as u16)
+            .min(area.width);
 
         let row = state.cursor_row;
 
