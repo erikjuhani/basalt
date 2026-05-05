@@ -86,7 +86,7 @@ pub fn update<'a>(
             if let Some(current_item) = state.current_item() {
                 let selected_index = state.list_state.selected().unwrap_or(0);
                 let (label, input, callback) = match current_item {
-                    Item::File(note) => {
+                    Item::File { note, .. } => {
                         let input = note.name();
                         ("Rename", input, input::Callback::RenameNote(note.clone()))
                     }
@@ -99,7 +99,7 @@ pub fn update<'a>(
                 return Some(AppMessage::Input(input::Message::Open(InputModalConfig {
                     // Offset of 2 is used to move the area two rows down so that the original row is visible.
                     position: Position::from((
-                        2,
+                        2 + (current_item.depth() * 2) as u16,
                         (selected_index + 2).saturating_sub(state.list_state.offset()) as u16,
                     )),
                     label: label.to_string(),
@@ -142,7 +142,7 @@ impl Explorer<'_> {
                 Span::raw("  ".repeat(*depth)).black()
             };
             match item {
-                Item::File(note) => {
+                Item::File { note, .. } => {
                     let name = note.name();
                     let path = note.path();
 

@@ -4,20 +4,30 @@ use basalt_core::obsidian::{Note, VaultEntry};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Item {
-    File(Note),
+    File {
+        note: Note,
+        depth: usize,
+    },
     Directory {
         name: String,
         path: PathBuf,
         expanded: bool,
         items: Vec<Item>,
+        depth: usize,
     },
 }
 
 impl Item {
+    pub(crate) fn depth(&self) -> usize {
+        match self {
+            Self::Directory { depth, .. } | Self::File { depth, .. } => *depth,
+        }
+    }
+
     pub(crate) fn name(&self) -> &str {
         match self {
             Self::Directory { name, .. } => name.as_str(),
-            Self::File(note) => note.name(),
+            Self::File { note, .. } => note.name(),
         }
     }
 
@@ -28,18 +38,26 @@ impl Item {
 
 impl From<VaultEntry> for Item {
     fn from(value: VaultEntry) -> Self {
-        match value {
-            VaultEntry::File(note) => Self::File(note),
-            VaultEntry::Directory {
-                name,
-                entries,
-                path,
-            } => Self::Directory {
-                name,
-                path,
-                expanded: false,
-                items: entries.into_iter().map(|item| item.into()).collect(),
-            },
+        fn to_items(depth: usize, entry: VaultEntry) -> Item {
+            match entry {
+                VaultEntry::File(note) => Item::File { note, depth },
+                VaultEntry::Directory {
+                    name,
+                    entries,
+                    path,
+                } => Item::Directory {
+                    name,
+                    path,
+                    depth,
+                    expanded: false,
+                    items: entries
+                        .into_iter()
+                        .map(|entry| to_items(depth + 1, entry))
+                        .collect(),
+                },
+            }
         }
+
+        to_items(0, value)
     }
 }
