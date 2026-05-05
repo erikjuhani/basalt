@@ -9,75 +9,67 @@
 > Allows opening an arbitrary directory as a vault by setting the env var,
 > skipping the splash screen and going straight to the explorer.
 
+### Changed
+
+- [022d988](https://github.com/erikjuhani/basalt/commit/022d988f1709a10d4ef45449e4a138390b585339) Add indentation to floating rename input
+
+> The rename input in explorer pane was fixed to left border of explorer
+> pane, and forced vision to jump in deeply nested fields. This commit
+> adds indentation to the floating rename input which is calculated by the
+> depth of the explorer item. Additionally added depth field to items.
+
 ### Fixed
 
-- [8f0852f](https://github.com/erikjuhani/basalt/commit/8f0852fcb3b84f54668a93ea10bedd1343700bb2) Merge with previous block when backspacing at block start
+- [ca05c25](https://github.com/erikjuhani/basalt/commit/ca05c25e359cc061d855cb1607979537af6acc02) Merge with previous block when backspacing at block start by @erikjuhani
 
-> When the cursor sits at the very start of a block's text buffer,
-> backspace previously did nothing. Now it merges the current block
-> into the previous one by extending the buffer leftward to swallow
-> the previous block's source, removing the merged-away AST node,
-> and deleting one byte from the joined buffer. In-progress edits in
-> the current buffer are preserved.
->
-> Guards against merging a block with itself: at the start of the
-> very first block (or any case where previous and current block
-> index coincide) the operation is a no-op rather than collapsing
-> the only AST node.
+> Backspace at the start of a block's text buffer used to do
+> nothing. It now merges the current block into the previous one,
+> preserving in-progress edits. The merge is a no-op when previous
+> and current block indices coincide, so backspace at the start of
+> the first block does not collapse the only AST node.
 >
 > Supporting changes:
 >
-> - Add `previous_block_idx` and rename `current_block` →
->   `current_block_idx`; both now return owned `usize`. The new
->   helper drives the "is there a real previous block?" check.
+> - Add `previous_block_idx`, rename `current_block` to
+>   `current_block_idx`. Both return owned `usize`.
 > - Add `TextBuffer::insert_at_start`, which prepends bytes and
->   moves both the live and original source range starts so commit
->   later overwrites the joined region instead of just the original
->   block.
-> - Add `ast::Node::children_as_mut` and walk children recursively
->   in `shift_nodes`, so List/Item/Task/BlockQuote children stay in
->   sync with their containers' shifted ranges. Without this, the
->   cursor could land on a stale child range after editing the
->   paragraph above it.
-> - `commit_text_buffer` re-parses whenever `buffer.modified`, not
->   just when the byte content differs. The merge mutates
->   `ast_nodes` in-place, so a buffer that round-trips back to the
->   same string still needs a re-parse to restore the AST.
-> - Pick the deferred-init block in `update_layout` by the cursor's
->   source offset, not by the (stale) `virtual_row` lookup. After
->   exit_insert + commit, the layout hasn't been rebuilt yet, and
->   the old lookup put the cursor in the wrong block on re-entry.
-> - Rename `insertion_offset` → `source_pos` in insert/delete for
->   consistency.
+>   moves both the live and original source range starts so a
+>   later commit overwrites the joined region.
+> - Walk children recursively in `shift_nodes` via a new
+>   `ast::Node::children_as_mut`. Without this the cursor lands on
+>   a stale child range after editing a paragraph above a list.
+> - `commit_text_buffer` re-parses on `buffer.modified` rather
+>   than on content change, since the merge mutates `ast_nodes` in
+>   place and a buffer that round-trips needs a re-parse.
+> - In `update_layout`'s deferred init, pick the editing block by
+>   cursor source offset, not by a stale `virtual_row` lookup.
+> - Rename `insertion_offset` to `source_pos`.
 
-- [c63cf05](https://github.com/erikjuhani/basalt/commit/c63cf0553c070f3ea20d56057fe9e817a50c3fc8) Render trailing content after a heading in edit mode
+- [f06575f](https://github.com/erikjuhani/basalt/commit/f06575f97043cfaba999d2f80199dbd95837f2e5) Render trailing content after a heading in edit mode by @erikjuhani
 
 > A heading's source range can include a paragraph that follows it
-> when the user types a newline mid-edit. The raw renderer was
-> treating the whole range as a single heading line and the extra
-> content was invisible until the user exited edit mode. Split on
-> the first `\n` in raw mode: render the leading line as the
-> heading, then render the rest with `render_raw` so new lines are
-> immediately visible.
+> when the user types a newline mid-edit. The raw renderer treated
+> the whole range as one heading line, so the new content was
+> invisible until exit. Split on the first newline in raw mode and
+> render the rest with `render_raw`.
 >
 > Also drop the synthetic empty trailer in raw mode so paragraphs
 > don't gain a stray blank row when entering edit mode.
 
-- [31982e2](https://github.com/erikjuhani/basalt/commit/31982e229c7edaccc3ba7bfadbf84a1bb7013356) Account for meta header rows when scrolling the editor
+- [78c7299](https://github.com/erikjuhani/basalt/commit/78c7299576af8b4459d5c3ac390e489827af039e) Account for meta header rows when scrolling the editor by @erikjuhani
 
 > `ensure_cursor_visible` was comparing `cursor.virtual_row`
-> directly against `viewport.top()` and a `viewport.bottom()`
-> shrunk by `meta_len`. The meta rows live above the content, so
-> the cursor's screen row is `virtual_row + meta_len`, not
-> `virtual_row` — the old comparison scrolled the editor up too
-> early whenever the meta header was visible, hiding the first
-> content rows.
+> against `viewport.top()` and a `viewport.bottom()` shrunk by
+> `meta_len`. The meta rows live above the content, so the cursor's
+> screen row is `virtual_row + meta_len`. The old comparison
+> scrolled the editor up too early when the meta header was
+> visible, hiding the first content rows.
 >
 > Add `meta_len` to the cursor's screen position before comparing
-> against the viewport bounds, thread the meta length through
-> `CursorWidget` so it draws at the same offset, and add
-> `Viewport::scroll_up` so vertical cursor motion that consumes
-> more rows than the viewport contains scrolls the document.
+> against the viewport bounds, thread it through `CursorWidget` so
+> it draws at the same offset, and add `Viewport::scroll_up` so
+> vertical motion that consumes more rows than the viewport
+> contains scrolls the document.
 
 ## [0.12.4](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.4) (Apr, 09 2026)
 
