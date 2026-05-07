@@ -33,10 +33,12 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        ".github/workflows/renovate.yml"
+        ".github/workflows/renovate.yml",
+        ".github/workflows/renovate-validate.yml"
       ],
       "matchStrings": [
-        "renovate-version: (?<currentValue>[^\\s]+)"
+        "renovate-version: (?<currentValue>[^\\s]+)",
+        "ghcr\\.io/renovatebot/renovate:(?<currentValue>[^\\s]+)"
       ],
       "depNameTemplate": "ghcr.io/renovatebot/renovate",
       "datasourceTemplate": "docker"
