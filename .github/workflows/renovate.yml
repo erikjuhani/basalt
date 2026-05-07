@@ -102,7 +102,7 @@ jobs:
         env:
           RENOVATE_REPOSITORY_CACHE: ${{ github.event.inputs.repoCache || 'enabled' }}
           RENOVATE_REPOSITORIES: ${{ github.repository }}
-          LOG_LEVEL: ${{ github.event.inputs.log_level || 'info' }}
+          LOG_LEVEL: ${{ github.event.inputs.log_level || 'debug' }}
         with:
           renovate-version: 43.160.6
           configurationFile: renovate-config.json
