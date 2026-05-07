@@ -2,7 +2,17 @@ name: Pages
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+    paths:
+      - 'docs/*'
+      - 'site/*'
+      - 'devlog/*'
+      - 'obsidian-to-zola/*'
+      - 'assets/*'
+      - 'CONTRIBUTING.md'
+      - 'basalt/CHANGELOG.md'
+      - '.github/workflows/pages.yml'
   workflow_dispatch:
 
 # Default to read-only; the deploy job opts into the scopes it needs.
