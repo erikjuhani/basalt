@@ -72,8 +72,8 @@ fn replace_content(content: &str, replacements: &[(String, String)]) -> String {
 /// #
 /// # let tmp_dir = tempdir()?;
 /// let vault = Vault { path: tmp_dir.path().to_path_buf(), ..Default::default() };
-/// let note_a = obsidian::vault::create_note(&vault, "Note A")?;
-/// let note_b = obsidian::vault::create_note(&vault, "Note B")?;
+/// let note_a = obsidian::vault::create_note(&vault.path, "Note A")?;
+/// let note_b = obsidian::vault::create_note(&vault.path, "Note B")?;
 /// fs::write(note_a.path(), "A link to [[Note B]]")?;
 /// fs::write(note_b.path(), "A link to [[Note A]] and link to self [[Note B]]")?;
 /// # assert_eq!(fs::read_to_string(note_a.path())?, "A link to [[Note B]]");
@@ -152,7 +152,7 @@ pub fn update_wiki_links(
 /// # let tmp_path = tmp_dir.path();
 /// #
 /// let vault = Vault { path: tmp_path.to_path_buf(), ..Default::default() };
-/// let directory = obsidian::vault::create_dir(&vault, "Arbitrary Name")?;
+/// let directory = obsidian::vault::create_dir(&vault.path, "Arbitrary Name")?;
 ///
 /// let directory = obsidian::vault::rename_dir(directory, "/New Name.md")?;
 /// assert_eq!(directory.name(), "New Name.md");
@@ -207,7 +207,7 @@ pub fn rename_dir(directory: Directory, new_name: &str) -> result::Result<Direct
 /// # let tmp_path = tmp_dir.path();
 /// #
 /// let vault = Vault { path: tmp_path.to_path_buf(), ..Default::default() };
-/// let note = obsidian::vault::create_note(&vault, "Arbitrary Name")?;
+/// let note = obsidian::vault::create_note(&vault.path, "Arbitrary Name")?;
 ///
 /// let note = obsidian::vault::rename_note(note, "New Name.md")?;
 /// assert_eq!(note.name(), "New Name");
@@ -262,8 +262,8 @@ pub fn rename_note(note: Note, new_name: &str) -> result::Result<Note, Error> {
 /// # let tmp_path = tmp_dir.path();
 /// #
 /// let vault = Vault { path: tmp_path.to_path_buf(), ..Default::default() };
-/// let note = obsidian::vault::create_note(&vault, "/notes/Arbitrary Name")?;
-/// let dir = obsidian::vault::create_dir(&vault, "/archive")?;
+/// let note = obsidian::vault::create_note(&vault.path, "/notes/Arbitrary Name")?;
+/// let dir = obsidian::vault::create_dir(&vault.path, "/archive")?;
 /// let note = obsidian::vault::move_note_to(note, dir)?;
 ///
 /// assert_eq!(note.name(), "Arbitrary Name");
@@ -297,8 +297,8 @@ pub fn move_note_to(note: Note, directory: Directory) -> result::Result<Note, Er
 /// # let tmp_path = tmp_dir.path();
 /// #
 /// let vault = Vault { path: tmp_path.to_path_buf(), ..Default::default() };
-/// let dir_a = obsidian::vault::create_dir(&vault, "/notes")?;
-/// let dir_b = obsidian::vault::create_dir(&vault, "/archive")?;
+/// let dir_a = obsidian::vault::create_dir(&vault.path, "/notes")?;
+/// let dir_b = obsidian::vault::create_dir(&vault.path, "/archive")?;
 /// let dir = obsidian::vault::move_dir_to(dir_a, dir_b)?;
 ///
 /// assert_eq!(dir.name(), "notes");
@@ -340,14 +340,14 @@ pub fn move_dir_to(from: Directory, to: Directory) -> result::Result<Directory, 
 /// # let tmp_dir = tempdir()?;
 ///
 /// let vault = Vault { path: tmp_dir.path().to_path_buf(), ..Default::default() };
-/// let dir = obsidian::vault::create_dir(&vault, "/sub-dir/Arbitrary.Name")?;
+/// let dir = obsidian::vault::create_dir(&vault.path, "/sub-dir/Arbitrary.Name")?;
 /// # assert_eq!(dir.name(), "Arbitrary.Name");
 /// # assert_eq!(dir.path().is_dir(), true);
 /// # assert_eq!(fs::exists(dir.path())?, true);
 /// # Ok::<(), Error>(())
 /// ```
-pub fn create_dir(vault: &Vault, name: &str) -> result::Result<Directory, Error> {
-    let (name, path) = find_available_path_name(vault, name, None)?;
+pub fn create_dir<T: AsRef<Path>>(path: T, name: &str) -> result::Result<Directory, Error> {
+    let (name, path) = find_available_path_name(path, name, None)?;
     fs::create_dir_all(&path)?;
     Directory::try_from((name, path))
 }
@@ -373,14 +373,14 @@ pub fn create_dir(vault: &Vault, name: &str) -> result::Result<Directory, Error>
 /// # let tmp_path = tmp_dir.path();
 /// #
 /// let vault = Vault { path: tmp_path.to_path_buf(), ..Default::default() };
-/// let dir = obsidian::vault::create_untitled_dir(&vault)?;
+/// let dir = obsidian::vault::create_untitled_dir(&vault.path)?;
 ///
 /// assert_eq!(dir.name(), "Untitled");
 /// assert_eq!(fs::exists(dir.path())?, true);
 /// assert_eq!(dir.path().is_dir(), true);
 /// #
 /// # (1..=100).try_for_each(|n| -> result::Result<(), Error> {
-/// #   let dir = obsidian::vault::create_untitled_dir(&vault)?;
+/// #   let dir = obsidian::vault::create_untitled_dir(&vault.path)?;
 /// #   assert_eq!(dir.name(), format!("Untitled {n}"));
 /// #   assert_eq!(fs::exists(dir.path())?, true);
 /// #   assert_eq!(dir.path().is_dir(), true);
@@ -389,8 +389,8 @@ pub fn create_dir(vault: &Vault, name: &str) -> result::Result<Directory, Error>
 /// # Ok::<(), Error>(())
 /// ```
 /// FIXME: Support directory parameter to add folders automatically to sub paths
-pub fn create_untitled_dir(vault: &Vault) -> result::Result<Directory, Error> {
-    create_dir(vault, "Untitled")
+pub fn create_untitled_dir<T: AsRef<Path>>(path: T) -> result::Result<Directory, Error> {
+    create_dir(path, "Untitled")
 }
 
 /// Creates a new empty note with the provided name.
@@ -415,23 +415,24 @@ pub fn create_untitled_dir(vault: &Vault) -> result::Result<Directory, Error> {
 /// # let tmp_path = tmp_dir.path();
 /// #
 /// let vault = Vault { path: tmp_path.to_path_buf(), ..Default::default() };
-/// let note = obsidian::vault::create_note(&vault, "/notes/Arbitrary Name")?;
+/// let note = obsidian::vault::create_note(vault.path, "/notes/Arbitrary Name")?;
 /// assert_eq!(note.name(), "Arbitrary Name");
 /// assert_eq!(note.path(), tmp_path.join("notes/Arbitrary Name.md"));
 /// assert_eq!(fs::exists(note.path())?, true);
 /// # Ok::<(), Error>(())
 /// ```
-pub fn create_note(vault: &Vault, name: &str) -> result::Result<Note, Error> {
+pub fn create_note<T: AsRef<Path>>(path: T, name: &str) -> result::Result<Note, Error> {
     let name = name.trim_start_matches(path::MAIN_SEPARATOR);
+    let path = path.as_ref();
 
-    let base_path = vault.path.join(name).with_extension("md");
+    let base_path = path.join(name).with_extension("md");
     if let Some(parent_dir) = base_path.parent() {
         // Create necessary directory structures if we pass dir separated name like
         // /vault/notes/sub-notes/name.md
         fs::create_dir_all(parent_dir)?;
     }
 
-    let (name, path) = find_available_path_name(vault, name, Some("md"))?;
+    let (name, path) = find_available_path_name(path, name, Some("md"))?;
 
     fs::write(&path, "")?;
 
@@ -459,20 +460,20 @@ pub fn create_note(vault: &Vault, name: &str) -> result::Result<Note, Error> {
 /// # let tmp_path = tmp_dir.path();
 /// #
 /// let vault = Vault { path: tmp_path.to_path_buf(), ..Default::default() };
-/// let note = obsidian::vault::create_untitled_note(&vault)?;
+/// let note = obsidian::vault::create_untitled_note(&vault.path)?;
 /// assert_eq!(note.name(), "Untitled");
 /// assert_eq!(fs::exists(note.path())?, true);
 /// #
 /// # (1..=100).try_for_each(|n| -> result::Result<(), Error> {
-/// #   let note = obsidian::vault::create_untitled_note(&vault)?;
+/// #   let note = obsidian::vault::create_untitled_note(&vault.path)?;
 /// #   assert_eq!(note.name(), format!("Untitled {n}"));
 /// #   assert_eq!(fs::exists(note.path())?, true);
 /// #   Ok(())
 /// # })?;
 /// # Ok::<(), Error>(())
 /// ```
-pub fn create_untitled_note(vault: &Vault) -> result::Result<Note, Error> {
-    create_note(vault, "Untitled")
+pub fn create_untitled_note<T: AsRef<Path>>(path: T) -> result::Result<Note, Error> {
+    create_note(path, "Untitled")
 }
 
 /// Find available path name by incrementing number suffix at the end.
@@ -499,7 +500,7 @@ pub fn create_untitled_note(vault: &Vault) -> result::Result<Note, Error> {
 /// let note_name = "Arbitrary Name";
 /// # fs::write(tmp_path.join(note_name).with_extension("md"), "")?;
 ///
-/// let (name, path) = obsidian::vault::find_available_path_name(&vault, note_name, Some("md"))?;
+/// let (name, path) = obsidian::vault::find_available_path_name(&vault.path, note_name, Some("md"))?;
 /// assert_eq!(&name, "Arbitrary Name 1");
 /// assert_eq!(fs::exists(&path)?, false);
 /// # Ok::<(), Error>(())
@@ -518,21 +519,22 @@ pub fn create_untitled_note(vault: &Vault) -> result::Result<Note, Error> {
 /// let dir_name = "Arbitrary.Dir";
 /// # fs::create_dir_all(tmp_path.join(dir_name))?;
 ///
-/// let (name, path) = obsidian::vault::find_available_path_name(&vault, dir_name, None)?;
+/// let (name, path) = obsidian::vault::find_available_path_name(&vault.path, dir_name, None)?;
 /// assert_eq!(&name, "Arbitrary.Dir 1");
 /// assert_eq!(fs::exists(&path)?, false);
 /// # Ok::<(), Error>(())
 /// ```
-pub fn find_available_path_name(
-    vault: &Vault,
+pub fn find_available_path_name<T: AsRef<Path>>(
+    path: T,
     name: &str,
     extension: Option<&str>,
 ) -> result::Result<(String, PathBuf), Error> {
     let name = name.trim_start_matches(path::MAIN_SEPARATOR);
+    let path = path.as_ref();
 
     let name_to_path = |name: &str| match extension {
-        Some(ext) => vault.path.join(name).with_extension(ext),
-        None => vault.path.join(name),
+        Some(ext) => path.join(name).with_extension(ext),
+        None => path.join(name),
     };
 
     let path = name_to_path(name);
@@ -587,7 +589,7 @@ impl Vault {
     /// };
     ///
     /// (1..=5).try_for_each(|n| -> result::Result<(), Error> {
-    ///   _ = obsidian::vault::create_untitled_note(&vault)?;
+    ///   _ = obsidian::vault::create_untitled_note(&vault.path)?;
     ///   Ok(())
     /// })?;
     ///
@@ -626,7 +628,7 @@ impl<'de> Deserialize<'de> for Vault {
 
                 Ok(Vault {
                     name,
-                    path,
+                    path: path.into(),
                     open: open.unwrap_or(false),
                     ts: ts.unwrap_or(0),
                 })
