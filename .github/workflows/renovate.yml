@@ -60,6 +60,7 @@ jobs:
             basalt/Cargo.toml
             basalt-core/Cargo.toml
             basalt-widgets/Cargo.toml
+            obsidian-to-zola/Cargo.toml
             Cargo.lock
             Cargo.toml
             README.md
