@@ -65,6 +65,15 @@
       "commitMessageTopic": "Rust"
     },
     {
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchDepNames": [
+        "ghcr.io/renovatebot/renovate"
+      ],
+      "pinDigests": false
+    },
+    {
       "matchUpdateTypes": [
         "minor",
         "patch"
