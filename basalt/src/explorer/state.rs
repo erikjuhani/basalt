@@ -264,7 +264,7 @@ impl ExplorerState {
         self
     }
 
-    fn toggle_item_in_tree(item: &Item, identifier: &Path) -> Item {
+    fn toggle_item_in_tree(item: &Item, identifier: &Path, always_open: bool) -> Item {
         let item = item.clone();
 
         match item {
@@ -276,7 +276,11 @@ impl ExplorerState {
                 depth,
             } => {
                 let expanded = if path == identifier {
-                    !expanded
+                    if always_open {
+                        true
+                    } else {
+                        !expanded
+                    }
                 } else {
                     expanded
                 };
@@ -288,12 +292,36 @@ impl ExplorerState {
                     depth,
                     items: items
                         .iter()
-                        .map(|child| Self::toggle_item_in_tree(child, identifier))
+                        .map(|child| Self::toggle_item_in_tree(child, identifier, always_open))
                         .collect(),
                 }
             }
             _ => item,
         }
+    }
+
+    pub fn open(&mut self) -> Option<()> {
+        let selected_item_index = self.list_state.selected()?;
+        let current_item = self.flat_items.get(selected_item_index)?;
+
+        match current_item {
+            (Item::Directory { path, .. }, _) => {
+                let items: Vec<Item> = self
+                    .items
+                    .iter()
+                    .map(|item| Self::toggle_item_in_tree(item, path, true))
+                    .collect();
+
+                self.flatten_with_items(&items);
+            }
+            (Item::File { note, .. }, _) => {
+                self.selected_note = Some(note.clone());
+                self.selected_item_index = Some(selected_item_index);
+                self.selected_item_path = Some(note.path().to_path_buf());
+            }
+        }
+
+        Some(())
     }
 
     pub fn select(&mut self) {
@@ -311,7 +339,7 @@ impl ExplorerState {
                     .items
                     .clone()
                     .iter()
-                    .map(|item| Self::toggle_item_in_tree(item, path))
+                    .map(|item| Self::toggle_item_in_tree(item, path, false))
                     .collect();
 
                 self.flatten_with_items(&items)

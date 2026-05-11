@@ -628,7 +628,7 @@ impl<'de> Deserialize<'de> for Vault {
 
                 Ok(Vault {
                     name,
-                    path: path.into(),
+                    path,
                     open: open.unwrap_or(false),
                     ts: ts.unwrap_or(0),
                 })
