@@ -26,7 +26,7 @@ natord = "1.0.9"
 
 [dev-dependencies]
 indoc = "=2.0.7"
-insta = "=1.43.2"
+insta = "=1.47.2"
 similar-asserts.workspace = true
 
 [[bin]]
