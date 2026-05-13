@@ -77,6 +77,18 @@
       "pinDigests": false
     },
     {
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchDepNames": [
+        "ghcr.io/renovatebot/renovate"
+      ],
+      "matchUpdateTypes": [
+        "pinDigest"
+      ],
+      "enabled": false
+    },
+    {
       "matchUpdateTypes": [
         "minor",
         "patch"
