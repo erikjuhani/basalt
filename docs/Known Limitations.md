@@ -17,7 +17,6 @@ This page documents current limitations and features not yet implemented.
 
 ## File operations
 
-- Creating notes or folders is not supported
 - Deleting notes or folders is not supported
 - Moving notes or folders is not supported
 - Copying notes or folders is not supported

@@ -29,7 +29,7 @@ Press `s` in the [[Explorer]] to toggle between ascending and descending sort or
 
 ## Creating
 
-Press `n` in the [[Explorer]] to create a new untitled note, or `N` to create a new untitled folder. The newly created item is automatically selected in the explorer after creation.
+Press `n` in the [[Explorer]] to create a new untitled note, or `N` to create a new untitled folder. The new item is created under the currently selected folder, or under the parent folder of the currently selected note. If nothing is selected, it is created at the vault root. The target folder is expanded and the newly created item is automatically selected in the explorer after creation.
 
 ![[create.gif]]
 
