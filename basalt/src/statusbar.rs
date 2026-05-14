@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Flex, Layout, Rect},
@@ -7,6 +5,8 @@ use ratatui::{
     text::{Line, Span, Text},
     widgets::{StatefulWidget, Widget},
 };
+
+use crate::config::{symbol::Preset, Symbols};
 
 #[derive(Default, Clone, PartialEq)]
 pub struct StatusBarState<'a> {
@@ -25,9 +25,14 @@ impl<'a> StatusBarState<'a> {
     }
 }
 
-#[derive(Default)]
 pub struct StatusBar<'a> {
-    _lifetime: PhantomData<&'a ()>,
+    symbols: &'a Symbols,
+}
+
+impl<'a> StatusBar<'a> {
+    pub(crate) fn new(symbols: &'a Symbols) -> Self {
+        Self { symbols }
+    }
 }
 
 impl<'a> StatefulWidget for StatusBar<'a> {
@@ -38,15 +43,21 @@ impl<'a> StatefulWidget for StatusBar<'a> {
             .flex(Flex::SpaceBetween)
             .areas(area);
 
+        let (badge_left, badge_right) = if self.symbols.preset != Preset::Ascii {
+            ("", "")
+        } else {
+            ("", "")
+        };
+
         let active_component = [
-            Span::from("").dark_gray(),
+            Span::from(badge_left).dark_gray(),
             Span::from(" ").bg(Color::DarkGray),
             Span::from(state.active_component_name)
                 .dark_gray()
                 .reversed()
                 .bold(),
             Span::from(" ").bg(Color::DarkGray),
-            Span::from("").dark_gray(),
+            Span::from(badge_right).dark_gray(),
         ]
         .to_vec();
 
