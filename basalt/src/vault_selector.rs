@@ -5,7 +5,10 @@ use ratatui::{
     buffer::Buffer,
     layout::Rect,
     style::{Color, Style, Stylize},
-    widgets::{Block, BorderType, List, ListItem, ListState, StatefulWidget},
+    widgets::{
+        Block, BorderType, List, ListItem, ListState, Scrollbar, ScrollbarOrientation,
+        ScrollbarState, StatefulWidget,
+    },
 };
 
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -86,6 +89,8 @@ impl<'a> StatefulWidget for VaultSelector<'a> {
             })
             .collect();
 
+        let items_count = items.len();
+
         List::new(items)
             .block(
                 Block::bordered()
@@ -98,5 +103,19 @@ impl<'a> StatefulWidget for VaultSelector<'a> {
             .highlight_style(Style::new().reversed().dark_gray())
             .highlight_symbol(" ")
             .render(area, buf, &mut state.list_state);
+
+        // Minimum amount of items that can be rendered without the scrollbar.
+        let min_item_amount = 4;
+
+        if !area.is_empty() && items_count > min_item_amount {
+            let mut scroll_state =
+                ScrollbarState::new(items_count).position(state.list_state.selected().unwrap_or(0));
+
+            Scrollbar::new(ScrollbarOrientation::VerticalRight).render(
+                area,
+                buf,
+                &mut scroll_state,
+            );
+        }
     }
 }
