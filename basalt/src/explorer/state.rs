@@ -176,7 +176,7 @@ impl ExplorerState {
                         .collect(),
                 }
             }
-            _ => entry.into(),
+            VaultEntry::File(note) => Item::File { note, depth },
         }
     }
 
@@ -380,5 +380,32 @@ impl ExplorerState {
         let index = self.list_state.selected().map(|i| i.saturating_sub(amount));
 
         self.list_state.select(index);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn with_entries_preserves_nested_file_depth() {
+        let mut state = ExplorerState::default();
+
+        let entries = vec![VaultEntry::Directory {
+            name: "dir".into(),
+            path: PathBuf::from("dir"),
+            entries: vec![VaultEntry::File(Note::new_unchecked(
+                "nested",
+                &PathBuf::from("dir/nested"),
+            ))],
+        }];
+
+        state.with_entries(entries, None);
+
+        let Item::Directory { items, depth, .. } = &state.items[0] else {
+            panic!("expected directory");
+        };
+        assert_eq!(*depth, 0);
+        assert_eq!(items[0].depth(), 1, "nested file should keep its depth");
     }
 }
