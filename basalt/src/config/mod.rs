@@ -1,6 +1,6 @@
 mod env;
 mod key_binding;
-mod symbol;
+pub mod symbol;
 
 use core::fmt;
 use std::{collections::BTreeMap, fs::read_to_string};

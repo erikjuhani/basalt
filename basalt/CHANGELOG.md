@@ -9,7 +9,7 @@
 > Allows opening an arbitrary directory as a vault by setting the env var,
 > skipping the splash screen and going straight to the explorer.
 
-- [9bb26d8](https://github.com/erikjuhani/basalt/commit/9bb26d8e618ed09b2f3d1ebab5709a08d6b82acf) Add scrollbar to vault selector
+- [9bb26d8](https://github.com/erikjuhani/basalt/commit/9bb26d8e618ed09b2f3d1ebab5709a08d6b82acf) Add scrollbar to vault selector by @erikjuhani
 
 > The scrollbar is now visible in both splash screen and the vault
 > selector modal. It's not optimal, but I realized that vault selection
@@ -120,7 +120,7 @@
 > input modal positions from `Item::depth()`, placing it flush-left for
 > nested files.
 
-- [6da6548](https://github.com/erikjuhani/basalt/commit/6da6548325725d96a712665fe81273526da0c4df) Preserve note scroll position when toggling explorer folders
+- [6da6548](https://github.com/erikjuhani/basalt/commit/6da6548325725d96a712665fe81273526da0c4df) Preserve note scroll position when toggling explorer folders by @erikjuhani
 
 > Toggling a folder open or closed re-emitted SelectNote for the currently
 > selected note, which rebuilt the note editor and reset its viewport
@@ -130,6 +130,11 @@
 > was actually selected, and the explorer only emits SelectNote in that
 > case, which then effectively retains the scroll position of the
 > viewport.
+
+- [79082f3](https://github.com/erikjuhani/basalt/commit/79082f317efc499febb6bc7c892cd7f6c84b2887) Use config symbols for status bar component badge
+
+> Pass the configured symbol preset into StatusBar so the active component
+> badge falls back to ASCII-safe glyphs when the Ascii preset is selected.
 
 ## [0.12.4](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.4) (Apr, 09 2026)
 

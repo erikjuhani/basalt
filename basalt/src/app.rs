@@ -673,7 +673,7 @@ impl<'a> App<'a> {
             char_count.into(),
         );
 
-        let status_bar = StatusBar::default();
+        let status_bar = StatusBar::new(&self.config.symbols);
         status_bar.render(statusbar, buf, &mut status_bar_state);
 
         self.render_modals(area, buf, state);
