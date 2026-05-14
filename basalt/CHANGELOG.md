@@ -11,12 +11,46 @@
 
 ### Changed
 
-- [022d988](https://github.com/erikjuhani/basalt/commit/022d988f1709a10d4ef45449e4a138390b585339) Add indentation to floating rename input
+- [022d988](https://github.com/erikjuhani/basalt/commit/022d988f1709a10d4ef45449e4a138390b585339) Add indentation to floating rename input by @erikjuhani
 
 > The rename input in explorer pane was fixed to left border of explorer
 > pane, and forced vision to jump in deeply nested fields. This commit
 > adds indentation to the floating rename input which is calculated by the
 > depth of the explorer item. Additionally added depth field to items.
+
+- [f53a500](https://github.com/erikjuhani/basalt/commit/f53a5009a6f8e55474320bf20548bab5a635df21) Create new notes and folders under the selected folder
+
+> CreateUntitledNote and CreateUntitledFolder now resolve a target
+> directory from the explorer's current item (the directory itself, a
+> file's parent, or the vault root as fallback) instead of always creating
+> at the vault root. After creation the explorer expands that directory so
+> the new item is visible.
+>
+> Add an explorer Open message that always expands a directory rather than
+> toggling, backed by a new ExplorerState::open. The existing toggle
+> behavior moves to a Select message, and the ExplorerOpen command and
+> shell-return path now map to Select. toggle_item_in_tree takes an
+> always_open flag to support both.
+
+- [44e673e](https://github.com/erikjuhani/basalt/commit/44e673ecc5ef1ca09d21e51668c67c92bf3255eb) Bump basalt-core to 0.9.0 and update CHANGELOG
+
+> Bump basalt-core to `0.9.0` version in basalt`
+
+### Dependencies
+
+- [c2e878a](https://github.com/erikjuhani/basalt/commit/c2e878a7259cf6d23c4f4d7b79c8e14d49cc5dd0) Pin dependencies by @renovate-updater[bot]
+
+> | datasource | package  | from   | to     |
+> | ---------- | -------- | ------ | ------ |
+> | crate      | indoc    | 2.0.7  | 2.0.7  |
+> | crate      | insta    | 1.46.3 | 1.43.2 |
+> | crate      | tempfile | 3.26.0 | 3.23.0 |
+
+- [2fac95c](https://github.com/erikjuhani/basalt/commit/2fac95c8056ccd751e6d218e2e275203f891a9ca) Update Rust crate insta to v1.47.2 by @renovate-updater[bot]
+
+> | datasource | package | from   | to     |
+> | ---------- | ------- | ------ | ------ |
+> | crate      | insta   | 1.43.2 | 1.47.2 |
 
 ### Fixed
 
@@ -70,6 +104,13 @@
 > it draws at the same offset, and add `Viewport::scroll_up` so
 > vertical motion that consumes more rows than the viewport
 > contains scrolls the document.
+
+- [db69b04](https://github.com/erikjuhani/basalt/commit/db69b04d93ec54da925cb2453b637591246a54e8) Preserve nested file depth in explorer refresh
+
+> `map_to_item` handled `VaultEntry::File` via `Item::from`, which
+> hardcodes `depth: 0`. Files still rendered correctly, but the rename
+> input modal positions from `Item::depth()`, placing it flush-left for
+> nested files.
 
 ## [0.12.4](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.4) (Apr, 09 2026)
 
