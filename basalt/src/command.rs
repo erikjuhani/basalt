@@ -250,7 +250,7 @@ impl From<Command> for Message<'_> {
 
             Command::ExplorerUp => Message::Explorer(explorer::Message::Up),
             Command::ExplorerDown => Message::Explorer(explorer::Message::Down),
-            Command::ExplorerOpen => Message::Explorer(explorer::Message::Open),
+            Command::ExplorerOpen => Message::Explorer(explorer::Message::Select),
             Command::ExplorerSort => Message::Explorer(explorer::Message::Sort),
             Command::ExplorerToggle => Message::Explorer(explorer::Message::Toggle),
             Command::ExplorerToggleOutline => Message::Explorer(explorer::Message::ToggleOutline),
@@ -443,7 +443,7 @@ pub fn sync_command<'a>(
                 .status()
                 .ok()?;
             enter_alternate_screen(terminal)
-                .map(|_| Message::Explorer(explorer::Message::Open))
+                .map(|_| Message::Explorer(explorer::Message::Select))
                 .ok()
         },
     )

@@ -1,5 +1,66 @@
 # Changelog
 
+## [0.9.0](https://github.com/erikjuhani/basalt/releases/tag/basalt-core/0.9.0) (May, 14 2026)
+
+### Breaking
+
+- [02f20c7](https://github.com/erikjuhani/basalt/commit/02f20c76505a0db3808e8c95c16ea8142830dafa) Use `AsRef<Path>` instead of `Vault` struct for create functions
+
+> Previously the create functions like `create_dir` and `create_note` took
+> `Vault` struct. However, that meant that we could only use the given
+> vault path inside those functions, meaning that the folder creation path
+> was determined on 'launch'.
+>
+> Replace `Vault` struct with `AsRef<Path>`. Anything that can be
+> referenced as `Path` is fine, which allows for deeper levels of nested
+> structure within the vault to be used as the starting point for creating
+> new notes and folders.
+>
+> This is a breaking change as the first parameter of these functions was
+> changed:
+> * `create_dir`
+> * `create_untitled_dir`
+> * `create_note`
+> * `create_untitled_note`
+> * `find_available_path_name`
+
+### Changed
+
+- [f53a500](https://github.com/erikjuhani/basalt/commit/f53a5009a6f8e55474320bf20548bab5a635df21) Create new notes and folders under the selected folder
+
+> CreateUntitledNote and CreateUntitledFolder now resolve a target
+> directory from the explorer's current item (the directory itself, a
+> file's parent, or the vault root as fallback) instead of always creating
+> at the vault root. After creation the explorer expands that directory so
+> the new item is visible.
+>
+> Add an explorer Open message that always expands a directory rather than
+> toggling, backed by a new ExplorerState::open. The existing toggle
+> behavior moves to a Select message, and the ExplorerOpen command and
+> shell-return path now map to Select. toggle_item_in_tree takes an
+> always_open flag to support both.
+
+- [9971076](https://github.com/erikjuhani/basalt/commit/997107661384f61c4d0179c4e3541525779636db) Bump basalt-core to 0.9.0 and update CHANGELOG
+
+> Bump basalt-core to `0.9.0` version in basalt`
+
+### Dependencies
+
+- [c2e878a](https://github.com/erikjuhani/basalt/commit/c2e878a7259cf6d23c4f4d7b79c8e14d49cc5dd0) Pin dependencies by @renovate-updater[bot]
+
+> | datasource | package  | from   | to     |
+> | ---------- | -------- | ------ | ------ |
+> | crate      | indoc    | 2.0.7  | 2.0.7  |
+> | crate      | insta    | 1.46.3 | 1.43.2 |
+> | crate      | tempfile | 3.26.0 | 3.23.0 |
+
+- [de551f6](https://github.com/erikjuhani/basalt/commit/de551f647c5943d67b7b39d580e36572c2c25f8f) Update Rust crate tempfile to v3.27.0 by @renovate-updater[bot]
+
+> | datasource | package  | from   | to     |
+> | ---------- | -------- | ------ | ------ |
+> | crate      | tempfile | 3.23.0 | 3.27.0 |
+
+
 ## [0.8.3](https://github.com/erikjuhani/basalt/releases/tag/basalt-core/0.8.3) (Feb, 21 2026)
 
 ### Fixed

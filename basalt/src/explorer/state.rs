@@ -176,7 +176,7 @@ impl ExplorerState {
                         .collect(),
                 }
             }
-            _ => entry.into(),
+            VaultEntry::File(note) => Item::File { note, depth },
         }
     }
 
@@ -264,7 +264,7 @@ impl ExplorerState {
         self
     }
 
-    fn toggle_item_in_tree(item: &Item, identifier: &Path) -> Item {
+    fn toggle_item_in_tree(item: &Item, identifier: &Path, always_open: bool) -> Item {
         let item = item.clone();
 
         match item {
@@ -276,7 +276,11 @@ impl ExplorerState {
                 depth,
             } => {
                 let expanded = if path == identifier {
-                    !expanded
+                    if always_open {
+                        true
+                    } else {
+                        !expanded
+                    }
                 } else {
                     expanded
                 };
@@ -288,12 +292,36 @@ impl ExplorerState {
                     depth,
                     items: items
                         .iter()
-                        .map(|child| Self::toggle_item_in_tree(child, identifier))
+                        .map(|child| Self::toggle_item_in_tree(child, identifier, always_open))
                         .collect(),
                 }
             }
             _ => item,
         }
+    }
+
+    pub fn open(&mut self) -> Option<()> {
+        let selected_item_index = self.list_state.selected()?;
+        let current_item = self.flat_items.get(selected_item_index)?;
+
+        match current_item {
+            (Item::Directory { path, .. }, _) => {
+                let items: Vec<Item> = self
+                    .items
+                    .iter()
+                    .map(|item| Self::toggle_item_in_tree(item, path, true))
+                    .collect();
+
+                self.flatten_with_items(&items);
+            }
+            (Item::File { note, .. }, _) => {
+                self.selected_note = Some(note.clone());
+                self.selected_item_index = Some(selected_item_index);
+                self.selected_item_path = Some(note.path().to_path_buf());
+            }
+        }
+
+        Some(())
     }
 
     pub fn select(&mut self) {
@@ -311,7 +339,7 @@ impl ExplorerState {
                     .items
                     .clone()
                     .iter()
-                    .map(|item| Self::toggle_item_in_tree(item, path))
+                    .map(|item| Self::toggle_item_in_tree(item, path, false))
                     .collect();
 
                 self.flatten_with_items(&items)
@@ -352,5 +380,32 @@ impl ExplorerState {
         let index = self.list_state.selected().map(|i| i.saturating_sub(amount));
 
         self.list_state.select(index);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn with_entries_preserves_nested_file_depth() {
+        let mut state = ExplorerState::default();
+
+        let entries = vec![VaultEntry::Directory {
+            name: "dir".into(),
+            path: PathBuf::from("dir"),
+            entries: vec![VaultEntry::File(Note::new_unchecked(
+                "nested",
+                &PathBuf::from("dir/nested"),
+            ))],
+        }];
+
+        state.with_entries(entries, None);
+
+        let Item::Directory { items, depth, .. } = &state.items[0] else {
+            panic!("expected directory");
+        };
+        assert_eq!(*depth, 0);
+        assert_eq!(items[0].depth(), 1, "nested file should keep its depth");
     }
 }

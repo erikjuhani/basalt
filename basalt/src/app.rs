@@ -433,47 +433,67 @@ impl<'a> App<'a> {
                 }
                 return Some(Message::SetActivePane(ActivePane::Explorer));
             }
-            Message::CreateUntitledNote => match create_untitled_note(&state.vault) {
-                Ok(note) => {
-                    return Some(Message::Batch(vec![
-                        Message::RefreshVault {
-                            rename: None,
-                            select: Some(note.path().to_path_buf()),
-                        },
-                        Message::Toast(toast::Message::Create(toast::Toast::success(
-                            "Note created",
+            Message::CreateUntitledNote => {
+                let path = match state.explorer.current_item() {
+                    Some(Item::Directory { path, .. }) => path,
+                    Some(Item::File { note, .. }) => {
+                        note.path().parent().unwrap_or(&state.vault.path)
+                    }
+                    _ => &state.vault.path,
+                };
+                match create_untitled_note(path) {
+                    Ok(note) => {
+                        return Some(Message::Batch(vec![
+                            Message::Explorer(explorer::Message::Open),
+                            Message::RefreshVault {
+                                rename: None,
+                                select: Some(note.path().to_path_buf()),
+                            },
+                            Message::Toast(toast::Message::Create(toast::Toast::success(
+                                "Note created",
+                                Duration::from_secs(2),
+                            ))),
+                            Message::SelectNote(note.into()),
+                        ]));
+                    }
+                    Err(_) => {
+                        return Some(Message::Toast(toast::Message::Create(toast::Toast::error(
+                            "Failed to create a new note",
                             Duration::from_secs(2),
-                        ))),
-                        Message::SelectNote(note.into()),
-                    ]));
+                        ))));
+                    }
                 }
-                Err(_) => {
-                    return Some(Message::Toast(toast::Message::Create(toast::Toast::error(
-                        "Failed to create a new note",
-                        Duration::from_secs(2),
-                    ))));
-                }
-            },
-            Message::CreateUntitledFolder => match create_untitled_dir(&state.vault) {
-                Ok(note) => {
-                    return Some(Message::Batch(vec![
-                        Message::RefreshVault {
-                            rename: None,
-                            select: Some(note.path().to_path_buf()),
-                        },
-                        Message::Toast(toast::Message::Create(toast::Toast::success(
-                            "Folder created",
+            }
+            Message::CreateUntitledFolder => {
+                let path = match state.explorer.current_item() {
+                    Some(Item::Directory { path, .. }) => path,
+                    Some(Item::File { note, .. }) => {
+                        note.path().parent().unwrap_or(&state.vault.path)
+                    }
+                    _ => &state.vault.path,
+                };
+                match create_untitled_dir(path) {
+                    Ok(note) => {
+                        return Some(Message::Batch(vec![
+                            Message::Explorer(explorer::Message::Open),
+                            Message::RefreshVault {
+                                rename: None,
+                                select: Some(note.path().to_path_buf()),
+                            },
+                            Message::Toast(toast::Message::Create(toast::Toast::success(
+                                "Folder created",
+                                Duration::from_secs(2),
+                            ))),
+                        ]));
+                    }
+                    Err(_) => {
+                        return Some(Message::Toast(toast::Message::Create(toast::Toast::error(
+                            "Failed to create a new folder",
                             Duration::from_secs(2),
-                        ))),
-                    ]));
+                        ))));
+                    }
                 }
-                Err(_) => {
-                    return Some(Message::Toast(toast::Message::Create(toast::Toast::error(
-                        "Failed to create a new folder",
-                        Duration::from_secs(2),
-                    ))));
-                }
-            },
+            }
             Message::SetActivePane(active_pane) => match active_pane {
                 ActivePane::Explorer => {
                     state.active_pane = active_pane;

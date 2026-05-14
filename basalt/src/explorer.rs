@@ -33,6 +33,7 @@ pub enum Message {
     Up,
     Down,
     Open,
+    Select,
     Sort,
     Toggle,
     ToggleOutline,
@@ -109,6 +110,11 @@ pub fn update<'a>(
             }
         }
         Message::Open => {
+            state.open();
+            let note = state.selected_note.as_ref()?;
+            return Some(AppMessage::SelectNote(SelectedNote::from(note)));
+        }
+        Message::Select => {
             state.select();
             let note = state.selected_note.as_ref()?;
             return Some(AppMessage::SelectNote(SelectedNote::from(note)));
