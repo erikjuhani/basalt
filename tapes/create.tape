@@ -46,5 +46,5 @@ Type "q"
 
 # Cleanup
 Hide
-Type "rm -rf 'docs/Untitled' && rm -f 'docs/My Note.md'"
+Type "rm -rf 'docs/Configuration/Untitled'"
 Enter
