@@ -9,6 +9,14 @@
 > Allows opening an arbitrary directory as a vault by setting the env var,
 > skipping the splash screen and going straight to the explorer.
 
+- [9bb26d8](https://github.com/erikjuhani/basalt/commit/9bb26d8e618ed09b2f3d1ebab5709a08d6b82acf) Add scrollbar to vault selector
+
+> The scrollbar is now visible in both splash screen and the vault
+> selector modal. It's not optimal, but I realized that vault selection
+> needs a rewrite, thus I didn't bother to do this properly for example
+> the scrollbar is always shown if we have more than 4 items regardless if
+> we have space to show all items and not needing a scrollbar.
+
 ### Changed
 
 - [022d988](https://github.com/erikjuhani/basalt/commit/022d988f1709a10d4ef45449e4a138390b585339) Add indentation to floating rename input by @erikjuhani
@@ -18,7 +26,7 @@
 > adds indentation to the floating rename input which is calculated by the
 > depth of the explorer item. Additionally added depth field to items.
 
-- [f53a500](https://github.com/erikjuhani/basalt/commit/f53a5009a6f8e55474320bf20548bab5a635df21) Create new notes and folders under the selected folder
+- [f53a500](https://github.com/erikjuhani/basalt/commit/f53a5009a6f8e55474320bf20548bab5a635df21) Create new notes and folders under the selected folder by @erikjuhani
 
 > CreateUntitledNote and CreateUntitledFolder now resolve a target
 > directory from the explorer's current item (the directory itself, a
@@ -32,7 +40,7 @@
 > shell-return path now map to Select. toggle_item_in_tree takes an
 > always_open flag to support both.
 
-- [44e673e](https://github.com/erikjuhani/basalt/commit/44e673ecc5ef1ca09d21e51668c67c92bf3255eb) Bump basalt-core to 0.9.0 and update CHANGELOG
+- [44e673e](https://github.com/erikjuhani/basalt/commit/44e673ecc5ef1ca09d21e51668c67c92bf3255eb) Bump basalt-core to 0.9.0 and update CHANGELOG by @erikjuhani
 
 > Bump basalt-core to `0.9.0` version in basalt`
 
@@ -105,12 +113,23 @@
 > vertical motion that consumes more rows than the viewport
 > contains scrolls the document.
 
-- [db69b04](https://github.com/erikjuhani/basalt/commit/db69b04d93ec54da925cb2453b637591246a54e8) Preserve nested file depth in explorer refresh
+- [db69b04](https://github.com/erikjuhani/basalt/commit/db69b04d93ec54da925cb2453b637591246a54e8) Preserve nested file depth in explorer refresh by @erikjuhani
 
 > `map_to_item` handled `VaultEntry::File` via `Item::from`, which
 > hardcodes `depth: 0`. Files still rendered correctly, but the rename
 > input modal positions from `Item::depth()`, placing it flush-left for
 > nested files.
+
+- [6da6548](https://github.com/erikjuhani/basalt/commit/6da6548325725d96a712665fe81273526da0c4df) Preserve note scroll position when toggling explorer folders
+
+> Toggling a folder open or closed re-emitted SelectNote for the currently
+> selected note, which rebuilt the note editor and reset its viewport
+> scroll position.
+>
+> Explorer state `open()` and `select()` now report (bool) whether a note
+> was actually selected, and the explorer only emits SelectNote in that
+> case, which then effectively retains the scroll position of the
+> viewport.
 
 ## [0.12.4](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.4) (Apr, 09 2026)
 

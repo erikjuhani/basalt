@@ -300,7 +300,9 @@ impl ExplorerState {
         }
     }
 
-    pub fn open(&mut self) -> Option<()> {
+    /// Opens the current item. Returns `Some(true)` when a note was selected, and `Some(false)`
+    /// when a directory was toggled.
+    pub fn open(&mut self) -> Option<bool> {
         let selected_item_index = self.list_state.selected()?;
         let current_item = self.flat_items.get(selected_item_index)?;
 
@@ -313,24 +315,26 @@ impl ExplorerState {
                     .collect();
 
                 self.flatten_with_items(&items);
+                Some(false)
             }
             (Item::File { note, .. }, _) => {
                 self.selected_note = Some(note.clone());
                 self.selected_item_index = Some(selected_item_index);
                 self.selected_item_path = Some(note.path().to_path_buf());
+                Some(true)
             }
         }
-
-        Some(())
     }
 
-    pub fn select(&mut self) {
+    /// Selects the current item. Returns `true` when a note was selected,
+    /// `false` when a directory was toggled or there is no current item.
+    pub fn select(&mut self) -> bool {
         let Some(selected_item_index) = self.list_state.selected() else {
-            return;
+            return false;
         };
 
         let Some(current_item) = self.flat_items.get(selected_item_index) else {
-            return;
+            return false;
         };
 
         match current_item {
@@ -342,12 +346,14 @@ impl ExplorerState {
                     .map(|item| Self::toggle_item_in_tree(item, path, false))
                     .collect();
 
-                self.flatten_with_items(&items)
+                self.flatten_with_items(&items);
+                false
             }
             (Item::File { note, .. }, _) => {
                 self.selected_note = Some(note.clone());
                 self.selected_item_index = Some(selected_item_index);
                 self.selected_item_path = Some(note.path().to_path_buf());
+                true
             }
         }
     }

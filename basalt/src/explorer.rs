@@ -110,14 +110,16 @@ pub fn update<'a>(
             }
         }
         Message::Open => {
-            state.open();
-            let note = state.selected_note.as_ref()?;
-            return Some(AppMessage::SelectNote(SelectedNote::from(note)));
+            if state.open().is_some_and(|v| v) {
+                let note = state.selected_note.as_ref()?;
+                return Some(AppMessage::SelectNote(SelectedNote::from(note)));
+            }
         }
         Message::Select => {
-            state.select();
-            let note = state.selected_note.as_ref()?;
-            return Some(AppMessage::SelectNote(SelectedNote::from(note)));
+            if state.select() {
+                let note = state.selected_note.as_ref()?;
+                return Some(AppMessage::SelectNote(SelectedNote::from(note)));
+            }
         }
     };
 
