@@ -13,6 +13,7 @@ default-run = "basalt"
 
 [dependencies]
 basalt-core = { path = "../basalt-core", version = "0.9.0" }
+clap = { version = "4.6.1", features = ["derive", "string"] }
 ratatui = { version = "0.30.0" }
 crossterm = "0.29.0"
 pulldown-cmark = "0.13.0"

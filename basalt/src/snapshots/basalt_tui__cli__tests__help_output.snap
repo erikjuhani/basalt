@@ -1,0 +1,9 @@
+---
+source: basalt/src/cli.rs
+expression: help
+---
+Usage: basalt
+
+Options:
+  -h, --help     Print help
+  -V, --version  Print version
