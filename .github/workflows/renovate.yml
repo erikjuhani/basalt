@@ -74,8 +74,14 @@ jobs:
           client-id: ${{ vars.RENOVATE_CLIENT_ID }}
           private-key: ${{ secrets.RENOVATE_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-          repositories: |
-            basalt
+          repository: basalt
+          permission-administration: read
+          permission-dependabot-alerts: read
+          permission-issues: write
+          permission-contents: write
+          permission-workflows: write
+          permission-pull-requests: write
+          permission-commit-statuses: write
 
       - name: Restore cache
         if: github.event.inputs.repoCache != 'disabled'
