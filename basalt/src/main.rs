@@ -1,9 +1,12 @@
+use clap::Parser;
 use std::path::PathBuf;
 
 use basalt_core::obsidian::{self, Error, Vault};
-use basalt_tui::app::App;
+use basalt_tui::{app::App, cli::Cli};
 
 fn main() -> Result<(), Error> {
+    let _cli = Cli::parse();
+
     let obsidian_config = obsidian::config::load().unwrap();
     let vaults = obsidian_config.vaults();
 

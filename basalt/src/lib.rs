@@ -1,4 +1,5 @@
 pub mod app;
+pub mod cli;
 pub mod command;
 pub mod config;
 pub mod explorer;
@@ -13,3 +14,4 @@ pub mod text_counts;
 pub mod toast;
 pub mod vault_selector;
 pub mod vault_selector_modal;
+pub mod version;

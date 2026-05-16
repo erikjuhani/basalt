@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.12.5](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.5) (Unreleased)
+## [0.12.5](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.5) (May, 16 2026)
 
 ### Added
 
@@ -16,6 +16,13 @@
 > needs a rewrite, thus I didn't bother to do this properly for example
 > the scrollbar is always shown if we have more than 4 items regardless if
 > we have space to show all items and not needing a scrollbar.
+
+- [8e248e7](https://github.com/erikjuhani/basalt/commit/8e248e736afd27a36ba941479f68c8fa858bda9f) Add basalt CLI layer
+
+> Initial CLI layer with --version and --help flags. The version output is
+> in a "standard" format similar to cargo version output `0.12.5 (abc123def 2026-05-15)`.
+>
+> The values are populated by a build phase (compile time) using env vars.
 
 ### Changed
 
@@ -131,7 +138,7 @@
 > case, which then effectively retains the scroll position of the
 > viewport.
 
-- [79082f3](https://github.com/erikjuhani/basalt/commit/79082f317efc499febb6bc7c892cd7f6c84b2887) Use config symbols for status bar component badge
+- [79082f3](https://github.com/erikjuhani/basalt/commit/79082f317efc499febb6bc7c892cd7f6c84b2887) Use config symbols for status bar component badge by @erikjuhani
 
 > Pass the configured symbol preset into StatusBar so the active component
 > badge falls back to ASCII-safe glyphs when the Ascii preset is selected.

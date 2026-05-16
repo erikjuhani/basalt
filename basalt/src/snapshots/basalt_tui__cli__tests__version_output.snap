@@ -1,0 +1,5 @@
+---
+source: basalt/src/cli.rs
+expression: help
+---
+basalt 0.12.5 (abc123def 2026-05-15)
