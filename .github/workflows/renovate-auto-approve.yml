@@ -24,8 +24,8 @@ jobs:
           client-id: ${{ vars.RENOVATE_APPROVER_CLIENT_ID }}
           private-key: ${{ secrets.RENOVATE_APPROVER_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-          repositories: |
-            basalt
+          repository: basalt
+          permission-pull-requests: write
 
       - name: Check and approve
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
