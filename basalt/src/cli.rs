@@ -20,8 +20,9 @@ mod tests {
             .version(
                 version::VersionInfo {
                     version: "0.12.5",
-                    short_hash: "abc123def",
-                    date: "2026-05-15",
+                    hash: Some("abc123def0123456789"),
+                    short_hash: Some("abc123def"),
+                    date: Some("2026-05-15"),
                 }
                 .to_string(),
             )
