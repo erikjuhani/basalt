@@ -693,7 +693,7 @@ mod tests {
                     &node,
                     80,
                     Span::default(),
-                    &RenderStyle::Visual,
+                    &RenderStyle::Reader,
                     &Symbols::unicode(),
                     0,
                 )
