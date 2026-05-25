@@ -12,7 +12,7 @@ use std::{
     fmt::Debug,
     fs,
     io::Result,
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::{Duration, Instant},
 };
 
@@ -34,6 +34,7 @@ use crate::{
     text_counts::{CharCount, WordCount},
     toast::{self, Toast, TOAST_WIDTH},
     vault_selector_modal::{self, VaultSelectorModal, VaultSelectorModalState},
+    vault_watcher::VaultWatcher,
 };
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -114,6 +115,7 @@ pub enum Message<'a> {
         rename: Option<(PathBuf, PathBuf)>,
         select: Option<PathBuf>,
     },
+    RescanVault,
     CreateUntitledNote,
     CreateUntitledFolder,
     OpenVault(&'a Vault),
@@ -207,6 +209,7 @@ pub struct App<'a> {
     state: AppState<'a>,
     config: Config<'a>,
     terminal: RefCell<DefaultTerminal>,
+    vault_watcher: RefCell<Option<VaultWatcher>>,
 }
 
 impl<'a> App<'a> {
@@ -216,7 +219,31 @@ impl<'a> App<'a> {
             // TODO: Surface toast if read config returns error
             config,
             terminal: RefCell::new(terminal),
+            vault_watcher: RefCell::new(None),
         }
+    }
+
+    fn ensure_watcher_for(&self, path: &Path) {
+        let mut current = self.vault_watcher.borrow_mut();
+        let needs_swap = match current.as_ref() {
+            Some(watcher) => watcher.path() != path,
+            None => !path.as_os_str().is_empty(),
+        };
+        if !needs_swap {
+            return;
+        }
+        *current = if path.is_dir() {
+            VaultWatcher::new(path).ok()
+        } else {
+            None
+        };
+    }
+
+    fn watcher_has_changes(&self) -> bool {
+        self.vault_watcher
+            .borrow()
+            .as_ref()
+            .is_some_and(|w| w.drain())
     }
 
     pub fn start(
@@ -267,6 +294,8 @@ impl<'a> App<'a> {
         let mut state = self.state.clone();
         let config = self.config.clone();
 
+        self.ensure_watcher_for(&state.vault.path);
+
         let tick_rate = Duration::from_millis(250);
         let mut last_tick = Instant::now();
 
@@ -282,7 +311,16 @@ impl<'a> App<'a> {
                 while message.is_some() {
                     message = App::update(self.terminal.get_mut(), &config, &mut state, message);
                 }
+                self.ensure_watcher_for(&state.vault.path);
             }
+
+            if self.watcher_has_changes() {
+                let mut message = Some(Message::RescanVault);
+                while message.is_some() {
+                    message = App::update(self.terminal.get_mut(), &config, &mut state, message);
+                }
+            }
+
             if last_tick.elapsed() >= tick_rate {
                 App::update(
                     self.terminal.get_mut(),
@@ -432,6 +470,10 @@ impl<'a> App<'a> {
                     ]));
                 }
                 return Some(Message::SetActivePane(ActivePane::Explorer));
+            }
+            Message::RescanVault => {
+                let select = state.selected_note.as_ref().map(|note| note.path.clone());
+                state.explorer.with_entries(state.vault.entries(), select);
             }
             Message::CreateUntitledNote => {
                 let path = match state.explorer.current_item() {
