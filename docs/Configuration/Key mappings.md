@@ -30,6 +30,26 @@ key_bindings = [
 
 An uppercase letter like `G` is shorthand for `shift+g` — shift is implied automatically.
 
+### Named keys in sequences
+
+A multi-character string splits into one keystroke per character, so a named
+key like `space` or `enter` cannot start a sequence directly (`<space>f` would
+otherwise read as the keys `s p a c e ...`). Wrap a named or modified key in
+`<...>` to group it into a single keystroke. This enables Helix-style leader
+bindings:
+
+```toml
+[global]
+key_bindings = [
+  { key = "<space>f",       command = "vault_selector_modal_toggle" },
+  { key = "<space><space>", command = "help_modal_toggle" },
+  { key = "<ctrl+w>q",      command = "quit" },
+]
+```
+
+`<` and `>` are reserved for this syntax; bind the literal keys with `<lt>` and
+`<gt>`.
+
 ## Available commands
 
 ### Global commands
