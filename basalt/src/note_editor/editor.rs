@@ -323,6 +323,85 @@ mod tests {
                 }),
             ),
             (
+                "edit_mode_task_list_then_multiple_empty_lines",
+                Box::new(|_| {
+                    let content = indoc! { r#"## Tasks
+                    - [ ] one
+                    - [ ] two
+
+
+
+                    next paragraph
+                    "#};
+                    let mut state = NoteEditorState::new(
+                        content,
+                        "Test",
+                        Path::new("test.md"),
+                        &Symbols::unicode(),
+                    );
+                    state.set_view(View::Edit(EditMode::Source));
+                    state
+                }),
+            ),
+            (
+                "edit_mode_typing_newline_in_active_block_stable_trailing",
+                Box::new(|area| {
+                    let content = "para1\n\npara2\n";
+                    let mut state = NoteEditorState::new(
+                        content,
+                        "Test",
+                        Path::new("test.md"),
+                        &Symbols::unicode(),
+                    );
+                    state.resize_viewport(area.as_size());
+                    state.set_view(View::Edit(EditMode::Source));
+                    state.cursor_right(5);
+                    state.insert_char('\n');
+                    state.insert_char('\n');
+                    state
+                }),
+            ),
+            (
+                "edit_mode_no_empty_line_between_adjacent_blocks",
+                Box::new(|_| {
+                    let content = indoc! { r#"## Heading
+                    Paragraph immediately under heading.
+                    - first item
+                    - second item
+                    "#};
+                    let mut state = NoteEditorState::new(
+                        content,
+                        "Test",
+                        Path::new("test.md"),
+                        &Symbols::unicode(),
+                    );
+                    state.set_view(View::Edit(EditMode::Source));
+                    state
+                }),
+            ),
+            (
+                "edit_mode_preserves_loose_list_empty_lines",
+                Box::new(|_| {
+                    let content = indoc! { r#"## Lists with line breaks
+
+                    1. First list item
+
+                    2. Second list item
+                    3. Third list item
+
+                    4. Fourth list item
+                    "#};
+                    let mut state = NoteEditorState::new(
+                        content,
+                        "Test",
+                        Path::new("test.md"),
+                        &Symbols::unicode(),
+                    );
+                    state.set_view(View::Edit(EditMode::Source));
+                    state
+                }),
+            ),
+            (
                 "edit_mode_with_content_with_complete_word_input_change",
                 Box::new(|area| {
                     let mut state = NoteEditorState::new(

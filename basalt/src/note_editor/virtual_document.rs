@@ -5,11 +5,13 @@ use std::{
 
 use ratatui::text::{Line, Span};
 
+use std::borrow::Cow;
+
 use crate::{
     config::Symbols,
     note_editor::{
         ast::{self, SourceRange},
-        render::{render_node, text_wrap, RenderStyle},
+        render::{render_node, text_wrap, trailing_empty_lines, RenderStyle},
         state::View,
         text_buffer::TextBuffer,
     },
@@ -143,6 +145,12 @@ impl<'a> VirtualLine<'a> {
     }
 }
 
+fn is_empty_line(line: &VirtualLine<'_>) -> bool {
+    line.virtual_spans()
+        .iter()
+        .all(|span| span.is_synthetic() && span.width() == 0)
+}
+
 impl<'a> From<VirtualLine<'a>> for Line<'a> {
     fn from(val: VirtualLine<'a>) -> Self {
         Line::from(val.spans())
@@ -227,7 +235,7 @@ impl<'a> VirtualDocument<'a> {
                 &(0..1),
                 width,
                 None,
-                &RenderStyle::Visual,
+                &RenderStyle::Reader,
                 &self.symbols,
             );
             meta.extend([
@@ -238,12 +246,22 @@ impl<'a> VirtualDocument<'a> {
             self.meta = meta;
         }
 
+        let styled = match view {
+            View::Edit(..) => RenderStyle::Visual,
+            View::Read => RenderStyle::Reader,
+        };
+        let live_content: Cow<'_, str> = text_buffer
+            .as_ref()
+            .filter(|tb| tb.modified)
+            .map(|tb| Cow::Owned(tb.write(content)))
+            .unwrap_or(Cow::Borrowed(content));
+
         let (blocks, lines, line_to_block) = ast_nodes.iter().enumerate().fold(
             (vec![], vec![], vec![]),
             |(mut blocks, mut lines, mut line_to_block), (idx, node)| {
-                let block = if current_block_idx
-                    .is_some_and(|block_idx| block_idx == idx && matches!(view, View::Edit(..)))
-                {
+                let is_active = current_block_idx == Some(idx) && matches!(view, View::Edit(..));
+
+                let mut block = if is_active {
                     let mut node = node.clone();
                     if let Some(text_buffer) = &text_buffer {
                         node.set_source_range(text_buffer.source_range.clone());
@@ -263,15 +281,62 @@ impl<'a> VirtualDocument<'a> {
                     )
                 } else {
                     render_node(
-                        content.to_string(),
+                        live_content.to_string(),
                         node,
                         width,
                         Span::default(),
-                        &RenderStyle::Visual,
+                        &styled,
                         &self.symbols,
                         0,
                     )
                 };
+
+                if matches!(styled, RenderStyle::Visual) {
+                    // Rendering may emit its own trailing blanks; drop them so
+                    // spacing is derived purely from the source below.
+                    while block.lines.last().is_some_and(is_empty_line) {
+                        block.lines.pop();
+                    }
+
+                    // The block's source text and the byte where it ends. The
+                    // active block is being edited, so it reads from the text
+                    // buffer; others read straight from the live source.
+                    let (slice, end) = match (is_active, text_buffer.as_ref()) {
+                        (true, Some(buffer)) => (buffer.content.as_str(), buffer.source_range.end),
+                        (true, None) => ("", node.source_range().end),
+                        (false, _) => (
+                            live_content.get(node.source_range().clone()).unwrap_or(""),
+                            node.source_range().end,
+                        ),
+                    };
+
+                    // Append empty rows so on-screen spacing mirrors the source:
+                    // blanks already inside the block, plus blanks in the gap to
+                    // the next block. The last block gets one trailing row.
+                    let trailing = match ast_nodes.get(idx + 1) {
+                        None => 1,
+                        Some(next) => {
+                            let absorbed = if is_active {
+                                0
+                            } else {
+                                trailing_empty_lines(slice)
+                            };
+                            let gap = live_content
+                                .get(end..next.source_range().start)
+                                .unwrap_or("");
+                            let gap_blanks = gap.bytes().filter(|byte| *byte == b'\n').count();
+                            // The first newline only terminates the block's last
+                            // line unless that line already ended with one.
+                            let terminator = !slice.ends_with('\n') as usize;
+                            absorbed + gap_blanks.saturating_sub(terminator)
+                        }
+                    };
+
+                    block
+                        .lines
+                        .extend((0..trailing).map(|_| empty_virtual_line!()));
+                }
+
                 let block_lines = block.lines.clone();
                 let line_count = block_lines.len();
 

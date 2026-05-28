@@ -36,6 +36,13 @@ impl SpanExt for &Span<'_> {
 pub enum RenderStyle {
     Raw,
     Visual,
+    Reader,
+}
+
+impl RenderStyle {
+    pub fn is_styled(&self) -> bool {
+        matches!(self, Self::Visual | Self::Reader)
+    }
 }
 
 // Internal consolidated text wrapping function
@@ -71,7 +78,7 @@ fn text_wrap_internal<'a>(
             let content_span = Span::styled(line.to_string(), text_style);
 
             match (&marker, first_line) {
-                (Some(marker), true) if *option == RenderStyle::Visual => virtual_line!([
+                (Some(marker), true) if option.is_styled() => virtual_line!([
                     synthetic_span!(prefix),
                     synthetic_span!(marker),
                     content_span!(content_span, line_source_range)
@@ -153,7 +160,7 @@ pub fn heading<'a>(
     use ast::HeadingLevel::*;
 
     let (text, heading_source_range, remaining) = match option {
-        RenderStyle::Visual => (text.to_string(), source_range.clone(), None),
+        RenderStyle::Visual | RenderStyle::Reader => (text.to_string(), source_range.clone(), None),
         RenderStyle::Raw => match content.split_once('\n') {
             Some((first, rest)) => {
                 let end = (source_range.start + first.len()).min(source_range.end);
@@ -176,7 +183,7 @@ pub fn heading<'a>(
             symbols,
         );
 
-        if matches!(option, RenderStyle::Visual) {
+        if option.is_styled() {
             wrapped_heading.push(empty_virtual_line!());
         }
         wrapped_heading
@@ -198,7 +205,7 @@ pub fn heading<'a>(
 
     let mut lines = match level {
         H1 => h_with_underline(
-            if *option == RenderStyle::Visual {
+            if option.is_styled() {
                 text.to_uppercase().bold()
             } else {
                 text.bold()
@@ -303,7 +310,7 @@ pub fn paragraph<'a>(
 ) -> VirtualBlock<'a> {
     let lines = match option {
         RenderStyle::Raw => render_raw(content, source_range, max_width, prefix, symbols),
-        RenderStyle::Visual => {
+        RenderStyle::Visual | RenderStyle::Reader => {
             let text = text.to_string();
             let mut current_range_start = source_range.start;
 
@@ -376,7 +383,7 @@ pub fn code_block<'a>(
             lines.push(empty_virtual_line!());
             lines
         }
-        RenderStyle::Visual => {
+        RenderStyle::Visual | RenderStyle::Reader => {
             let text = text.to_string();
 
             let padding_line = virtual_line!([
@@ -429,24 +436,41 @@ pub fn list<'a>(
 ) -> VirtualBlock<'a> {
     let lines = match option {
         RenderStyle::Raw => render_raw(content, source_range, max_width, prefix, symbols),
-        RenderStyle::Visual => {
+        RenderStyle::Visual | RenderStyle::Reader => {
+            let preserve_empty_lines = matches!(option, RenderStyle::Visual);
             let mut lines: Vec<VirtualLine<'a>> = nodes
                 .iter()
-                .flat_map(|node| {
+                .enumerate()
+                .flat_map(|(i, node)| {
+                    let mut lines = Vec::new();
+
+                    if preserve_empty_lines && i > 0 {
+                        let prev_slice = content
+                            .get(nodes[i - 1].source_range().clone())
+                            .unwrap_or("");
+                        let empties = trailing_empty_lines(prev_slice);
+                        lines.extend(
+                            (0..empties).map(|_| virtual_line!([synthetic_span!(prefix.clone())])),
+                        );
+                    }
+
                     let node_content = content
                         .get(node.source_range().clone())
                         .unwrap_or("")
                         .to_string();
-                    render_node(
-                        node_content,
-                        node,
-                        max_width,
-                        prefix.clone(),
-                        option,
-                        symbols,
-                        list_depth,
-                    )
-                    .lines
+                    lines.extend(
+                        render_node(
+                            node_content,
+                            node,
+                            max_width,
+                            prefix.clone(),
+                            option,
+                            symbols,
+                            list_depth,
+                        )
+                        .lines,
+                    );
+                    lines
                 })
                 .collect();
 
@@ -458,6 +482,15 @@ pub fn list<'a>(
     };
 
     VirtualBlock::new(&lines, source_range)
+}
+
+/// Counts trailing empty lines at the end of a source slice.
+pub(crate) fn trailing_empty_lines(slice: &str) -> usize {
+    slice
+        .lines()
+        .rev()
+        .take_while(|line| line.trim().is_empty())
+        .count()
 }
 
 // FIXME: Use options struct or similar
@@ -475,7 +508,7 @@ pub fn task<'a>(
 ) -> VirtualBlock<'a> {
     let lines = match option {
         RenderStyle::Raw => render_raw(content, source_range, max_width, prefix, symbols),
-        RenderStyle::Visual => {
+        RenderStyle::Visual | RenderStyle::Reader => {
             let Some((text, rest)) = nodes.split_first().and_then(|(first, rest)| {
                 let text = first.rich_text()?;
                 Some((text, rest))
@@ -484,10 +517,6 @@ pub fn task<'a>(
             };
 
             let text = text.to_string();
-            let text = match option {
-                RenderStyle::Visual => text,
-                RenderStyle::Raw => content.to_string(),
-            };
             let (marker, text) = match kind {
                 ast::TaskKind::Unchecked => (
                     format!("{} ", symbols.task_unchecked).dark_gray(),
@@ -548,7 +577,7 @@ pub fn item<'a>(
 ) -> VirtualBlock<'a> {
     let lines = match option {
         RenderStyle::Raw => render_raw(content, source_range, max_width, prefix, symbols),
-        RenderStyle::Visual => {
+        RenderStyle::Visual | RenderStyle::Reader => {
             let Some((text, rest)) = nodes.split_first().and_then(|(first, rest)| {
                 let text = first.rich_text()?;
                 Some((text, rest))
@@ -626,7 +655,7 @@ pub fn block_quote<'a>(
 ) -> VirtualBlock<'a> {
     let lines = match option {
         RenderStyle::Raw => render_raw(content, source_range, max_width, prefix, symbols),
-        RenderStyle::Visual => nodes
+        RenderStyle::Visual | RenderStyle::Reader => nodes
             .iter()
             .enumerate()
             .flat_map(|(i, node)| {

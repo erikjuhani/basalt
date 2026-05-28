@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.12.6](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.6) (Unreleased)
+
+### Added
+
+- [3b1b400](https://github.com/erikjuhani/basalt/commit/3b1b400f961eb1de8af0e5bb8a6fa1b9c431b59a) Watch vault filesystem for changes in Explorer by @realkotob
+
+> The Explorer now watches the vault root recursively and refreshes when
+> markdown files or directories change on disk, so external moves,
+> additions and deletions are reflected without a user-initiated refresh.
+> The watcher is rebuilt when the active vault changes and avoids stealing
+> focus from the editor.
+
+### Fixed
+
+- [f40bc77](https://github.com/erikjuhani/basalt/commit/f40bc77e49fc7e27aca04cd0936d8f4cd746ad17) Preserve source blank lines in Edit mode
+
+> In Edit mode the visual rendering now mirrors the source's blank-line
+> structure. Empty lines between loose list items render as empty rows,
+> and block spacing matches the source byte gap instead of a fixed "one
+> empty line per block". Adjacent blocks with no source empty lines now
+> render with no visual gap, so deleting at a block's start merges into
+> the previous block without a misleading empty row in between.
+
 ## [0.12.5](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.5) (May, 16 2026)
 
 ### Added
