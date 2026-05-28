@@ -4,6 +4,19 @@
 
 ### Added
 
+- [afcad08](https://github.com/erikjuhani/basalt/commit/afcad08e3f2e8bde5424c054288c28a08382b6b5) Allow named keys in chord sequences (e.g. <space>f)
+
+> Treat <...> as a grouping delimiter in binding strings so a named or
+> modified key acts as a single keystroke inside a sequence, enabling
+> Helix-style leader bindings like <space>f and <space><space>.
+>
+> The group contents are parsed exactly like a standalone key, and a group
+> must resolve to one keystroke (multi-key, unterminated, and empty groups
+> error). < and > are reserved for the syntax; bind the literals via <lt>
+> and <gt>.
+>
+> Closes #516
+
 - [3b1b400](https://github.com/erikjuhani/basalt/commit/3b1b400f961eb1de8af0e5bb8a6fa1b9c431b59a) Watch vault filesystem for changes in Explorer by @realkotob
 
 > The Explorer now watches the vault root recursively and refreshes when
@@ -12,9 +25,10 @@
 > The watcher is rebuilt when the active vault changes and avoids stealing
 > focus from the editor.
 
+
 ### Fixed
 
-- [f40bc77](https://github.com/erikjuhani/basalt/commit/f40bc77e49fc7e27aca04cd0936d8f4cd746ad17) Preserve source blank lines in Edit mode
+- [f40bc77](https://github.com/erikjuhani/basalt/commit/f40bc77e49fc7e27aca04cd0936d8f4cd746ad17) Preserve source blank lines in Edit mode by @erikjuhani
 
 > In Edit mode the visual rendering now mirrors the source's blank-line
 > structure. Empty lines between loose list items render as empty rows,

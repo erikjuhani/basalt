@@ -126,6 +126,13 @@ impl Key {
     pub fn chord(iter: impl IntoIterator<Item = Keystroke>) -> Self {
         Key::Chord(iter.into_iter().collect())
     }
+
+    fn into_keystrokes(self) -> Vec<Keystroke> {
+        match self {
+            Key::Single(keystroke) => vec![keystroke],
+            Key::Chord(keystrokes) => keystrokes,
+        }
+    }
 }
 
 impl From<KeyEvent> for Key {
@@ -191,26 +198,70 @@ impl Visitor<'_> for KeyVisitor {
     type Value = Key;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a single key (\"a\"), named key (\"esc\"), modified key (\"ctrl+x\"), or key sequence (\"gg\")")
+        formatter.write_str("a single key (\"a\"), named key (\"esc\"), modified key (\"ctrl+x\"), or key sequence (\"gg\", \"<space>f\")")
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
     where
         E: de::Error,
     {
-        let mut parts = value.split('+');
-        let code = parts
-            .next_back()
-            .ok_or(ConfigError::UnknownKeyCode(value.to_string()))
-            .map_err(de::Error::custom)?;
-
-        let mut modifiers = KeyModifiers::NONE;
-        for part in parts {
-            modifiers |= parse_modifiers(&part.to_lowercase()).map_err(de::Error::custom)?;
-        }
-
-        parse_key(code, modifiers).map_err(de::Error::custom)
+        let mut keystrokes = parse_keystrokes(value).map_err(de::Error::custom)?;
+        Ok(match keystrokes.len() {
+            1 => Key::Single(keystrokes.remove(0)),
+            _ => Key::Chord(keystrokes),
+        })
     }
+}
+
+/// Tokenizes a binding string into its keystrokes, treating `<...>` as a
+/// grouping delimiter. The inside of a group is parsed exactly like a bare
+/// standalone key, so `<space>f` isolates `space` as a named key instead of
+/// splitting `spacef` into per-character keystrokes.
+fn parse_keystrokes(input: &str) -> Result<Vec<Keystroke>, ConfigError> {
+    let mut keystrokes = Vec::new();
+    let mut rest = input;
+
+    while !rest.is_empty() {
+        match rest.strip_prefix('<') {
+            // A `<...>` group denotes exactly one named/modified key.
+            Some(after) => {
+                let (name, tail) = after.split_once('>').ok_or_else(|| {
+                    ConfigError::InvalidKeybinding(format!("unterminated `<` in {input:?}"))
+                })?;
+                match parse_segment(name)?.as_slice() {
+                    [single] if !name.is_empty() => keystrokes.push(single.clone()),
+                    _ => {
+                        return Err(ConfigError::InvalidKeybinding(format!(
+                            "`<{name}>` is not a single key"
+                        )))
+                    }
+                }
+                rest = tail;
+            }
+            None => {
+                let bare = rest.split('<').next().unwrap_or(rest);
+                keystrokes.extend(parse_segment(bare)?);
+                rest = &rest[bare.len()..];
+            }
+        }
+    }
+
+    Ok(keystrokes)
+}
+
+/// Parses one segment — a bare run or the contents of a `<...>` group — into
+/// its keystrokes, splitting `+` into modifiers and a trailing key code.
+fn parse_segment(segment: &str) -> Result<Vec<Keystroke>, ConfigError> {
+    let mut parts = segment.split('+');
+    let code = parts
+        .next_back()
+        .ok_or_else(|| ConfigError::UnknownKeyCode(segment.to_string()))?;
+
+    let modifiers = parts.try_fold(KeyModifiers::NONE, |modifiers, part| {
+        parse_modifiers(&part.to_lowercase()).map(|parsed| modifiers | parsed)
+    })?;
+
+    Ok(parse_key(code, modifiers)?.into_keystrokes())
 }
 
 fn parse_key(code: &str, modifiers: KeyModifiers) -> Result<Key, ConfigError> {
@@ -229,6 +280,9 @@ fn parse_key(code: &str, modifiers: KeyModifiers) -> Result<Key, ConfigError> {
         "enter" => KeyCode::Enter,
         "home" => KeyCode::Home,
         "insert" => KeyCode::Insert,
+        // `<` and `>` are reserved for group syntax — name them to bind literals
+        "lt" => KeyCode::Char('<'),
+        "gt" => KeyCode::Char('>'),
         "left" => KeyCode::Left,
         "page_down" => KeyCode::PageDown,
         "page_up" => KeyCode::PageUp,
@@ -413,8 +467,65 @@ mod tests {
     }
 
     #[test]
+    fn test_named_key_sequences() {
+        let space = Keystroke::from(KeyCode::Char(' '));
+        let cases: &[(&str, &[Keystroke])] = &[
+            (
+                "<space>f",
+                &[space.clone(), Keystroke::from(KeyCode::Char('f'))],
+            ),
+            ("<space><space>", &[space.clone(), space.clone()]),
+            (
+                "<enter>x",
+                &[
+                    Keystroke::from(KeyCode::Enter),
+                    Keystroke::from(KeyCode::Char('x')),
+                ],
+            ),
+            (
+                "g<space>",
+                &[Keystroke::from(KeyCode::Char('g')), space.clone()],
+            ),
+            (
+                "<ctrl+space>f",
+                &[
+                    Keystroke::from((KeyCode::Char(' '), KeyModifiers::CONTROL)),
+                    Keystroke::from(KeyCode::Char('f')),
+                ],
+            ),
+        ];
+
+        cases.iter().for_each(
+            |(input, expected_keys)| match key_from_str(input).unwrap() {
+                Key::Chord(keys) => assert_eq!(keys, *expected_keys, "input: {input:?}"),
+                Key::Single(_) => panic!("Expected sequence for {input:?}, got plain key"),
+            },
+        );
+    }
+
+    #[test]
+    fn test_named_group_single_key() {
+        // A lone group is equivalent to the bare named key
+        assert_eq!(
+            key_from_str("<space>").unwrap(),
+            key_from_str("space").unwrap()
+        );
+        assert_eq!(key_from_str("<esc>").unwrap(), key_from_str("esc").unwrap());
+        // `<` and `>` literals remain bindable via lt/gt
+        assert_eq!(key_from_str("<lt>").unwrap(), Key::from('<'));
+        assert_eq!(key_from_str("<gt>").unwrap(), Key::from('>'));
+    }
+
+    #[test]
     fn test_invalid_keys() {
-        let cases = ["unknown_modifier+c", "badmod+x", "f999"];
+        let cases = [
+            "unknown_modifier+c",
+            "badmod+x",
+            "f999",
+            "<space",
+            "<>",
+            "<unknown_key>",
+        ];
 
         cases.into_iter().for_each(|input| {
             assert!(key_from_str(input).is_err(), "Expected error for {input:?}");
