@@ -195,14 +195,15 @@ impl<'a> NoteEditorState<'a> {
             let char_byte_len = c.len_utf8();
             self.shift_source_ranges(source_pos, char_byte_len as isize);
 
-            self.update_layout();
-
-            // Jump cursor to position after the inserted character
+            // Move the cursor to the inserted character before laying out so the
+            // active (raw) line tracks the cursor's new position.
             self.cursor.update(
                 cursor::Message::Jump(source_pos + char_byte_len),
                 self.virtual_document.lines(),
                 &self.text_buffer,
             );
+
+            self.update_layout();
 
             self.ensure_cursor_visible();
         }
@@ -244,18 +245,20 @@ impl<'a> NoteEditorState<'a> {
         let source_pos = self.cursor.source_offset();
         let deleted_char_byte_len = buffer.delete_char(source_pos)?;
 
-        // We shift by the negative character byte length to move ranges backwards
-        self.shift_source_ranges(source_pos, -(deleted_char_byte_len as isize));
+        // The removed byte sits just before the cursor; shift from there (not the
+        // cursor) so a node boundary ending at the cursor shrinks with it.
+        let deleted_at = source_pos.saturating_sub(deleted_char_byte_len);
+        self.shift_source_ranges(deleted_at, -(deleted_char_byte_len as isize));
 
-        self.update_layout();
-
-        // Position cursor at where the deleted character was.
-        let new_cursor_pos = source_pos.saturating_sub(deleted_char_byte_len);
+        // Position the cursor where the deleted character was before laying out
+        // so the active (raw) line tracks the cursor's new position.
         self.cursor.update(
-            cursor::Message::Jump(new_cursor_pos),
+            cursor::Message::Jump(deleted_at),
             self.virtual_document.lines(),
             &self.text_buffer,
         );
+
+        self.update_layout();
 
         self.ensure_cursor_visible();
 
@@ -316,6 +319,7 @@ impl<'a> NoteEditorState<'a> {
                 &self.content,
                 &self.view,
                 current_block_idx,
+                self.cursor.source_offset(),
                 &self.ast_nodes,
                 size.width.into(),
                 self.text_buffer.clone(),
@@ -362,48 +366,56 @@ impl<'a> NoteEditorState<'a> {
     pub fn cursor_word_forward(&mut self) {
         use cursor::Message::*;
 
+        let prev_block_idx = self.current_block_idx();
         self.cursor.update(
             MoveWordForward,
             self.virtual_document.lines(),
             &self.text_buffer,
         );
 
+        self.relayout_on_block_change(prev_block_idx);
         self.ensure_cursor_visible();
     }
 
     pub fn cursor_word_backward(&mut self) {
         use cursor::Message::*;
 
+        let prev_block_idx = self.current_block_idx();
         self.cursor.update(
             MoveWordBackward,
             self.virtual_document.lines(),
             &self.text_buffer,
         );
 
+        self.relayout_on_block_change(prev_block_idx);
         self.ensure_cursor_visible();
     }
 
     pub fn cursor_left(&mut self, amount: usize) {
         use cursor::Message::*;
 
+        let prev_block_idx = self.current_block_idx();
         self.cursor.update(
             MoveLeft(amount),
             self.virtual_document.lines(),
             &self.text_buffer,
         );
 
+        self.relayout_on_block_change(prev_block_idx);
         self.ensure_cursor_visible();
     }
 
     pub fn cursor_right(&mut self, amount: usize) {
         use cursor::Message::*;
 
+        let prev_block_idx = self.current_block_idx();
         self.cursor.update(
             MoveRight(amount),
             self.virtual_document.lines(),
             &self.text_buffer,
         );
 
+        self.relayout_on_block_change(prev_block_idx);
         self.ensure_cursor_visible();
     }
 
@@ -471,6 +483,7 @@ impl<'a> NoteEditorState<'a> {
             &self.content,
             &self.view,
             current_block_idx,
+            self.cursor.source_offset(),
             &self.ast_nodes,
             self.viewport.area().width.into(),
             self.text_buffer.clone(),
@@ -512,9 +525,11 @@ impl<'a> NoteEditorState<'a> {
         self.ensure_cursor_visible();
     }
 
-    /// When the cursor crosses a block boundary in Edit mode, switch the
-    /// text_buffer to the new block and re-layout so the new block is
-    /// rendered in raw mode.
+    /// Re-layout while editing so the raw (source) line tracks the cursor.
+    ///
+    /// Within a block only the cursor's line is shown raw, so any move that
+    /// lands on a different line re-runs the layout. Crossing a block boundary
+    /// additionally switches the text_buffer to the new block.
     ///
     /// After re-layout the source offset from the old layout may not
     /// correspond to the same logical position (e.g. code-block visual
@@ -529,6 +544,7 @@ impl<'a> NoteEditorState<'a> {
 
         let target_block_idx = self.current_block_idx();
         if target_block_idx == prev_block_idx {
+            self.update_layout();
             return;
         }
 
@@ -552,6 +568,7 @@ impl<'a> NoteEditorState<'a> {
             &self.content,
             &self.view,
             self.editing_block,
+            target_offset.unwrap_or_else(|| self.cursor.source_offset()),
             &self.ast_nodes,
             self.viewport.area().width.into(),
             self.text_buffer.clone(),
@@ -625,6 +642,402 @@ mod tests {
             cursor_screen_row >= top && cursor_screen_row < bottom,
             "{context}: cursor screen row {cursor_screen_row} outside viewport [{top}, {bottom})",
         );
+    }
+
+    fn line_texts(state: &NoteEditorState) -> Vec<String> {
+        state
+            .virtual_document
+            .lines()
+            .iter()
+            .map(|line| {
+                line.clone()
+                    .spans()
+                    .iter()
+                    .map(|span| span.content.to_string())
+                    .collect()
+            })
+            .collect()
+    }
+
+    /// Editing a block quote shows raw `>` markers line by line: the cursor's
+    /// line is raw, the rest keep the rendered `┃` marker (read mode renders all
+    /// lines with `┃`). Ref: issue #486.
+    #[test]
+    fn test_block_quote_raw_marker_line_by_line() {
+        let mut state = NoteEditorState::new(
+            "> quote line one\n> quote line two\n",
+            "test",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.resize_viewport(Size::new(50, 14));
+
+        let read = line_texts(&state);
+        assert!(
+            read.iter().any(|line| line.contains("┃ quote line one")),
+            "read mode renders the quote marker, got {read:?}",
+        );
+
+        state.set_view(View::Edit(EditMode::Source));
+        let edit = line_texts(&state);
+        // Cursor on the first line: it is raw, the second stays rendered.
+        assert!(
+            edit.iter().any(|line| line.contains("> quote line one")),
+            "cursor line shows the raw marker, got {edit:?}",
+        );
+        assert!(
+            edit.iter().any(|line| line.contains("┃ quote line two")),
+            "non-cursor line keeps the rendered marker, got {edit:?}",
+        );
+
+        // Move to the second line: now it is the raw one.
+        state.cursor_down(1);
+        let edit = line_texts(&state);
+        assert!(
+            edit.iter().any(|line| line.contains("┃ quote line one")),
+            "first line now rendered, got {edit:?}",
+        );
+        assert!(
+            edit.iter().any(|line| line.contains("> quote line two")),
+            "second line now raw, got {edit:?}",
+        );
+    }
+
+    /// The block-quote markers are coloured even on the raw cursor line — and
+    /// every nesting level, not just the first. Ref: #486.
+    #[test]
+    fn test_block_quote_cursor_marker_is_colored() {
+        use ratatui::style::Color;
+
+        let mut state = NoteEditorState::new(
+            "> > deep\n",
+            "test",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.resize_viewport(Size::new(40, 8));
+        state.set_view(View::Edit(EditMode::Source)); // cursor on the quote line
+
+        let markers: Vec<_> = state
+            .virtual_document
+            .lines()
+            .iter()
+            .flat_map(|line| line.clone().spans())
+            .filter(|span| span.content.contains('>'))
+            .collect();
+        assert!(!markers.is_empty(), "quote markers should be present");
+        assert!(
+            markers
+                .iter()
+                .all(|span| span.style.fg == Some(Color::Magenta)),
+            "every `>` marker (all nesting levels) should be coloured",
+        );
+    }
+
+    /// Lines inside a fenced code block are rendered literally while editing —
+    /// never decorated as markdown (list bullets, headings, etc.). Ref: #486.
+    #[test]
+    fn test_code_block_content_not_decorated_when_editing() {
+        let mut state = NoteEditorState::new(
+            "```\n- not a list\n# not a heading\n```\n",
+            "test",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.resize_viewport(Size::new(40, 10));
+        state.set_view(View::Edit(EditMode::Source));
+
+        let lines = line_texts(&state);
+        assert!(
+            lines.iter().any(|line| line.contains("- not a list")),
+            "code content stays literal, got {lines:?}",
+        );
+        assert!(
+            !lines.iter().any(|line| line.contains('●')),
+            "code content must not get a list bullet, got {lines:?}",
+        );
+        assert!(
+            lines.iter().any(|line| line.contains("# not a heading")),
+            "code content keeps its `#`, got {lines:?}",
+        );
+    }
+
+    /// A heading keeps its rendered style and underline while editing; the `#`
+    /// markers stay visible (and editable). Ref: issue #486.
+    #[test]
+    fn test_heading_keeps_underline_when_editing() {
+        let mut state = NoteEditorState::new(
+            "## Title\n\npara\n",
+            "test",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.resize_viewport(Size::new(40, 10));
+        state.set_view(View::Edit(EditMode::Source)); // cursor on the heading
+
+        let lines = line_texts(&state);
+        assert!(
+            lines.iter().any(|line| line.contains("## Title")),
+            "heading markers stay visible, got {lines:?}",
+        );
+        assert!(
+            lines
+                .iter()
+                .any(|line| !line.is_empty() && line.chars().all(|c| c == '─')),
+            "heading keeps its underline, got {lines:?}",
+        );
+    }
+
+    /// When the active block's range swallows the blank lines before the next
+    /// block (a list does this), those blanks must still render as editable
+    /// lines instead of vanishing. Ref: issue #486.
+    #[test]
+    fn test_multiple_blank_lines_after_active_block_render() {
+        // The list's source range includes the three trailing blank lines.
+        let mut state = NoteEditorState::new(
+            "- item one\n\n\n\npara2\n",
+            "test",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.resize_viewport(Size::new(50, 14));
+        state.set_view(View::Edit(EditMode::Source));
+
+        let lines = line_texts(&state);
+        let item = lines
+            .iter()
+            .position(|line| line.contains("item one"))
+            .unwrap();
+        let para = lines
+            .iter()
+            .position(|line| line.contains("para2"))
+            .unwrap();
+        assert_eq!(
+            para - item,
+            4,
+            "expected three blank lines between the list and the paragraph, got {lines:?}",
+        );
+    }
+
+    /// Merging a block into the previous one (delete at the buffer start) must
+    /// keep the merged text visible — the active block renders from a fresh
+    /// parse of the buffer, not the stale (pre-merge) AST. Ref: issue #486.
+    #[test]
+    fn test_merge_into_previous_block_keeps_text() {
+        let mut state = NoteEditorState::new(
+            "- item one\n\nsecond paragraph\n",
+            "test",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.resize_viewport(Size::new(50, 12));
+        state.set_view(View::Edit(EditMode::Source));
+
+        // Down to the blank, then onto "second paragraph", then merge it up.
+        state.cursor_down(1);
+        state.cursor_down(1);
+        assert_eq!(state.cursor.source_offset(), 12);
+        state.delete_char();
+
+        let lines = line_texts(&state);
+        assert!(
+            lines.iter().any(|line| line.contains("second paragraph")),
+            "merged text must stay visible, got {lines:?}",
+        );
+        state.commit_text_buffer();
+        assert_eq!(state.content, "- item one\nsecond paragraph\n");
+    }
+
+    /// An empty list item (`- ` with no text) must still render its marker row
+    /// instead of vanishing — otherwise splitting an item or adding a line looks
+    /// like nothing happened. Ref: issue #486.
+    #[test]
+    fn test_empty_list_item_renders_marker() {
+        let mut state = NoteEditorState::new(
+            "- one\n- \n- three\n",
+            "test",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.resize_viewport(Size::new(40, 12));
+        state.set_view(View::Edit(EditMode::Source));
+
+        // Cursor on "- one"; the empty middle item still occupies a row.
+        let lines = line_texts(&state);
+        assert!(
+            lines.iter().any(|line| line == "● "),
+            "empty item must render its marker, got {lines:?}",
+        );
+        assert!(lines.iter().any(|line| line.contains("three")), "{lines:?}");
+    }
+
+    /// On a tab-indented line the cursor column must line up with the displayed
+    /// (tab-expanded) text: a tab is one byte but two columns. Ref: issue #486.
+    #[test]
+    fn test_cursor_column_aligns_on_tab_indented_line() {
+        let mut state = NoteEditorState::new(
+            "- a\n\t- b\n",
+            "test",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.resize_viewport(Size::new(40, 12));
+        state.set_view(View::Edit(EditMode::Source));
+        state.cursor_down(1); // onto "\t- b" -> raw "  - b", cursor on 'b'
+
+        // 'b' is byte offset 7; the tab (1 byte) renders as 2 columns, so 'b'
+        // sits at display column 4, not 3.
+        assert_eq!(state.cursor.source_offset(), 7);
+        assert_eq!(state.cursor.virtual_column(), 4);
+
+        // Stepping left onto the marker stays aligned with the display.
+        state.cursor_left(2);
+        assert_eq!(state.cursor.source_offset(), 5); // the '-'
+        assert_eq!(state.cursor.virtual_column(), 2); // after the 2-col tab
+    }
+
+    /// A tab-indented nested list keeps its indentation when the list is the
+    /// active (editing) block — raw tabs are expanded to spaces so the terminal
+    /// doesn't collapse them. Ref: issue #486.
+    #[test]
+    fn test_tab_indented_nested_list_keeps_indentation_when_editing() {
+        let mut state = NoteEditorState::new(
+            "1. one\n2. two\n\t- nested\n\t\t- deep\n",
+            "test",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.resize_viewport(Size::new(50, 12));
+        state.set_view(View::Edit(EditMode::Source));
+        // Onto the list (cursor on "1. one"); the nested items render decorated.
+        let lines = line_texts(&state);
+        assert!(lines.iter().any(|line| line == "  ○ nested"), "{lines:?}");
+        assert!(lines.iter().any(|line| line == "    ◆ deep"), "{lines:?}");
+    }
+
+    /// A nested list renders cleanly while editing: the cursor's line is raw,
+    /// deeper items keep their indentation and rendered bullet, and no spurious
+    /// indent-only lines appear. Ref: issue #486.
+    #[test]
+    fn test_nested_list_renders_cleanly_when_editing() {
+        let mut state = NoteEditorState::new(
+            "- item one\n  - nested one\n  - nested two\n",
+            "test",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.resize_viewport(Size::new(50, 12));
+        state.set_view(View::Edit(EditMode::Source));
+
+        let lines = line_texts(&state);
+        // Cursor on item one: raw marker.
+        assert_eq!(lines.first().map(String::as_str), Some("- item one"));
+        // Nested items: indentation preserved, rendered bullet.
+        assert!(
+            lines.iter().any(|line| line == "  ○ nested one"),
+            "{lines:?}"
+        );
+        assert!(
+            lines.iter().any(|line| line == "  ○ nested two"),
+            "{lines:?}"
+        );
+        // No stray indent-only line (the bug this redesign fixes).
+        assert!(
+            !lines
+                .iter()
+                .any(|line| !line.is_empty() && line.trim().is_empty()),
+            "spurious whitespace line: {lines:?}",
+        );
+    }
+
+    /// Deleting the blank line before a list item must pull the whole item up
+    /// intact — its marker and text stay on one row. Ref: issue #486.
+    #[test]
+    fn test_delete_blank_before_item_keeps_item_intact() {
+        let mut state = NoteEditorState::new(
+            "- first\n\n- second item text\n",
+            "test",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.resize_viewport(Size::new(50, 12));
+        state.set_view(View::Edit(EditMode::Source));
+
+        // Onto the blank line between the items, then delete it.
+        state.cursor_down(1);
+        state.delete_char();
+
+        let lines = line_texts(&state);
+        assert!(
+            lines.iter().any(|line| line.contains("second item text")),
+            "item must stay intact on one row, got {lines:?}",
+        );
+        state.commit_text_buffer();
+        assert_eq!(state.content, "- first\n- second item text\n");
+    }
+
+    /// A loose list (blank line between items) must render a single blank line
+    /// between items even when the cursor is on an item rendered raw — the raw
+    /// item's trailing blank and the list's empty-line preservation must not
+    /// stack. The blank must stay editable (the cursor can land on it). Ref:
+    /// issue #486.
+    #[test]
+    fn test_loose_list_blank_not_doubled_when_item_raw() {
+        let mut state = NoteEditorState::new(
+            "- a\n\n- b\n",
+            "test",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.resize_viewport(Size::new(40, 12));
+        state.set_view(View::Edit(EditMode::Source));
+
+        // Cursor lands on item "a", which renders raw.
+        let lines = line_texts(&state);
+        let a = lines.iter().position(|line| line.contains("- a")).unwrap();
+        let b = lines.iter().position(|line| line.contains("b")).unwrap();
+        assert_eq!(
+            b - a,
+            2,
+            "expected exactly one blank line between items, got {lines:?}",
+        );
+
+        // The blank between the items is reachable, so it can be edited away.
+        state.cursor_down(1);
+        assert_eq!(
+            state.cursor.source_offset(),
+            4,
+            "cursor should land on the blank line between the items",
+        );
+        state.delete_char();
+        state.commit_text_buffer();
+        assert_eq!(state.content, "- a\n- b\n");
+    }
+
+    /// Pressing Enter at the very start of a list item must insert a blank line
+    /// and push the item down, not drop the item's text. Ref: issue #486.
+    #[test]
+    fn test_newline_at_start_of_list_item_preserves_text() {
+        let mut state = NoteEditorState::new(
+            "- hello world\n",
+            "test",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.resize_viewport(Size::new(40, 10));
+        state.set_view(View::Edit(EditMode::Source));
+
+        state.insert_char('\n');
+
+        let lines = line_texts(&state);
+        assert!(
+            lines.iter().any(|line| line.contains("- hello world")),
+            "item text must survive the newline, got {lines:?}",
+        );
+        // Cursor lands on the item, now on the second line, at its start.
+        assert_eq!(state.cursor.source_offset(), 1);
+        assert_eq!(state.cursor.virtual_row(), 1);
+        assert_eq!(state.cursor.virtual_column(), 0);
     }
 
     #[test]

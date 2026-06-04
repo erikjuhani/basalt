@@ -4,6 +4,7 @@ use std::{
 };
 
 use ratatui::text::{Line, Span};
+use unicode_width::UnicodeWidthChar;
 
 use std::borrow::Cow;
 
@@ -11,7 +12,7 @@ use crate::{
     config::Symbols,
     note_editor::{
         ast::{self, SourceRange},
-        render::{render_node, text_wrap, trailing_empty_lines, RenderStyle},
+        render::{edit_lines, render_node, text_wrap, trailing_empty_lines, RenderStyle},
         state::View,
         text_buffer::TextBuffer,
     },
@@ -83,9 +84,14 @@ impl VirtualSpan<'_> {
     }
 
     pub fn width(&self) -> usize {
-        match self {
-            VirtualSpan::Content(span, ..) | VirtualSpan::Synthetic(span) => span.width(),
-        }
+        let span = match self {
+            VirtualSpan::Content(span, ..) | VirtualSpan::Synthetic(span) => span,
+        };
+        // A tab is one byte but rendered as two columns (expanded at draw time).
+        span.content
+            .chars()
+            .map(|c| if c == '\t' { 2 } else { c.width().unwrap_or(0) })
+            .sum()
     }
 
     pub fn is_synthetic(&self) -> bool {
@@ -95,9 +101,14 @@ impl VirtualSpan<'_> {
 
 impl<'a> From<VirtualSpan<'a>> for Span<'a> {
     fn from(value: VirtualSpan<'a>) -> Self {
-        match value {
-            VirtualSpan::Synthetic(span) => span,
-            VirtualSpan::Content(span, _) => span,
+        let span = match value {
+            VirtualSpan::Synthetic(span) | VirtualSpan::Content(span, _) => span,
+        };
+        // Expand tabs so the terminal doesn't break the layout; the cursor maps
+        // by byte offset against the un-expanded content (tabs counted as two).
+        match span.content.contains('\t') {
+            true => Span::styled(span.content.replace('\t', "  "), span.style),
+            false => span,
         }
     }
 }
@@ -220,6 +231,7 @@ impl<'a> VirtualDocument<'a> {
         content: &str,
         view: &View,
         current_block_idx: Option<usize>,
+        cursor_offset: usize,
         ast_nodes: &[ast::Node],
         width: usize,
         text_buffer: Option<TextBuffer>,
@@ -261,26 +273,36 @@ impl<'a> VirtualDocument<'a> {
             |(mut blocks, mut lines, mut line_to_block), (idx, node)| {
                 let is_active = current_block_idx == Some(idx) && matches!(view, View::Edit(..));
 
-                let mut block = if is_active {
-                    let mut node = node.clone();
-                    if let Some(text_buffer) = &text_buffer {
-                        node.set_source_range(text_buffer.source_range.clone());
-                    }
-
-                    render_node(
+                // The active block reads from the edit buffer, which may not yet
+                // be re-parsed. Its range tracks in-flight edits exactly.
+                let active_range = is_active
+                    .then(|| {
                         text_buffer
-                            .clone()
-                            .map(|text_buffer| text_buffer.content)
-                            .unwrap_or_default(),
-                        &node,
-                        width,
-                        Span::default(),
-                        &RenderStyle::Raw,
-                        &self.symbols,
-                        0,
-                    )
-                } else {
-                    render_node(
+                            .as_ref()
+                            .map(|buffer| buffer.source_range.clone())
+                    })
+                    .flatten();
+
+                let mut block = match &active_range {
+                    // The active block is rendered line by line from its edit
+                    // buffer: the cursor's line raw, the rest decorated in place.
+                    // This keeps a 1:1 source/display mapping, so nested lists and
+                    // structural edits stay reliable regardless of stale ast_nodes.
+                    Some(range) => {
+                        let buffer_content = text_buffer
+                            .as_ref()
+                            .map(|b| b.content.as_str())
+                            .unwrap_or("");
+                        let lines = edit_lines(
+                            buffer_content,
+                            range.start,
+                            cursor_offset,
+                            width,
+                            &self.symbols,
+                        );
+                        VirtualBlock::new(&lines, range)
+                    }
+                    None => render_node(
                         live_content.to_string(),
                         node,
                         width,
@@ -288,7 +310,7 @@ impl<'a> VirtualDocument<'a> {
                         &styled,
                         &self.symbols,
                         0,
-                    )
+                    ),
                 };
 
                 if matches!(styled, RenderStyle::Visual) {
@@ -298,17 +320,11 @@ impl<'a> VirtualDocument<'a> {
                         block.lines.pop();
                     }
 
-                    // The block's source text and the byte where it ends. The
-                    // active block is being edited, so it reads from the text
-                    // buffer; others read straight from the live source.
-                    let (slice, end) = match (is_active, text_buffer.as_ref()) {
-                        (true, Some(buffer)) => (buffer.content.as_str(), buffer.source_range.end),
-                        (true, None) => ("", node.source_range().end),
-                        (false, _) => (
-                            live_content.get(node.source_range().clone()).unwrap_or(""),
-                            node.source_range().end,
-                        ),
-                    };
+                    let block_range = active_range
+                        .clone()
+                        .unwrap_or_else(|| node.source_range().clone());
+                    let slice = live_content.get(block_range.clone()).unwrap_or("");
+                    let end = block_range.end;
 
                     // Append empty rows so on-screen spacing mirrors the source:
                     // blanks already inside the block, plus blanks in the gap to
