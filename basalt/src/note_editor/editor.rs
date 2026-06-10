@@ -19,6 +19,14 @@ use crate::note_editor::{
 #[derive(Default)]
 pub struct NoteEditor<'a>(pub PhantomData<&'a ()>);
 
+/// The text area inside the editor's border and padding. Must match the block
+/// built in [`NoteEditor::render`] so image overlays line up with the text.
+pub fn inner_area(area: Rect) -> Rect {
+    Block::bordered()
+        .padding(Padding::horizontal(1))
+        .inner(area)
+}
+
 impl<'a> StatefulWidget for NoteEditor<'a> {
     type State = NoteEditorState<'a>;
 
@@ -107,14 +115,47 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
+    use std::collections::HashMap;
+    use std::path::{Path, PathBuf};
 
-    use crate::{config::Symbols, note_editor::state::EditMode};
+    use crate::{
+        config::Symbols,
+        image::ImageKey,
+        note_editor::{ast::ImageSource, state::EditMode},
+    };
 
     use super::*;
     use indoc::indoc;
     use insta::assert_snapshot;
     use ratatui::{backend::TestBackend, Terminal};
+
+    #[test]
+    fn test_image_reserves_space() {
+        let content = indoc! { r#"## Diagram
+
+            ![[diagram.png]]
+
+            Text after the image.
+            "#};
+
+        let mut state =
+            NoteEditorState::new(content, "Test", Path::new("test.md"), &Symbols::unicode());
+
+        // Simulate the app having resolved and decoded the embed: a 200x100px
+        // image at a 10x20 font cell reserves ~20 cols x ~5 rows.
+        let source = ImageSource::Embed("diagram.png".to_string());
+        let key = ImageKey::Path(PathBuf::from("/vault/diagram.png"));
+        state.set_image_resolution(HashMap::from([(source, key.clone())]), (10, 20));
+        state.set_image_dims(HashMap::from([(key, (200, 100))]));
+
+        let mut terminal = Terminal::new(TestBackend::new(40, 14)).unwrap();
+        terminal
+            .draw(|frame| {
+                NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut state)
+            })
+            .unwrap();
+        assert_snapshot!(terminal.backend());
+    }
 
     #[test]
     fn test_rendered_markdown_view() {

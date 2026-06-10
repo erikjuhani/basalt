@@ -1,0 +1,28 @@
+---
+source: basalt/src/note_editor/parser.rs
+expression: "format!(\"{}\\n ---\\n\\n{}\", text, ast::nodes_to_sexp(&from_str(text), 0))"
+---
+## Images
+
+![[diagram.png]]
+
+![[photo.png|240]]
+
+![alt text](./local.png)
+
+![remote](https://example.com/pic.png)
+
+An inline ![x](y.png) image stays a paragraph.
+
+ ---
+
+(heading H2 @0..10
+  "Images")
+(image Embed("diagram.png") "diagram.png" @11..28)
+(image Embed("photo.png") "photo.png" @29..48)
+(image Path("./local.png") "alt text" @49..74)
+(image Url("https://example.com/pic.png") "remote" @75..114)
+(paragraph @115..162
+  "An inline "
+  "x"
+  " image stays a paragraph.")

@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use basalt_core::obsidian::{self, Error, Vault};
 use basalt_tui::{app::App, cli::Cli};
+use ratatui_image::picker::Picker;
 
 fn main() -> Result<(), Error> {
     let _cli = Cli::parse();
@@ -28,10 +29,14 @@ fn main() -> Result<(), Error> {
         Err(_) => None,
     };
 
+    // Query the terminal's graphics capabilities before entering the alternate
+    // screen. Falls back to None (text placeholders) when unsupported.
+    let picker = Picker::from_query_stdio().ok();
+
     let mut terminal = ratatui::init();
     terminal.show_cursor()?;
 
-    App::start(terminal, vaults, initial_vault)?;
+    App::start(terminal, vaults, initial_vault, picker)?;
 
     ratatui::restore();
 

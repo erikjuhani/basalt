@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use pulldown_cmark::{CodeBlockKind, Event, Options, Tag, TagEnd};
 
 use crate::note_editor::{
-    ast::{self, Node, SourceRange, TaskKind},
+    ast::{self, ImageSource, Node, SourceRange, TaskKind},
     rich_text::{RichText, Style, TextSegment},
 };
 
@@ -266,7 +266,149 @@ impl<'a> Parser<'a> {
 }
 
 pub fn from_str(text: &str) -> Vec<Node> {
-    Parser::new(text).parse()
+    normalize_images(Parser::new(text).parse(), text)
+}
+
+/// Rewrites any top-level paragraph whose every line is a block image into
+/// [`Node::Image`]s, one per line. Covers standard `![alt](url)` images and
+/// Obsidian `![[name]]` embeds (which pulldown-cmark leaves as plain text).
+/// Consecutive embed lines form a single CommonMark paragraph, so each line is
+/// split out. A paragraph that mixes images with prose is left untouched.
+fn normalize_images(nodes: Vec<Node>, source: &str) -> Vec<Node> {
+    // The start of each node, used to clamp a paragraph's split range so it does
+    // not reach into a following sibling. In a loose list item the leading
+    // paragraph's source range spans the whole item (including a nested list),
+    // which would otherwise double-count the nested embeds.
+    let next_starts: Vec<Option<usize>> = (0..nodes.len())
+        .map(|i| nodes.get(i + 1).map(|node| node.source_range().start))
+        .collect();
+
+    nodes
+        .into_iter()
+        .enumerate()
+        .flat_map(|(i, mut node)| {
+            // Recurse into containers (lists, items, block quotes) so embeds
+            // nested under list items are recognized too.
+            if let Some(children) = node.children_as_mut() {
+                let normalized = normalize_images(std::mem::take(children), source);
+                *children = normalized;
+                return vec![node];
+            }
+            match &node {
+                Node::Paragraph { source_range, .. } => {
+                    let end = next_starts[i]
+                        .filter(|&start| (source_range.start..source_range.end).contains(&start))
+                        .unwrap_or(source_range.end);
+                    source
+                        .get(source_range.start..end)
+                        .and_then(|slice| split_block_images(slice, source_range.start))
+                        .unwrap_or_else(|| vec![node])
+                }
+                _ => vec![node],
+            }
+        })
+        .collect()
+}
+
+/// Splits a paragraph's source into image nodes for the lines that are block
+/// images, with the runs of prose between them kept as paragraph nodes. Returns
+/// `None` when the paragraph holds no image at all, so it is left untouched.
+fn split_block_images(slice: &str, start: usize) -> Option<Vec<Node>> {
+    let is_image = |line: &str| {
+        let trimmed = line.trim();
+        (!trimmed.is_empty())
+            .then(|| parse_block_image(trimmed))
+            .flatten()
+    };
+
+    if !slice
+        .split_inclusive('\n')
+        .any(|line| is_image(line).is_some())
+    {
+        return None;
+    }
+
+    let mut nodes = Vec::new();
+    let mut offset = start;
+    let mut prose_start = start;
+    let mut prose = String::new();
+
+    let flush_prose = |nodes: &mut Vec<Node>, prose: &mut String, prose_start: usize| {
+        if !prose.trim().is_empty() {
+            let mut parsed = Parser::new(prose).parse();
+            parsed
+                .iter_mut()
+                .for_each(|node| offset_source_range(node, prose_start));
+            nodes.append(&mut parsed);
+        }
+        prose.clear();
+    };
+
+    for line in slice.split_inclusive('\n') {
+        match is_image(line) {
+            Some((source, alt)) => {
+                flush_prose(&mut nodes, &mut prose, prose_start);
+                nodes.push(Node::Image {
+                    source,
+                    alt,
+                    source_range: offset..offset + line.len(),
+                });
+                prose_start = offset + line.len();
+            }
+            None => prose.push_str(line),
+        }
+        offset += line.len();
+    }
+    flush_prose(&mut nodes, &mut prose, prose_start);
+
+    Some(nodes)
+}
+
+/// Shifts a node's source range (and its children's) by `by` bytes, used when
+/// re-parsing a prose run that started partway into the source.
+fn offset_source_range(node: &mut Node, by: usize) {
+    let range = node.source_range();
+    node.set_source_range(range.start + by..range.end + by);
+    if let Some(children) = node.children_as_mut() {
+        children
+            .iter_mut()
+            .for_each(|child| offset_source_range(child, by));
+    }
+}
+
+/// Parses a line that is exactly one image into its source and alt text.
+fn parse_block_image(line: &str) -> Option<(ImageSource, String)> {
+    if line.contains('\n') {
+        return None;
+    }
+
+    // Obsidian embed: `![[target|size]]` — resolve by file name within the vault.
+    if let Some(inner) = line.strip_prefix("![[").and_then(|s| s.strip_suffix("]]")) {
+        if inner.contains("]]") || inner.is_empty() {
+            return None;
+        }
+        let target = inner.split(['|', '#']).next().unwrap_or(inner).trim();
+        return Some((ImageSource::Embed(target.to_string()), target.to_string()));
+    }
+
+    // Standard markdown image: `![alt](dest "title")`.
+    let rest = line.strip_prefix("![")?.strip_suffix(')')?;
+    let close = rest.find("](")?;
+    let alt = &rest[..close];
+    if alt.contains("](") {
+        return None;
+    }
+    let dest = rest[close + 2..].split_whitespace().next()?;
+    if dest.is_empty() {
+        return None;
+    }
+
+    let source = if dest.starts_with("http://") || dest.starts_with("https://") {
+        ImageSource::Url(dest.to_string())
+    } else {
+        ImageSource::Path(dest.to_string())
+    };
+    Some((source, alt.to_string()))
 }
 
 #[cfg(test)]
@@ -439,5 +581,49 @@ mod tests {
                 )
             );
         });
+    }
+
+    #[test]
+    fn test_image_parsing() {
+        let text = indoc! { r#"## Images
+
+            ![[diagram.png]]
+
+            ![[photo.png|240]]
+
+            ![alt text](./local.png)
+
+            ![remote](https://example.com/pic.png)
+
+            An inline ![x](y.png) image stays a paragraph.
+            "#};
+
+        assert_snapshot!(format!(
+            "{}\n ---\n\n{}",
+            text,
+            ast::nodes_to_sexp(&from_str(text), 0)
+        ));
+    }
+
+    #[test]
+    fn test_consecutive_embeds_split_into_images() {
+        // Consecutive embed lines form one CommonMark paragraph; each line must
+        // still become its own image node (as Obsidian renders them).
+        let count = |text: &str| {
+            from_str(text)
+                .iter()
+                .filter(|node| matches!(node, ast::Node::Image { .. }))
+                .count()
+        };
+
+        assert_eq!(count("![[a.png]]\n"), 1);
+        assert_eq!(count("![[a.png]]\n![[b.png]]\n![[c.png]]\n"), 3);
+        assert_eq!(count("![one](a.png)\n![[b.png]]\n"), 2);
+        // Embeds adjacent to prose (no blank line) are still extracted; the
+        // prose lines around them stay as paragraphs.
+        assert_eq!(count("Example:\n![[a.png]]\n"), 1);
+        assert_eq!(count("![[a.png]]\n![[b.png]]\ntrailing text\n"), 2);
+        // A paragraph with no image at all is untouched.
+        assert_eq!(count("just text\nmore text\n"), 0);
     }
 }

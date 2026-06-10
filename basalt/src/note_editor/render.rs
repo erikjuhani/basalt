@@ -7,13 +7,14 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::{
     config::Symbols,
+    image::ImageKey,
     note_editor::{
         ast::{self, SourceRange},
         rich_text::RichText,
         text_wrap::wrap_preserve_trailing,
         virtual_document::{
-            content_span, empty_virtual_line, synthetic_span, virtual_line, VirtualBlock,
-            VirtualLine, VirtualSpan,
+            content_span, empty_virtual_line, synthetic_span, virtual_line, ImageContext,
+            ImageMark, VirtualBlock, VirtualLine, VirtualSpan,
         },
     },
     stylized_text::stylize,
@@ -744,6 +745,7 @@ pub fn list<'a>(
     option: &RenderStyle,
     symbols: &Symbols,
     list_depth: usize,
+    images: &ImageContext,
 ) -> VirtualBlock<'a> {
     let lines = match option {
         RenderStyle::Raw => render_raw(content, source_range, max_width, prefix, symbols),
@@ -774,6 +776,7 @@ pub fn list<'a>(
                             option,
                             symbols,
                             list_depth,
+                            images,
                         )
                         .lines,
                     );
@@ -812,6 +815,7 @@ pub fn task<'a>(
     option: &RenderStyle,
     symbols: &Symbols,
     list_depth: usize,
+    images: &ImageContext,
 ) -> VirtualBlock<'a> {
     let lines = match option {
         RenderStyle::Raw => render_raw(content, source_range, max_width, prefix, symbols),
@@ -858,6 +862,7 @@ pub fn task<'a>(
                     option,
                     symbols,
                     list_depth + 1,
+                    images,
                 )
                 .lines
             }));
@@ -881,6 +886,7 @@ pub fn item<'a>(
     option: &RenderStyle,
     symbols: &Symbols,
     list_depth: usize,
+    images: &ImageContext,
 ) -> VirtualBlock<'a> {
     let lines = match option {
         RenderStyle::Raw => render_raw(content, source_range, max_width, prefix, symbols),
@@ -926,6 +932,7 @@ pub fn item<'a>(
                     option,
                     symbols,
                     list_depth + 1,
+                    images,
                 )
                 .lines
             }));
@@ -959,6 +966,7 @@ pub fn block_quote<'a>(
     max_width: usize,
     option: &RenderStyle,
     symbols: &Symbols,
+    images: &ImageContext,
 ) -> VirtualBlock<'a> {
     let lines = match option {
         RenderStyle::Raw => render_raw(content, source_range, max_width, prefix, symbols),
@@ -974,6 +982,7 @@ pub fn block_quote<'a>(
                     option,
                     symbols,
                     0,
+                    images,
                 )
                 .lines;
                 if prefix.to_string().is_empty() && i != nodes.len().saturating_sub(1) {
@@ -990,6 +999,46 @@ pub fn block_quote<'a>(
     VirtualBlock::new(&lines, source_range)
 }
 
+/// Reserves a rectangle of blank rows for a block image. The picture itself is
+/// drawn on top of these rows by the overlay pass after the text is rendered.
+///
+/// The first row carries the source range so the cursor can land on the image
+/// (to select or edit it); the remaining rows are synthetic. Rows are filled
+/// with spaces (non-empty) so the Visual-mode trailing-blank trimming in
+/// `VirtualDocument::layout` does not collapse the reserved height.
+pub fn image<'a>(
+    width: u16,
+    height: u16,
+    source_range: &SourceRange<usize>,
+    key: ImageKey,
+) -> VirtualBlock<'a> {
+    let fill = " ".repeat(width as usize);
+    let mark = ImageMark { key, width, height };
+    let mut lines = vec![
+        virtual_line!([content_span!(Span::raw(fill.clone()), source_range)]).with_image(mark),
+    ];
+    lines.extend((1..height).map(|_| virtual_line!([synthetic_span!(Span::raw(fill.clone()))])));
+    lines.push(empty_virtual_line!());
+    VirtualBlock::new(&lines, source_range)
+}
+
+/// A one-line indicator for a block image whose source could not be resolved
+/// (an embed not found in the vault, or a missing path). Carries the source
+/// range so the cursor can still land on it to fix the link.
+pub fn image_not_found<'a>(
+    label: &str,
+    source_range: &SourceRange<usize>,
+    max_width: usize,
+) -> VirtualBlock<'a> {
+    let text = format!("image not found: {label}");
+    let truncated: String = text.chars().take(max_width.saturating_sub(1)).collect();
+    let lines = vec![
+        virtual_line!([content_span!(Span::raw(truncated).red(), source_range)]),
+        empty_virtual_line!(),
+    ];
+    VirtualBlock::new(&lines, source_range)
+}
+
 // FIXME: Use options struct or similar
 #[allow(clippy::too_many_arguments)]
 pub fn render_node<'a>(
@@ -1000,6 +1049,7 @@ pub fn render_node<'a>(
     option: &RenderStyle,
     symbols: &Symbols,
     list_depth: usize,
+    images: &ImageContext,
 ) -> VirtualBlock<'a> {
     use ast::Node::*;
     match node {
@@ -1051,6 +1101,7 @@ pub fn render_node<'a>(
             option,
             symbols,
             list_depth,
+            images,
         ),
         Item {
             kind,
@@ -1066,6 +1117,7 @@ pub fn render_node<'a>(
             option,
             symbols,
             list_depth,
+            images,
         ),
         Task {
             kind,
@@ -1081,6 +1133,7 @@ pub fn render_node<'a>(
             option,
             symbols,
             list_depth,
+            images,
         ),
         BlockQuote {
             kind,
@@ -1095,6 +1148,23 @@ pub fn render_node<'a>(
             max_width,
             option,
             symbols,
+            images,
         ),
+        Image {
+            source,
+            alt,
+            source_range,
+        } => match option {
+            // Active/edited block: show raw markup so the link is editable.
+            RenderStyle::Raw => VirtualBlock::new(
+                &render_raw(&content, source_range, max_width, prefix, symbols),
+                source_range,
+            ),
+            // Reserve space for the picture, or flag an unresolved source.
+            _ => match images.placement(source, max_width) {
+                Some((key, (width, height))) => image(width, height, source_range, key),
+                None => image_not_found(alt, source_range, max_width),
+            },
+        },
     }
 }

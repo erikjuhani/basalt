@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     iter,
     str::{CharIndices, Chars},
 };
@@ -10,14 +11,88 @@ use std::borrow::Cow;
 
 use crate::{
     config::Symbols,
+    image::ImageKey,
     note_editor::{
-        ast::{self, SourceRange},
+        ast::{self, ImageSource, SourceRange},
         render::{edit_lines, render_node, text_wrap, trailing_empty_lines, RenderStyle},
         state::View,
         text_buffer::TextBuffer,
     },
     stylized_text::stylize,
 };
+
+/// Upper bound on the on-screen height of an image, so a tall picture cannot
+/// take over the whole viewport.
+const MAX_IMAGE_ROWS: u16 = 20;
+
+/// Rows reserved for an image whose dimensions are not yet known (still loading
+/// or could not be decoded).
+const PLACEHOLDER_ROWS: u16 = 3;
+
+/// Per-note image data used during layout: how each image source resolves, the
+/// pixel dimensions of any decoded images, and the terminal's font-cell size.
+/// Populated by the app each frame from the [`crate::image::ImageStore`]; kept
+/// here (rather than the heavy store) so [`super::state::NoteEditorState`] stays
+/// cheap to clone.
+#[derive(Clone, Debug, Default)]
+pub struct ImageContext {
+    pub resolved: HashMap<ImageSource, ImageKey>,
+    pub dims: HashMap<ImageKey, (u32, u32)>,
+    pub font_size: (u16, u16),
+}
+
+impl ImageContext {
+    /// Resolved key and reserved cell size for a block image, or `None` when the
+    /// source cannot be resolved (the caller then renders a not-found marker).
+    pub fn placement(
+        &self,
+        source: &ImageSource,
+        max_width: usize,
+    ) -> Option<(ImageKey, (u16, u16))> {
+        let key = self.resolved.get(source)?.clone();
+        let size = match self.dims.get(&key) {
+            Some(&dims) => cell_size(dims, self.font_size, max_width),
+            None => ((max_width.min(40)) as u16, PLACEHOLDER_ROWS),
+        };
+        Some((key, size))
+    }
+}
+
+/// Fits an image's pixel dimensions into terminal cells, capped to the content
+/// width and [`MAX_IMAGE_ROWS`] while preserving aspect ratio.
+fn cell_size(
+    (pixel_width, pixel_height): (u32, u32),
+    (fw, fh): (u16, u16),
+    max_width: usize,
+) -> (u16, u16) {
+    let fw = fw.max(1) as u32;
+    let fh = fh.max(1) as u32;
+    let mut cols = (pixel_width / fw).max(1);
+    let mut rows = (pixel_height / fh).max(1);
+
+    let max_cols = max_width.max(1) as u32;
+    if cols > max_cols {
+        rows = (rows * max_cols / cols).max(1);
+        cols = max_cols;
+    }
+    let max_rows = MAX_IMAGE_ROWS as u32;
+    if rows > max_rows {
+        cols = (cols * max_rows / rows).max(1);
+        rows = max_rows;
+    }
+    (cols as u16, rows as u16)
+}
+
+/// A laid-out image: where its reserved rows begin in the document and the
+/// resolved key the overlay pass draws from.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ImagePlacement {
+    /// Index into [`VirtualDocument::lines`] of the image's first reserved row.
+    pub doc_line: usize,
+    pub width: u16,
+    pub height: u16,
+    pub key: ImageKey,
+}
 
 macro_rules! content_span {
     ($span:expr, $range:expr) => {{
@@ -113,16 +188,36 @@ impl<'a> From<VirtualSpan<'a>> for Span<'a> {
     }
 }
 
+/// Tags the top reserved row of a block image so its placement can be recovered
+/// by scanning the laid-out lines, regardless of how deeply the image is nested.
+#[derive(Clone, PartialEq, Debug)]
+pub struct ImageMark {
+    pub key: ImageKey,
+    pub width: u16,
+    pub height: u16,
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub struct VirtualLine<'a> {
     spans: Vec<VirtualSpan<'a>>,
+    image: Option<ImageMark>,
 }
 
 impl<'a> VirtualLine<'a> {
     pub fn new(spans: &[VirtualSpan<'a>]) -> Self {
         VirtualLine {
             spans: spans.to_vec(),
+            image: None,
         }
+    }
+
+    pub fn with_image(mut self, mark: ImageMark) -> Self {
+        self.image = Some(mark);
+        self
+    }
+
+    pub fn image_mark(&self) -> Option<&ImageMark> {
+        self.image.as_ref()
     }
 
     pub fn spans(self) -> Vec<Span<'a>> {
@@ -194,6 +289,7 @@ pub struct VirtualDocument<'a> {
     blocks: Vec<VirtualBlock<'a>>,
     lines: Vec<VirtualLine<'a>>,
     line_to_block: Vec<usize>,
+    image_placements: Vec<ImagePlacement>,
 }
 
 impl<'a> VirtualDocument<'a> {
@@ -213,6 +309,10 @@ impl<'a> VirtualDocument<'a> {
 
     pub fn lines(&self) -> &[VirtualLine<'_>] {
         &self.lines
+    }
+
+    pub fn image_placements(&self) -> &[ImagePlacement] {
+        &self.image_placements
     }
 
     pub fn line_to_block_idx(&self, line: usize) -> usize {
@@ -235,6 +335,7 @@ impl<'a> VirtualDocument<'a> {
         ast_nodes: &[ast::Node],
         width: usize,
         text_buffer: Option<TextBuffer>,
+        images: &ImageContext,
     ) {
         if !note_name.is_empty() {
             let note_name = match self.symbols.title_font_style {
@@ -310,6 +411,7 @@ impl<'a> VirtualDocument<'a> {
                         &styled,
                         &self.symbols,
                         0,
+                        images,
                     ),
                 };
 
@@ -363,6 +465,22 @@ impl<'a> VirtualDocument<'a> {
                 (blocks, lines, line_to_block)
             },
         );
+
+        // Image placements are recovered by scanning the laid-out lines for the
+        // marks left by `render::image`, so images at any nesting depth (e.g.
+        // under list items) are picked up uniformly.
+        self.image_placements = lines
+            .iter()
+            .enumerate()
+            .filter_map(|(doc_line, line)| {
+                line.image_mark().map(|mark| ImagePlacement {
+                    doc_line,
+                    width: mark.width,
+                    height: mark.height,
+                    key: mark.key.clone(),
+                })
+            })
+            .collect();
 
         self.blocks = blocks;
         self.lines = lines;

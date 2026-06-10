@@ -1,22 +1,25 @@
 use std::{
+    collections::HashMap,
     fmt,
     fs::File,
     io::{self, Write},
     path::{Path, PathBuf},
 };
 
-use ratatui::layout::Size;
+use ratatui::layout::{Rect, Size};
+use ratatui_image::sliced::SignedPosition;
 
 use crate::{
     config::Symbols,
+    image::ImageKey,
     note_editor::{
-        ast::{self},
+        ast::{self, ImageSource},
         cursor::{self, Cursor},
-        parser,
+        editor, parser,
         rich_text::RichText,
         text_buffer::TextBuffer,
         viewport::Viewport,
-        virtual_document::VirtualDocument,
+        virtual_document::{ImageContext, VirtualDocument},
     },
 };
 
@@ -68,6 +71,9 @@ pub struct NoteEditorState<'a> {
     /// the layout always matches the text_buffer, even when the cursor
     /// position would temporarily resolve to a different block.
     editing_block: Option<usize>,
+    /// Resolved image keys, decoded dimensions and font metrics used to size
+    /// inline images during layout. Populated by the app from the image store.
+    image_context: ImageContext,
 }
 
 impl<'a> NoteEditorState<'a> {
@@ -91,7 +97,67 @@ impl<'a> NoteEditorState<'a> {
             editor_enabled: false,
             modified: false,
             editing_block: None,
+            image_context: ImageContext::default(),
         }
+    }
+
+    /// Sets how this note's image sources resolve to cache keys, plus the
+    /// terminal font-cell size. Called when a note is opened.
+    pub fn set_image_resolution(
+        &mut self,
+        resolved: HashMap<ImageSource, ImageKey>,
+        font_size: (u16, u16),
+    ) {
+        self.image_context.resolved = resolved;
+        self.image_context.font_size = font_size;
+        self.image_context.dims.clear();
+    }
+
+    /// Updates the decoded pixel dimensions for resolved images. Called each
+    /// frame as background loads complete so reserved space tracks real sizes.
+    pub fn set_image_dims(&mut self, dims: HashMap<ImageKey, (u32, u32)>) {
+        self.image_context.dims = dims;
+    }
+
+    /// The resolved image keys for this note (source → key).
+    pub fn image_keys(&self) -> impl Iterator<Item = &ImageKey> {
+        self.image_context.resolved.values()
+    }
+
+    /// The clip area plus, for every image overlapping the viewport, its key,
+    /// full encode size, and top-left position (which may be above or below the
+    /// viewport). The overlay pass encodes each image at its full size once and
+    /// renders only the visible slice, so partially scrolled images show their
+    /// visible portion. `area` is the editor's outer (bordered) area.
+    pub fn image_overlays(&self, area: Rect) -> (Rect, Vec<(ImageKey, Size, SignedPosition)>) {
+        let inner = editor::inner_area(area);
+        let meta_len = self.virtual_document.meta().len() as i32;
+        let scroll = self.viewport.area().y as i32;
+
+        let overlays = self
+            .virtual_document
+            .image_placements()
+            .iter()
+            .filter_map(|placement| {
+                // Row of the image's top relative to the clip area's top; may be
+                // negative when scrolled above. `SlicedImage` positions relative
+                // to the render area, not the buffer.
+                let top = meta_len + placement.doc_line as i32 - scroll;
+                let bottom = top + placement.height as i32;
+                // Keep only images with at least one row inside the viewport.
+                if bottom <= 0 || top >= inner.height as i32 {
+                    return None;
+                }
+                let width = placement.width.min(inner.width);
+                (width > 0).then(|| {
+                    let size = Size::new(width, placement.height);
+                    let position = SignedPosition::from((0, top as i16));
+                    (placement.key.clone(), size, position)
+                })
+            })
+            .collect();
+
+        (inner, overlays)
     }
 
     pub fn viewport(&self) -> &Viewport {
@@ -323,6 +389,7 @@ impl<'a> NoteEditorState<'a> {
                 &self.ast_nodes,
                 size.width.into(),
                 self.text_buffer.clone(),
+                &self.image_context,
             );
 
             self.viewport.resize(size);
@@ -487,6 +554,7 @@ impl<'a> NoteEditorState<'a> {
             &self.ast_nodes,
             self.viewport.area().width.into(),
             self.text_buffer.clone(),
+            &self.image_context,
         );
 
         self.cursor.update(
@@ -572,6 +640,7 @@ impl<'a> NoteEditorState<'a> {
             &self.ast_nodes,
             self.viewport.area().width.into(),
             self.text_buffer.clone(),
+            &self.image_context,
         );
 
         if let Some(offset) = target_offset {

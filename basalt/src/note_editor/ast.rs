@@ -67,6 +67,21 @@ pub enum TaskKind {
 
 pub type SourceRange<Idx> = std::ops::Range<Idx>;
 
+/// Where a block image's pixels come from.
+///
+/// The variant captures the meaning of the source string so the renderer knows
+/// how to resolve it: an Obsidian embed resolves by file name against the vault,
+/// a path resolves against the note's directory, and a URL is fetched remotely.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum ImageSource {
+    /// Obsidian embed `![[name.ext]]`, resolved by file name within the vault.
+    Embed(String),
+    /// Local image `![alt](path)`, resolved against the note's directory.
+    Path(String),
+    /// Remote image `![alt](http(s)://...)`.
+    Url(String),
+}
+
 /// The Markdown AST node enumeration.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Node {
@@ -103,6 +118,11 @@ pub enum Node {
         nodes: Vec<Node>,
         source_range: SourceRange<usize>,
     },
+    Image {
+        source: ImageSource,
+        alt: String,
+        source_range: SourceRange<usize>,
+    },
 }
 
 impl Node {
@@ -114,7 +134,8 @@ impl Node {
             | Self::List { source_range, .. }
             | Self::BlockQuote { source_range, .. }
             | Self::Item { source_range, .. }
-            | Self::Task { source_range, .. } => source_range,
+            | Self::Task { source_range, .. }
+            | Self::Image { source_range, .. } => source_range,
         }
     }
 
@@ -126,7 +147,8 @@ impl Node {
             | Self::List { source_range, .. }
             | Self::BlockQuote { source_range, .. }
             | Self::Item { source_range, .. }
-            | Self::Task { source_range, .. } => *source_range = new_range,
+            | Self::Task { source_range, .. }
+            | Self::Image { source_range, .. } => *source_range = new_range,
         }
     }
 
@@ -250,6 +272,20 @@ pub fn node_to_sexp(node: &Node, indent_level: usize) -> String {
                 kind,
                 source_range,
                 nodes_to_sexp(nodes, indent_level + indent_increment),
+                indent = indent_level
+            )
+        }
+        Node::Image {
+            source,
+            alt,
+            source_range,
+        } => {
+            format!(
+                "{:indent$}(image {:?} {:?} @{:?})",
+                "",
+                source,
+                alt,
+                source_range,
                 indent = indent_level
             )
         }

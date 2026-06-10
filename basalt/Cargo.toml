@@ -25,6 +25,12 @@ thiserror = "2.0.16"
 unicode-width = "0.2.0"
 natord = "1.0.9"
 notify-debouncer-full = "0.7.0"
+ratatui-image = { version = "11", default-features = false, features = [
+    "crossterm",
+    "image-defaults",
+] }
+ureq = "3.3.0"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }
 
 [dev-dependencies]
 indoc = "=2.0.7"

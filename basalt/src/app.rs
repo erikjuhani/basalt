@@ -3,8 +3,13 @@ use ratatui::{
     buffer::Buffer,
     crossterm::event::{self, Event, KeyEvent, KeyEventKind},
     layout::{Constraint, Flex, Layout, Rect, Size},
-    widgets::{StatefulWidget, Widget},
+    text::Line,
+    widgets::{Block, Paragraph, StatefulWidget, Widget},
     DefaultTerminal,
+};
+use ratatui_image::{
+    picker::Picker,
+    sliced::{SignedPosition, SlicedImage},
 };
 
 use std::{
@@ -13,6 +18,7 @@ use std::{
     fs,
     io::Result,
     path::{Path, PathBuf},
+    rc::Rc,
     time::{Duration, Instant},
 };
 
@@ -21,6 +27,7 @@ use crate::{
     config::{self, Config, Keystroke},
     explorer::{self, Explorer, ExplorerState, Item, Visibility},
     help_modal::{self, HelpModal, HelpModalState},
+    image::{ImageKey, ImageStore},
     input::{self, Input, InputModalState},
     note_editor::{
         self, ast,
@@ -73,6 +80,10 @@ pub struct AppState<'a> {
     splash_modal: SplashModalState<'a>,
     help_modal: HelpModalState,
     vault_selector_modal: VaultSelectorModalState<'a>,
+
+    /// Shared image cache (decoded images + graphics protocol state). Wrapped so
+    /// `AppState` stays cheaply cloneable while a single store is shared.
+    image_store: Rc<RefCell<ImageStore>>,
 }
 
 impl<'a> AppState<'a> {
@@ -190,6 +201,103 @@ fn help_text(version: &str) -> String {
     HELP_TEXT.replace("%version-notice", version)
 }
 
+/// Resolves the open note's image sources to cache keys and queues their loads.
+/// The reserved layout space and overlay draw key off this resolution.
+fn resolve_note_images(state: &mut AppState<'_>, note_path: &Path) {
+    let note_dir = note_path.parent().unwrap_or_else(|| Path::new(""));
+    let vault_root = state.vault.path.as_path();
+
+    // Walk the whole tree, not just top-level nodes, so embeds nested under
+    // list items and block quotes are resolved too.
+    let mut sources = Vec::new();
+    collect_image_sources(&state.note_editor.ast_nodes, &mut sources);
+
+    let resolved: std::collections::HashMap<_, _> = sources
+        .into_iter()
+        .filter_map(|source| {
+            ImageStore::resolve(&source, note_dir, vault_root).map(|key| (source, key))
+        })
+        .collect();
+
+    let font_size = {
+        let mut store = state.image_store.borrow_mut();
+        for key in resolved.values() {
+            store.request(key.clone());
+        }
+        store.font_size()
+    };
+
+    state.note_editor.set_image_resolution(resolved, font_size);
+}
+
+/// Collects every image source in the tree, recursing into container nodes.
+fn collect_image_sources(nodes: &[ast::Node], sources: &mut Vec<ast::ImageSource>) {
+    for node in nodes {
+        match node {
+            ast::Node::Image { source, .. } => sources.push(source.clone()),
+            ast::Node::List { nodes, .. }
+            | ast::Node::Item { nodes, .. }
+            | ast::Node::Task { nodes, .. }
+            | ast::Node::BlockQuote { nodes, .. } => collect_image_sources(nodes, sources),
+            _ => {}
+        }
+    }
+}
+
+/// Overlays inline images on top of the editor's reserved rows. Ready images
+/// render with the terminal graphics protocol; anything still loading, failed,
+/// or lacking a protocol falls back to a labelled placeholder box.
+fn render_note_images(area: Rect, buf: &mut Buffer, state: &mut AppState<'_>) {
+    let mut store = state.image_store.borrow_mut();
+    store.poll();
+
+    let dims = state
+        .note_editor
+        .image_keys()
+        .filter_map(|key| store.dims(key).map(|dims| (key.clone(), dims)))
+        .collect();
+    state.note_editor.set_image_dims(dims);
+
+    let (clip, overlays) = state.note_editor.image_overlays(area);
+    let now = Instant::now();
+    for (key, size, position) in overlays {
+        match store.protocol_at(&key, now, size) {
+            Some(protocol) => SlicedImage::new(protocol, position).render(clip, buf),
+            None => render_image_placeholder(clipped_rect(clip, size, position), buf, &key),
+        }
+    }
+}
+
+/// The on-screen portion of an image at `position` (relative to `clip`) with
+/// `size`, clipped to the editor's visible `clip` area. Used to place the
+/// loading/error placeholder.
+fn clipped_rect(clip: Rect, size: Size, position: SignedPosition) -> Rect {
+    let top = position.y.max(0);
+    let bottom = (position.y + size.height as i16).min(clip.height as i16);
+    let height = (bottom - top).max(0) as u16;
+    Rect {
+        x: clip.x + position.x.max(0) as u16,
+        y: clip.y + top as u16,
+        width: size.width.min(clip.width),
+        height,
+    }
+}
+
+fn render_image_placeholder(area: Rect, buf: &mut Buffer, key: &ImageKey) {
+    let label = match key {
+        ImageKey::Path(path) => path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("image")
+            .to_string(),
+        ImageKey::Url(url) => url.clone(),
+    };
+
+    Paragraph::new(Line::from(format!("image: {label}")))
+        .block(Block::bordered())
+        .render(area, buf);
+}
+
 fn active_config_section<'a>(
     config: &'a Config,
     active: ActivePane,
@@ -250,6 +358,7 @@ impl<'a> App<'a> {
         terminal: DefaultTerminal,
         vaults: Vec<&Vault>,
         initial_vault: Option<Vault>,
+        picker: Option<Picker>,
     ) -> Result<()> {
         let version = stylized_text::stylize(VERSION, FontStyle::Script);
         let size = terminal.size()?;
@@ -282,6 +391,7 @@ impl<'a> App<'a> {
                 .into_iter()
                 .map(|message| toast::Toast::warn(&message, Duration::from_secs(5)))
                 .collect(),
+            image_store: Rc::new(RefCell::new(ImageStore::new(picker))),
             ..Default::default()
         };
 
@@ -302,7 +412,13 @@ impl<'a> App<'a> {
         while state.is_running {
             self.draw(&mut state)?;
 
-            let timeout = tick_rate.saturating_sub(last_tick.elapsed());
+            // Redraw at roughly 20fps while a GIF is on screen so its frames
+            // advance; otherwise wait the full tick to stay idle.
+            let timeout = if state.image_store.borrow().is_animating() {
+                Duration::from_millis(50)
+            } else {
+                tick_rate.saturating_sub(last_tick.elapsed())
+            };
 
             if event::poll(timeout)? {
                 let event = event::read()?;
@@ -580,6 +696,8 @@ impl<'a> App<'a> {
                     &config.symbols,
                 );
 
+                resolve_note_images(state, &selected_note.path);
+
                 let vim_mode = config.vim_mode;
                 state.note_editor.set_vim_mode(vim_mode);
 
@@ -691,6 +809,7 @@ impl<'a> App<'a> {
 
         Explorer::new().render(explorer_pane, buf, &mut state.explorer);
         NoteEditor::default().render(note, buf, &mut state.note_editor);
+        render_note_images(note, buf, state);
         Outline.render(outline, buf, &mut state.outline);
         let border_modal = self.config.symbols.border_modal.into();
         Input::new(border_modal).render(explorer_pane, buf, &mut state.input_modal);

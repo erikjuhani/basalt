@@ -448,6 +448,7 @@ mod tests {
             parser,
             render::{render_node, RenderStyle},
             text_buffer::TextBuffer,
+            virtual_document::ImageContext,
         },
     };
 
@@ -463,6 +464,7 @@ mod tests {
                     &RenderStyle::Raw,
                     &Symbols::unicode(),
                     0,
+                    &ImageContext::default(),
                 )
                 .lines
             })
@@ -707,6 +709,7 @@ mod tests {
                     &RenderStyle::Reader,
                     &Symbols::unicode(),
                     0,
+                    &ImageContext::default(),
                 )
                 .lines
             })
