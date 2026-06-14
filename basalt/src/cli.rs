@@ -1,12 +1,20 @@
 use clap::Parser;
 
-use crate::version;
+use crate::{debug_log::LogLevel, version};
 
 const VERSION_INFO: version::VersionInfo = version::VersionInfo::from_env();
 
 #[derive(Parser)]
 #[command(name = "basalt", version = VERSION_INFO.to_string())]
-pub struct Cli {}
+pub struct Cli {
+    /// Open the debug log overlay on startup
+    #[arg(long)]
+    pub debug: bool,
+
+    /// Minimum log level shown in the debug log overlay
+    #[arg(long, value_enum, default_value_t = LogLevel::Trace)]
+    pub log_level: LogLevel,
+}
 
 #[cfg(test)]
 mod tests {

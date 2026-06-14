@@ -2,8 +2,10 @@
 source: basalt/src/cli.rs
 expression: help
 ---
-Usage: basalt
+Usage: basalt [OPTIONS]
 
 Options:
-  -h, --help     Print help
-  -V, --version  Print version
+      --debug                  Open the debug log overlay on startup
+      --log-level <LOG_LEVEL>  Minimum log level shown in the debug log overlay [default: trace] [possible values: trace, debug, info, warn, error]
+  -h, --help                   Print help
+  -V, --version                Print version

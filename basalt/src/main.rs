@@ -2,10 +2,12 @@ use clap::Parser;
 use std::path::PathBuf;
 
 use basalt_core::obsidian::{self, Error, Vault};
-use basalt_tui::{app::App, cli::Cli};
+use basalt_tui::{app::App, cli::Cli, debug_log};
 
 fn main() -> Result<(), Error> {
-    let _cli = Cli::parse();
+    let cli = Cli::parse();
+
+    debug_log::init();
 
     let obsidian_config = obsidian::config::load().unwrap();
     let vaults = obsidian_config.vaults();
@@ -31,7 +33,7 @@ fn main() -> Result<(), Error> {
     let mut terminal = ratatui::init();
     terminal.show_cursor()?;
 
-    App::start(terminal, vaults, initial_vault)?;
+    App::start(terminal, vaults, initial_vault, cli.debug, cli.log_level)?;
 
     ratatui::restore();
 

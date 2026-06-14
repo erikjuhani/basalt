@@ -6,6 +6,7 @@ use ratatui::{
     widgets::{StatefulWidget, Widget},
     DefaultTerminal,
 };
+use tracing::{debug, error, info, warn};
 
 use std::{
     cell::RefCell,
@@ -19,6 +20,7 @@ use std::{
 use crate::{
     command,
     config::{self, Config, Keystroke},
+    debug_log::{self, DebugLogModal, DebugLogModalState, LogLevel},
     explorer::{self, Explorer, ExplorerState, Item, Visibility},
     help_modal::{self, HelpModal, HelpModalState},
     input::{self, Input, InputModalState},
@@ -73,6 +75,7 @@ pub struct AppState<'a> {
     splash_modal: SplashModalState<'a>,
     help_modal: HelpModalState,
     vault_selector_modal: VaultSelectorModalState<'a>,
+    debug_log_modal: DebugLogModalState,
 }
 
 impl<'a> AppState<'a> {
@@ -81,6 +84,10 @@ impl<'a> AppState<'a> {
     }
 
     pub fn active_component(&self) -> ActivePane {
+        if self.debug_log_modal.visible {
+            return ActivePane::DebugLogModal;
+        }
+
         if self.help_modal.visible {
             return ActivePane::HelpModal;
         }
@@ -131,6 +138,7 @@ pub enum Message<'a> {
     Outline(outline::Message),
     HelpModal(help_modal::Message),
     VaultSelectorModal(vault_selector_modal::Message),
+    DebugLog(debug_log::Message),
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
@@ -143,6 +151,7 @@ pub enum ActivePane {
     Input,
     HelpModal,
     VaultSelectorModal,
+    DebugLogModal,
 }
 
 impl From<ActivePane> for &str {
@@ -155,6 +164,7 @@ impl From<ActivePane> for &str {
             ActivePane::Input => "Input",
             ActivePane::HelpModal => "Help",
             ActivePane::VaultSelectorModal => "Vault Selector",
+            ActivePane::DebugLogModal => "Debug Log",
         }
     }
 }
@@ -202,6 +212,7 @@ fn active_config_section<'a>(
         ActivePane::VaultSelectorModal => &config.vault_selector_modal,
         ActivePane::Input => &config.input_modal,
         ActivePane::NoteEditor => &config.note_editor,
+        ActivePane::DebugLogModal => &config.debug_log_modal,
     }
 }
 
@@ -250,6 +261,8 @@ impl<'a> App<'a> {
         terminal: DefaultTerminal,
         vaults: Vec<&Vault>,
         initial_vault: Option<Vault>,
+        debug: bool,
+        log_level: LogLevel,
     ) -> Result<()> {
         let version = stylized_text::stylize(VERSION, FontStyle::Script);
         let size = terminal.size()?;
@@ -278,9 +291,17 @@ impl<'a> App<'a> {
                 symbols: config.symbols.clone(),
                 ..Default::default()
             },
+            debug_log_modal: DebugLogModalState {
+                visible: debug,
+                min_level: log_level,
+                ..Default::default()
+            },
             toasts: warnings
                 .into_iter()
-                .map(|message| toast::Toast::warn(&message, Duration::from_secs(5)))
+                .map(|message| {
+                    warn!(message, "config warning");
+                    toast::Toast::warn(&message, Duration::from_secs(5))
+                })
                 .collect(),
             ..Default::default()
         };
@@ -442,9 +463,13 @@ impl<'a> App<'a> {
             Message::RefreshVault { rename, select } => {
                 if let Some((old, new)) = &rename {
                     // FIXME: Handle error propagation when wiki link update fails
-                    let _ = obsidian::vault::update_wiki_links(state.vault(), old, new);
+                    if let Err(error) = obsidian::vault::update_wiki_links(state.vault(), old, new)
+                    {
+                        warn!(?error, "failed to update wiki links");
+                    }
                 }
                 state.explorer.with_entries(state.vault.entries(), select);
+                debug!(?rename, "refreshed vault");
 
                 // Reload the note editor for the currently selected note
                 let selected_note = if state
@@ -474,6 +499,7 @@ impl<'a> App<'a> {
             Message::RescanVault => {
                 let select = state.selected_note.as_ref().map(|note| note.path.clone());
                 state.explorer.with_entries(state.vault.entries(), select);
+                debug!("rescanned vault after watcher change");
             }
             Message::CreateUntitledNote => {
                 let path = match state.explorer.current_item() {
@@ -485,6 +511,7 @@ impl<'a> App<'a> {
                 };
                 match create_untitled_note(path) {
                     Ok(note) => {
+                        info!(path = %note.path().display(), "created note");
                         return Some(Message::Batch(vec![
                             Message::Explorer(explorer::Message::Open),
                             Message::RefreshVault {
@@ -498,7 +525,8 @@ impl<'a> App<'a> {
                             Message::SelectNote(note.into()),
                         ]));
                     }
-                    Err(_) => {
+                    Err(error) => {
+                        error!(?error, "failed to create note");
                         return Some(Message::Toast(toast::Message::Create(toast::Toast::error(
                             "Failed to create a new note",
                             Duration::from_secs(2),
@@ -516,6 +544,7 @@ impl<'a> App<'a> {
                 };
                 match create_untitled_dir(path) {
                     Ok(note) => {
+                        info!(path = %note.path().display(), "created folder");
                         return Some(Message::Batch(vec![
                             Message::Explorer(explorer::Message::Open),
                             Message::RefreshVault {
@@ -528,7 +557,8 @@ impl<'a> App<'a> {
                             ))),
                         ]));
                     }
-                    Err(_) => {
+                    Err(error) => {
+                        error!(?error, "failed to create folder");
                         return Some(Message::Toast(toast::Message::Create(toast::Toast::error(
                             "Failed to create a new folder",
                             Duration::from_secs(2),
@@ -561,12 +591,14 @@ impl<'a> App<'a> {
                 _ => {}
             },
             Message::OpenVault(vault) => {
+                info!(vault = %vault.name, "opened vault");
                 state.vault = vault.clone();
                 state.explorer = ExplorerState::new(&vault.name, vault.entries(), &config.symbols);
                 state.note_editor = NoteEditorState::default();
                 return Some(Message::SetActivePane(ActivePane::Explorer));
             }
             Message::SelectNote(selected_note) => {
+                info!(note = %selected_note.name, "selected note");
                 let is_different = state
                     .selected_note
                     .as_ref()
@@ -655,6 +687,9 @@ impl<'a> App<'a> {
                 return note_editor::update(message, state.screen_size, &mut state.note_editor);
             }
             Message::Input(message) => return input::update(message, &mut state.input_modal),
+            Message::DebugLog(message) => {
+                return debug_log::update(&message, state.screen_size, &mut state.debug_log_modal);
+            }
             Message::Toast(message) => return toast::update(message, &mut state.toasts),
         };
 
@@ -720,6 +755,11 @@ impl<'a> App<'a> {
 
         self.render_modals(area, buf, state);
         self.render_toasts(area, buf, state);
+
+        if state.debug_log_modal.visible {
+            let border_modal = self.config.symbols.border_modal.into();
+            DebugLogModal::new(border_modal).render(area, buf, &mut state.debug_log_modal);
+        }
     }
 
     fn render_modals(&self, area: Rect, buf: &mut Buffer, state: &mut AppState<'a>) {

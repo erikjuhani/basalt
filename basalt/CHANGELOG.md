@@ -17,6 +17,15 @@
 >
 > Closes #516
 
+- [e3f97b9](https://github.com/erikjuhani/basalt/commit/e3f97b91e7f80a3d7dcbda99c38dcdb85311cf3e) Add debug log overlay widget by @erikjuhani
+
+> A toggleable in-TUI debug log overlay (‹g<›) shows tracing output across
+> all levels (trace, debug, info, warn, error) on top of the application
+> without interfering with normal use. A bounded ring buffer captures events
+> through a tracing layer; the overlay supports scrolling, clearing and a
+> minimum-level filter. It can also be opened on startup with `--debug` and
+> filtered with `--log-level`. Relevant logging was added across the app.
+
 - [3b1b400](https://github.com/erikjuhani/basalt/commit/3b1b400f961eb1de8af0e5bb8a6fa1b9c431b59a) Watch vault filesystem for changes in Explorer by @realkotob
 
 > The Explorer now watches the vault root recursively and refreshes when

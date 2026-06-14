@@ -95,6 +95,7 @@ pub struct Config<'a> {
     pub help_modal: ConfigSection<'a>,
     pub note_editor: ConfigSection<'a>,
     pub vault_selector_modal: ConfigSection<'a>,
+    pub debug_log_modal: ConfigSection<'a>,
 }
 
 impl Default for Config<'_> {
@@ -117,6 +118,7 @@ impl From<TomlConfig> for Config<'_> {
             help_modal: value.help_modal.into(),
             note_editor: value.note_editor.into(),
             vault_selector_modal: value.vault_selector_modal.into(),
+            debug_log_modal: value.debug_log_modal.into(),
         }
     }
 }
@@ -148,6 +150,8 @@ impl Config<'_> {
         self.help_modal.merge_key_bindings(config.help_modal);
         self.vault_selector_modal
             .merge_key_bindings(config.vault_selector_modal);
+        self.debug_log_modal
+            .merge_key_bindings(config.debug_log_modal);
         self.clone()
     }
 
@@ -163,6 +167,8 @@ impl Config<'_> {
         self.help_modal.replace_key_bindings(config.help_modal);
         self.vault_selector_modal
             .replace_key_bindings(config.vault_selector_modal);
+        self.debug_log_modal
+            .replace_key_bindings(config.debug_log_modal);
         self.clone()
     }
 }
@@ -175,6 +181,7 @@ impl fmt::Display for Config<'_> {
         writeln!(f, "[note_editor]\n{}", self.note_editor)?;
         writeln!(f, "[help_modal]\n{}", self.help_modal)?;
         writeln!(f, "[vault_selector_modal]\n{}", self.vault_selector_modal)?;
+        writeln!(f, "[debug_log_modal]\n{}", self.debug_log_modal)?;
 
         Ok(())
     }
@@ -248,6 +255,8 @@ struct TomlConfig {
     note_editor: TomlConfigSection,
     #[serde(default)]
     vault_selector_modal: TomlConfigSection,
+    #[serde(default)]
+    debug_log_modal: TomlConfigSection,
 }
 
 /// Finds and reads the user configuration file in order of priority.
@@ -334,6 +343,15 @@ mod tests {
 
     use super::*;
     // use insta::assert_snapshot;
+
+    #[test]
+    fn test_base_config_parses() {
+        // Guards against a binding in the bundled config.toml that the key parser
+        // rejects, which would panic at startup via `load().unwrap()`.
+        toml::from_str::<TomlConfig>(BASE_CONFIGURATION_STR)
+            .map(Config::from)
+            .expect("bundled config.toml should parse");
+    }
 
     #[test]
     fn test_base_config_snapshot() {

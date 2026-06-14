@@ -1,0 +1,16 @@
+---
+source: basalt/src/debug_log.rs
+expression: terminal.backend()
+---
+"                                                            "
+"                                                            "
+"                                                            "
+"                                                            "
+"                                                            "
+"                                                            "
+" ╭ Debug Log (TRACE+) ────────────────────────────── (g<) ▲ "
+" │    1.234s DEBUG basalt_tui::app refreshed 142 entries  █ "
+" │    1.234s INFO  basalt_tui::app vault opened: Notes    █ "
+" │    1.234s WARN  basalt_tui::app wiki link update faile ║ "
+" │    1.234s ERROR basalt_tui::app failed to create note  ║ "
+" ╰────────────────────────────────────────────────────────▼ "

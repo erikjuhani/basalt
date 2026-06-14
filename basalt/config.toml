@@ -95,8 +95,19 @@
 # vault_selector_modal_up: moves selector up
 # vault_selector_modal_down: moves selector down
 # vault_selector_modal_close: closes vault selector modal
-# vault_selector_modal_open: opens the selected vault 
+# vault_selector_modal_open: opens the selected vault
 # vault_selector_modal_toggle: toggles vault selector modal
+#
+# Debug log commands:
+#
+# debug_log_toggle: toggles the debug log overlay
+# debug_log_close: closes the debug log overlay
+# debug_log_clear: clears all captured log entries
+# debug_log_cycle_level: cycles the minimum visible log level (trace -> error)
+# debug_log_scroll_up_one: scrolls up by one
+# debug_log_scroll_down_one: scrolls down by one
+# debug_log_scroll_up_half_page: scrolls up by half page
+# debug_log_scroll_down_half_page: scrolls down by half page
 
 # Editor is experimental
 experimental_editor = false
@@ -110,6 +121,7 @@ key_bindings = [
  { key = "q", command = "quit" },
  { key = "ctrl+g", command = "vault_selector_modal_toggle" },
  { key = "?", command = "help_modal_toggle" },
+ { key = "g<lt>", command = "debug_log_toggle" },
  { key = "ctrl+alt+e", command = "exec:vi %note_path" },
  { key = "ctrl+alt+o", command = "spawn:open obsidian://open?vault=%vault&file=%note" },
 ]
@@ -232,4 +244,17 @@ key_bindings = [
  { key = "down", command = "vault_selector_modal_down" },
  { key = "enter", command = "vault_selector_modal_open" },
  { key = "esc", command = "vault_selector_modal_close" },
+]
+
+[debug_log_modal]
+key_bindings = [
+ { key = "esc", command = "debug_log_close" },
+ { key = "k", command = "debug_log_scroll_up_one" },
+ { key = "j", command = "debug_log_scroll_down_one" },
+ { key = "up", command = "debug_log_scroll_up_one" },
+ { key = "down", command = "debug_log_scroll_down_one" },
+ { key = "ctrl+u", command = "debug_log_scroll_up_half_page" },
+ { key = "ctrl+d", command = "debug_log_scroll_down_half_page" },
+ { key = "c", command = "debug_log_clear" },
+ { key = "L", command = "debug_log_cycle_level" },
 ]

@@ -7,10 +7,12 @@ use ratatui::{
 };
 use serde::{Deserialize, Deserializer};
 use std::{io::stdout, process};
+use tracing::error;
 
 use crate::{
     app::{Message, ScrollAmount},
-    explorer, help_modal, input, note_editor, outline, splash_modal, vault_selector_modal,
+    debug_log, explorer, help_modal, input, note_editor, outline, splash_modal,
+    vault_selector_modal,
 };
 
 trait ReplaceVar {
@@ -97,6 +99,15 @@ pub(crate) enum Command {
     VaultSelectorModalClose,
     VaultSelectorModalOpen,
     VaultSelectorModalToggle,
+
+    DebugLogToggle,
+    DebugLogClose,
+    DebugLogClear,
+    DebugLogCycleLevel,
+    DebugLogScrollUpOne,
+    DebugLogScrollDownOne,
+    DebugLogScrollUpHalfPage,
+    DebugLogScrollDownHalfPage,
 
     InputModalWordForward,
     InputModalWordBackward,
@@ -200,6 +211,15 @@ fn str_to_command(s: &str) -> Option<Command> {
         "vault_selector_modal_close" => Some(Command::VaultSelectorModalClose),
         "vault_selector_modal_open" => Some(Command::VaultSelectorModalOpen),
         "vault_selector_modal_toggle" => Some(Command::VaultSelectorModalToggle),
+
+        "debug_log_toggle" => Some(Command::DebugLogToggle),
+        "debug_log_close" => Some(Command::DebugLogClose),
+        "debug_log_clear" => Some(Command::DebugLogClear),
+        "debug_log_cycle_level" => Some(Command::DebugLogCycleLevel),
+        "debug_log_scroll_up_one" => Some(Command::DebugLogScrollUpOne),
+        "debug_log_scroll_down_one" => Some(Command::DebugLogScrollDownOne),
+        "debug_log_scroll_up_half_page" => Some(Command::DebugLogScrollUpHalfPage),
+        "debug_log_scroll_down_half_page" => Some(Command::DebugLogScrollDownHalfPage),
 
         // TODO: Remove deprecations in the next major version
         // Deprecated
@@ -389,6 +409,23 @@ impl From<Command> for Message<'_> {
                 Message::VaultSelectorModal(vault_selector_modal::Message::Select)
             }
 
+            Command::DebugLogToggle => Message::DebugLog(debug_log::Message::Toggle),
+            Command::DebugLogClose => Message::DebugLog(debug_log::Message::Close),
+            Command::DebugLogClear => Message::DebugLog(debug_log::Message::Clear),
+            Command::DebugLogCycleLevel => Message::DebugLog(debug_log::Message::CycleLevel),
+            Command::DebugLogScrollUpOne => {
+                Message::DebugLog(debug_log::Message::ScrollUp(ScrollAmount::One))
+            }
+            Command::DebugLogScrollDownOne => {
+                Message::DebugLog(debug_log::Message::ScrollDown(ScrollAmount::One))
+            }
+            Command::DebugLogScrollUpHalfPage => {
+                Message::DebugLog(debug_log::Message::ScrollUp(ScrollAmount::HalfPage))
+            }
+            Command::DebugLogScrollDownHalfPage => {
+                Message::DebugLog(debug_log::Message::ScrollDown(ScrollAmount::HalfPage))
+            }
+
             Command::Exec(command) => Message::Exec(command),
             Command::Spawn(command) => Message::Spawn(command),
         }
@@ -437,11 +474,10 @@ pub fn sync_command<'a>(
         note_name,
         note_path,
         |command, args| {
-            // TODO:Error handling
-            process::Command::new(command)
-                .arg(args.join(" "))
-                .status()
-                .ok()?;
+            if let Err(error) = process::Command::new(command).arg(args.join(" ")).status() {
+                error!(?error, command, "exec command failed");
+                return None;
+            }
             enter_alternate_screen(terminal)
                 .map(|_| Message::Explorer(explorer::Message::Select))
                 .ok()
@@ -461,11 +497,9 @@ pub fn spawn_command<'a>(
         note_name,
         note_path,
         |command, args| {
-            // TODO:Error handling
-            _ = process::Command::new(command)
-                .arg(args.join(" "))
-                .spawn()
-                .ok();
+            if let Err(error) = process::Command::new(command).arg(args.join(" ")).spawn() {
+                error!(?error, command, "spawn command failed");
+            }
             None
         },
     )
