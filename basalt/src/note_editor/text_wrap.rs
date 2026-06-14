@@ -39,7 +39,9 @@ pub fn wrap_preserve_trailing(
         }
     }
 
-    if !cur.is_empty() {
+    // Always emit at least one line, even for empty input, so callers (e.g. an
+    // empty list item `- `) still render a row instead of vanishing.
+    if !cur.is_empty() || lines.is_empty() {
         lines.push(cur);
     }
 

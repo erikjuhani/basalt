@@ -86,15 +86,43 @@ Sleep 2s
 Escape
 Sleep 3s
 
-# Enter edit mode again
+# Enter edit mode again and add a list and a block quote.
+# As each line is typed the previous one renders; only the line you are
+# on shows its raw markdown.
 Type "i"
 Sleep 1s
 Enter
-Sleep 1.5s
-Enter
 Sleep 1.0s
-Type@200ms "Basalt is a mafic, extrusive igneous rock formed from the rapid cooling of viscosity lava rich in magnesium and iron."
-Sleep 3s
+Enter
+Sleep 0.8s
+Type@120ms "Basalt forms from rapidly cooling lava and is known for:"
+Sleep 0.8s
+Enter
+Enter
+Type@120ms "- A mafic, extrusive composition"
+Sleep 0.5s
+Enter
+Type@120ms "- High magnesium and iron content"
+Sleep 0.5s
+Enter
+Type@120ms "- A dark, fine-grained texture"
+Sleep 1s
+Enter
+Enter
+Type@120ms "> The most common volcanic rock on Earth."
+Sleep 1.5s
+
+# Step back up through the quote and list, line by line
+Up
+Sleep 0.9s
+Up
+Sleep 0.9s
+Up
+Sleep 0.9s
+Up
+Sleep 0.9s
+Up
+Sleep 1.2s
 Escape
 Sleep 3s
 

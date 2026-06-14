@@ -427,6 +427,32 @@ mod tests {
                     state
                 }),
             ),
+            (
+                // Only the list item under the cursor should render raw; the
+                // surrounding items stay rendered. Ref: issue #486.
+                "edit_mode_list_line_by_line_raw",
+                Box::new(|area| {
+                    let content = indoc! { r#"## Shopping
+
+                    - apples
+                    - bananas
+                    - cherries
+                    "#};
+                    let mut state = NoteEditorState::new(
+                        content,
+                        "Test",
+                        Path::new("test.md"),
+                        &Symbols::unicode(),
+                    );
+                    state.resize_viewport(area.as_size());
+                    state.set_view(View::Edit(EditMode::Source));
+                    // Enter the list (lands on the first item), then step down to
+                    // the "bananas" item.
+                    state.cursor_down(1);
+                    state.cursor_down(1);
+                    state
+                }),
+            ),
         ];
 
         let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();

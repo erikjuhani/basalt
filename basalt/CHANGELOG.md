@@ -1,10 +1,10 @@
 # Changelog
 
-## [0.12.6](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.6) (Unreleased)
+## [0.12.6](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.6) (Jun, 14 2026)
 
 ### Added
 
-- [afcad08](https://github.com/erikjuhani/basalt/commit/afcad08e3f2e8bde5424c054288c28a08382b6b5) Allow named keys in chord sequences (e.g. <space>f)
+- [afcad08](https://github.com/erikjuhani/basalt/commit/afcad08e3f2e8bde5424c054288c28a08382b6b5) Allow named keys in chord sequences (e.g. <space>f) by @erikjuhani
 
 > Treat <...> as a grouping delimiter in binding strings so a named or
 > modified key acts as a single keystroke inside a sequence, enabling
@@ -25,6 +25,20 @@
 > The watcher is rebuilt when the active vault changes and avoids stealing
 > focus from the editor.
 
+### Changed
+
+- [0ae7ea4](https://github.com/erikjuhani/basalt/commit/0ae7ea48487af46f52df7de01cb2970dfa917b4e) Render edit mode line by line (#486)
+
+> Editing used to flip the whole block to raw on entry, and rendering it
+> from the AST during edits drifted from the source, so nested lists and
+> structural edits were unreliable.
+>
+> Render the active block with a line decorator that maps 1:1 to source
+> place. This keeps indentation, blank lines and code blocks faithful to
+> the source and makes editing predictable.
+>
+> Read mode and non-active blocks keep the AST renderer; unifying the two
+> is tracked in #533.
 
 ### Fixed
 

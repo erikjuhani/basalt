@@ -41,6 +41,17 @@ pub struct Cursor {
     pub virtual_column: usize,
 }
 
+/// Display width of a source character. Tabs are one byte but rendered as two
+/// columns (see the draw-time expansion), so they must count as two here to
+/// keep cursor columns aligned with the displayed text.
+fn char_display_width(c: char) -> usize {
+    if c == '\t' {
+        2
+    } else {
+        c.width().unwrap_or(0)
+    }
+}
+
 pub fn virtual_position_to_source_offset<'a>(
     (row, col): (usize, usize),
     lines: &'a [VirtualLine<'a>],
@@ -59,7 +70,7 @@ pub fn virtual_position_to_source_offset<'a>(
                         return Some(range.start + byte_idx);
                     }
 
-                    let char_width = ch.width().unwrap_or(0);
+                    let char_width = char_display_width(ch);
                     cur_col += char_width;
                     content_col += char_width;
                 }
@@ -116,7 +127,7 @@ pub fn source_offset_to_virtual_column<'a>(offset: usize, line: &VirtualLine<'a>
                 let n = span
                     .char_indices()
                     .map_while(|(byte_idx, c)| {
-                        (byte_idx < byte_offset).then(|| c.width().unwrap_or(0))
+                        (byte_idx < byte_offset).then(|| char_display_width(c))
                     })
                     .sum::<usize>();
 
