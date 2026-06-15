@@ -57,6 +57,25 @@ When renaming a note, all wiki-links referencing that note are automatically upd
 | `Enter`       | Accept changes and save              |
 | `Esc`         | Cancel and close without saving      |
 
+### Debug log overlay
+
+Press `g<` to toggle the debug log overlay. It docks to the lower half of the screen and shows the application's tracing output across all levels (trace, debug, info, warn and error), each colored by severity. Capture is always on, so the overlay reflects what has happened up to the moment you open it.
+
+The title shows the active minimum level and the current process memory. The overlay is meant for debugging and troubleshooting. It does not interfere with normal use, so you can open it to inspect activity, then close it and carry on.
+
+![[debug-log.gif]]
+
+| Mapping               | Description                                     |
+| --------------------- | ----------------------------------------------- |
+| `g<`                  | Toggle the overlay                              |
+| `j` / `k` / `↑` / `↓` | Scroll by one line                              |
+| `Ctrl+u` / `Ctrl+d`   | Scroll up / down half a page                    |
+| `L`                   | Cycle the minimum visible level (trace → error) |
+| `c`                   | Clear the captured entries                      |
+| `Esc`                 | Close the overlay                               |
+
+The overlay can also be opened on startup with the `--debug` flag, and the initial minimum level set with `--log-level` (for example `basalt --debug --log-level warn`).
+
 ## Status bar
 
 The status bar runs along the bottom of the screen and displays contextual information: the active pane, word and character counts for the current note, and the editing mode when using the [[Editor (experimental)|experimental editor]].
