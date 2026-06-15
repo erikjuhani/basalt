@@ -37,6 +37,7 @@ VAULT SELECTION
     ‹q›,        Quit the application
     ‹Ctrl+C›
     ‹?›         Show this help
+    ‹g<›        Toggle debug log overlay
     ‹k›         Move selection up
     ‹j›         Move selection down
     ‹↩ Enter›   Select and open the highlighted vault
@@ -232,7 +233,7 @@ CONFIGURATION
   Available commands are organized by pane:
 
   GLOBAL COMMANDS:
-    quit, vault_selector_modal_toggle, help_modal_toggle
+    quit, vault_selector_modal_toggle, help_modal_toggle, debug_log_toggle
 
   SPLASH COMMANDS:
     splash_up, splash_down, splash_open
@@ -272,6 +273,11 @@ CONFIGURATION
     help_modal_scroll_down_half_page, vault_selector_modal_up,
     vault_selector_modal_down, vault_selector_modal_close,
     vault_selector_modal_open, vault_selector_modal_toggle
+
+  DEBUG LOG COMMANDS:
+    debug_log_toggle, debug_log_close, debug_log_clear, debug_log_cycle_level,
+    debug_log_scroll_up_one, debug_log_scroll_down_one,
+    debug_log_scroll_up_half_page, debug_log_scroll_down_half_page
 
 ────────────────────────────────────────────────────────────────────────────
 
