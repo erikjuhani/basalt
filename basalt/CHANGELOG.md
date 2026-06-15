@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.12.6](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.6) (Jun, 14 2026)
+## [0.12.6](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.6) (Jun, 16 2026)
 
 ### Added
 
@@ -16,6 +16,15 @@
 > and <gt>.
 >
 > Closes #516
+
+- [69308e5](https://github.com/erikjuhani/basalt/commit/69308e5452e94b9a3f532b071f7012fd807db55e) Add debug log overlay widget by @erikjuhani
+
+> A toggleable in-TUI debug log overlay (‹g<›) shows tracing output across
+> all levels (trace, debug, info, warn, error) on top of the application
+> without interfering with normal use. A bounded ring buffer captures events
+> through a tracing layer; the overlay supports scrolling, clearing and a
+> minimum-level filter. It can also be opened on startup with `--debug` and
+> filtered with `--log-level`. Relevant logging was added across the app.
 
 - [3b1b400](https://github.com/erikjuhani/basalt/commit/3b1b400f961eb1de8af0e5bb8a6fa1b9c431b59a) Watch vault filesystem for changes in Explorer by @realkotob
 

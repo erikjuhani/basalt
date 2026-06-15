@@ -2,6 +2,7 @@ pub mod app;
 pub mod cli;
 pub mod command;
 pub mod config;
+pub mod debug_log;
 pub mod explorer;
 pub mod help_modal;
 pub mod input;
