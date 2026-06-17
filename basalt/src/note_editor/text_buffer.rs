@@ -20,9 +20,10 @@ impl TextBuffer {
         }
     }
 
-    /// Converts an absolute source offset into a buffer-relative offset by
-    /// subtracting the buffer's `source_range.start`. Saturates to 0 when the
-    /// offset falls before the start of the buffer's range.
+    /// Converts an absolute source offset into a buffer-relative byte offset
+    /// for indexing into `content`, by subtracting the buffer's
+    /// `source_range.start`. Saturates to 0 when the offset falls before the
+    /// start of the buffer's range.
     pub fn buffer_offset(&self, source_offset: usize) -> usize {
         source_offset.saturating_sub(self.source_range.start)
     }
