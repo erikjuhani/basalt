@@ -175,9 +175,7 @@ impl Cursor {
         match message {
             MoveLeft(amount) => {
                 if let Some(text_buffer) = text_buffer {
-                    let byte_idx = self
-                        .source_offset
-                        .saturating_sub(text_buffer.source_range.start);
+                    let byte_idx = text_buffer.buffer_offset(self.source_offset);
 
                     let bytes_amount = text_buffer.content[..byte_idx]
                         .chars()
@@ -193,9 +191,7 @@ impl Cursor {
 
             MoveRight(amount) => {
                 if let Some(text_buffer) = text_buffer {
-                    let byte_idx = self
-                        .source_offset
-                        .saturating_sub(text_buffer.source_range.start);
+                    let byte_idx = text_buffer.buffer_offset(self.source_offset);
 
                     let bytes_amount = text_buffer.content[byte_idx..]
                         .chars()
@@ -320,8 +316,7 @@ impl Cursor {
                 if let Some(text_buffer) = text_buffer {
                     let offset = snap_to_char_boundary(
                         &text_buffer.content,
-                        self.source_offset
-                            .saturating_sub(text_buffer.source_range.start),
+                        text_buffer.buffer_offset(self.source_offset),
                     );
 
                     let mut chars = text_buffer.content[offset..].char_indices();
@@ -346,8 +341,7 @@ impl Cursor {
                 if let Some(text_buffer) = text_buffer {
                     let offset = snap_to_char_boundary(
                         &text_buffer.content,
-                        self.source_offset
-                            .saturating_sub(text_buffer.source_range.start),
+                        text_buffer.buffer_offset(self.source_offset),
                     );
 
                     let mut chars = text_buffer.content[..offset].char_indices().rev();

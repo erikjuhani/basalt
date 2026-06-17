@@ -20,8 +20,15 @@ impl TextBuffer {
         }
     }
 
+    /// Converts an absolute source offset into a buffer-relative offset by
+    /// subtracting the buffer's `source_range.start`. Saturates to 0 when the
+    /// offset falls before the start of the buffer's range.
+    pub fn buffer_offset(&self, source_offset: usize) -> usize {
+        source_offset.saturating_sub(self.source_range.start)
+    }
+
     pub fn insert_char(&mut self, c: char, idx: usize) {
-        let byte_idx = idx.saturating_sub(self.source_range.start);
+        let byte_idx = self.buffer_offset(idx);
         let byte_idx = self.content.floor_char_boundary(byte_idx);
 
         self.content.insert(byte_idx, c);
@@ -30,7 +37,7 @@ impl TextBuffer {
     }
 
     pub fn delete_char(&mut self, idx: usize) -> Option<usize> {
-        let byte_idx = idx.saturating_sub(self.source_range.start);
+        let byte_idx = self.buffer_offset(idx);
 
         if let Some((byte_idx, _)) = self.content[..byte_idx].char_indices().next_back() {
             let c = self.content.remove(byte_idx);
@@ -63,6 +70,21 @@ impl TextBuffer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_buffer_offset() {
+        // Zero-start range: source offset maps to itself.
+        let buffer = TextBuffer::new("Hello world", 0..11);
+        assert_eq!(buffer.buffer_offset(6), 6);
+
+        // Offset-start range: source offset is shifted by `start`.
+        let buffer = TextBuffer::new("Hello", 10..15);
+        assert_eq!(buffer.buffer_offset(13), 3);
+        assert_eq!(buffer.buffer_offset(10), 0); // at start
+
+        // Saturates to 0 when the source offset is below `start`.
+        assert_eq!(buffer.buffer_offset(5), 0);
+    }
 
     #[test]
     fn test_insert_ascii_character() {
