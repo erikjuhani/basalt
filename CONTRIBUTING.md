@@ -6,6 +6,15 @@ That said, open source projects flourish with multiple contributors. I won't say
 >
 > I want this project to feel low-barrier, so don't be discouraged from opening an issue, whether it's about existing features, ideas, or anything else!
 
+## AI and LLM-assisted contributions
+
+Basalt is a side project I work on for fun, and a big part of that fun is the craft of writing the code by hand. Please keep that in mind when contributing.
+
+- **Good first issues are for humans.** They are intentionally small and simple so newcomers can learn the codebase by solving them. Do not complete them with an LLM or coding agent. If you want one, program it by hand.
+- **You own what you submit.** Understand every line you open a PR with and be able to explain it. "The model wrote it" is not an answer to review feedback.
+
+Using AI as an assistant is fine in moderation. Letting it author whole contributions you don't understand is not.
+
 ## What you can do right now
 
 ### Found a typo?
