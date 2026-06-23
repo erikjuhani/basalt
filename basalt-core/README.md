@@ -48,3 +48,7 @@ assert_eq!(nodes, vec![
   },
 ])
 ```
+
+## License
+
+Licensed under the [Apache License, Version 2.0](LICENSE). Copyright (c) Erik Kinnunen.

@@ -38,3 +38,7 @@ This line will not be bold
 
 \*\*This line will not be bold\*\*
 ```
+
+## License
+
+Licensed under the [Apache License, Version 2.0](LICENSE). Copyright (c) Erik Kinnunen.

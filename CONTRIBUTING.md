@@ -15,6 +15,12 @@ Basalt is a side project I work on for fun, and a big part of that fun is the cr
 
 Using AI as an assistant is fine in moderation. Letting it author whole contributions you don't understand is not.
 
+## Licensing of contributions
+
+Basalt uses two licenses depending on the crate: `basalt-tui` is GPL-3.0-or-later, while `basalt-core` and `basalt-widgets` are Apache-2.0.
+
+By opening a pull request you agree to the [Contributor License Agreement](CLA.md). You keep your copyright; no separate form or sign-off is required.
+
 ## What you can do right now
 
 ### Found a typo?
