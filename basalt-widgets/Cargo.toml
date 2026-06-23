@@ -5,7 +5,7 @@ Provides the custom ratatui widgets for Basalt TUI application
 """
 repository = "https://github.com/erikjuhani/basalt"
 readme = "README.md"
-license = "MIT"
+license = "Apache-2.0"
 version = "0.1.1"
 edition = "2021"
 keywords = ["tui", "markdown", "ratatui"]

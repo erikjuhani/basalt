@@ -59,3 +59,14 @@ See the [full configuration reference](https://github.com/erikjuhani/basalt/blob
 Contributions are welcome, primarily for bug fixes. Feature work is considered on a case-by-case basis — please open an issue first to discuss.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code style, and contribution guidelines.
+
+## License
+
+Copyright (c) Erik Kinnunen.
+
+Basalt spans three crates under two licenses:
+
+- **`basalt-tui`** (the application) is [GPL-3.0-or-later](LICENSE-GPL). Distributed modifications must stay open under the same terms.
+- **`basalt-core`** and **`basalt-widgets`** (the libraries) are [Apache-2.0](LICENSE-APACHE), so they stay reusable in other projects.
+
+Contributions are accepted under a [Contributor License Agreement](CLA.md). See [CONTRIBUTING.md](CONTRIBUTING.md).
