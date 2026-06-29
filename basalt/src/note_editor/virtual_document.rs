@@ -234,6 +234,7 @@ impl<'a> VirtualDocument<'a> {
         cursor_offset: usize,
         ast_nodes: &[ast::Node],
         width: usize,
+        horizontal_offset: usize,
         text_buffer: Option<TextBuffer>,
     ) {
         if !note_name.is_empty() {
@@ -251,7 +252,10 @@ impl<'a> VirtualDocument<'a> {
                 &self.symbols,
             );
             meta.extend([
-                virtual_line!([synthetic_span!(self.symbols.horizontal_rule.repeat(width))]),
+                virtual_line!([synthetic_span!(self
+                    .symbols
+                    .horizontal_rule
+                    .repeat(width + horizontal_offset))]),
                 empty_virtual_line!(),
             ]);
 
@@ -298,6 +302,7 @@ impl<'a> VirtualDocument<'a> {
                             range.start,
                             cursor_offset,
                             width,
+                            horizontal_offset,
                             &self.symbols,
                         );
                         VirtualBlock::new(&lines, range)
@@ -306,6 +311,7 @@ impl<'a> VirtualDocument<'a> {
                         live_content.to_string(),
                         node,
                         width,
+                        horizontal_offset,
                         Span::default(),
                         &styled,
                         &self.symbols,

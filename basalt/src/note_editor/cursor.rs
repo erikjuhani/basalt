@@ -414,7 +414,6 @@ impl StatefulWidget for CursorWidget {
     where
         Self: Sized,
     {
-        let x = area.x.saturating_add(self.offset.x as u16);
         let y = (state.virtual_row as u16)
             .saturating_add(self.meta_len)
             .saturating_sub(area.top())
@@ -423,13 +422,16 @@ impl StatefulWidget for CursorWidget {
         match state.mode {
             CursorMode::Read => {
                 buf.set_style(
-                    Rect::new(x, y, area.width, 1),
+                    Rect::new(self.offset.x as u16, y, area.width, 1),
                     Style::default().reversed().dark_gray(),
                 );
             }
             CursorMode::Edit => {
+                let x = (state.virtual_column as u16)
+                    .saturating_add(self.offset.x as u16)
+                    .saturating_sub(area.left());
                 buf.set_style(
-                    Rect::new(x.saturating_add(state.virtual_column as u16), y, 1, 1),
+                    Rect::new(x, y, 1, 1),
                     Style::default().reversed().dark_gray(),
                 );
             }
@@ -459,6 +461,7 @@ mod tests {
                     content.to_string(),
                     &node,
                     80,
+                    0,
                     Span::default(),
                     &RenderStyle::Raw,
                     &Symbols::unicode(),
@@ -703,6 +706,7 @@ mod tests {
                     content.to_string(),
                     &node,
                     80,
+                    0,
                     Span::default(),
                     &RenderStyle::Reader,
                     &Symbols::unicode(),
