@@ -2,7 +2,6 @@
   "$schema": "https://docs.renovatebot.com/renovate-global-schema.json",
   "extends": [
     "config:best-practices",
-    ":disableDependencyDashboard",
     "schedule:daily"
   ],
   "rebaseWhen": "behind-base-branch",
@@ -42,17 +41,6 @@
       ],
       "depNameTemplate": "ghcr.io/renovatebot/renovate",
       "datasourceTemplate": "docker"
-    },
-    {
-      "customType": "regex",
-      "managerFilePatterns": [
-        ".github/workflows/workflow-security.yml"
-      ],
-      "matchStrings": [
-        "name: zizmor\\s+uses: zizmorcore/zizmor-action@[a-f0-9]+ # [^\\s]+\\s+with:[\\s\\S]*?version: v(?<currentValue>[0-9.]+)"
-      ],
-      "depNameTemplate": "zizmorcore/zizmor",
-      "datasourceTemplate": "github-releases"
     }
   ],
   "packageRules": [
