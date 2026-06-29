@@ -31,4 +31,4 @@ jobs:
           persist-credentials: false
 
       - name: Validate Renovate config
-        run: docker run --rm -v "$PWD/renovate-config.json:/tmp/renovate-config.json" ghcr.io/renovatebot/renovate:43.234.1 renovate-config-validator /tmp/renovate-config.json
+        run: docker run --rm -v "$PWD/renovate-config.json:/tmp/renovate-config.json" ghcr.io/renovatebot/renovate:43.248.0 renovate-config-validator /tmp/renovate-config.json
