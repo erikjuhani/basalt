@@ -21,4 +21,5 @@ truncate_content_length = 200
 [extra]
 github_url = "https://github.com/erikjuhani/basalt"
 releases_url = "https://github.com/erikjuhani/basalt/releases"
-basalt_version = "0.12.4"
+
+cloudflare_analytics_token = "b104373a7e7d4fbb9635dc4bd5d1e183"

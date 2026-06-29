@@ -17,7 +17,7 @@
       <span class="splash__title">
 ⋅𝕭𝖆𝖘𝖆𝖑𝖙⋅
       </span>
-<a style="font-weight: 600" href="{{ get_url(path='@/changelog.md') }}">v{{ config.extra.basalt_version }}</a>
+<a style="font-weight: 600" href="{{ get_url(path='@/changelog.md') }}">v{{ config.extra.basalt_version | default(value="dev") }}</a>
 <br/>
    </span>
     {% if section.extra.demo_gif %}

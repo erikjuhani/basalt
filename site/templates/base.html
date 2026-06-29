@@ -70,5 +70,10 @@
 
   <script>window.SEARCH_INDEX_URL = "{{ get_url(path='search_index.en.js', trailing_slash=false) }}";</script>
   <script src="{{ get_url(path='main.js', trailing_slash=false) }}" defer></script>
+
+  {% if config.extra.cloudflare_analytics_token %}
+  <script defer src="https://static.cloudflareinsights.com/beacon.min.js"
+          data-cf-beacon='{"token": "{{ config.extra.cloudflare_analytics_token }}"}'></script>
+  {% endif %}
 </body>
 </html>
