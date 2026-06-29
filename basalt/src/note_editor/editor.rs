@@ -80,7 +80,10 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
         let rendered_lines_count = state.virtual_document.lines().len();
         let meta_lines_count = state.virtual_document.meta().len();
 
-        Paragraph::new(visible_lines).block(block).render(area, buf);
+        Paragraph::new(visible_lines)
+            .scroll((0, state.viewport().left()))
+            .block(block)
+            .render(area, buf);
 
         if !state.content.is_empty() || state.is_editing() {
             CursorWidget::default()

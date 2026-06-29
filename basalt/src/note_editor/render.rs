@@ -3,7 +3,7 @@ use ratatui::{
     text::Span,
 };
 
-use unicode_width::UnicodeWidthStr;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
     config::Symbols,
@@ -127,6 +127,14 @@ fn render_raw_line<'a>(
     )
 }
 
+/// Display width of source text, counting tabs as two columns to match how they
+/// are expanded at draw time and how the cursor measures columns.
+fn display_width(text: &str) -> usize {
+    text.chars()
+        .map(|c| if c == '\t' { 2 } else { c.width().unwrap_or(0) })
+        .sum()
+}
+
 /// Renders source lines for edit mode, keeping a 1:1 mapping between source and
 /// display lines. The line under the cursor is shown raw (so its markers and
 /// indentation are editable); every other line is decorated in place — the
@@ -139,8 +147,13 @@ pub fn edit_lines<'a>(
     base: usize,
     cursor_offset: usize,
     max_width: usize,
+    horizontal_offset: usize,
     symbols: &Symbols,
 ) -> Vec<VirtualLine<'a>> {
+    // Full-width fills (code backgrounds, heading rules) extend by the horizontal
+    // scroll so they still span the viewport once it pans to follow the cursor.
+    let fill_width = max_width + horizontal_offset;
+
     let mut lines = Vec::new();
     let mut start = base;
     // Lines inside a fenced code block are literal — never decorated as markdown.
@@ -153,7 +166,7 @@ pub fn edit_lines<'a>(
         let fence = is_code_fence(text);
 
         if in_code || fence {
-            lines.push(code_line(text, &line_range, max_width));
+            lines.push(code_line(text, &line_range, fill_width));
             // A fence toggles the block: the opener enters it, the next closes it.
             in_code ^= fence;
         } else {
@@ -162,6 +175,7 @@ pub fn edit_lines<'a>(
                 &line_range,
                 line_range.contains(&cursor_offset),
                 max_width,
+                fill_width,
                 symbols,
             ));
         }
@@ -175,6 +189,7 @@ fn edit_line<'a>(
     line_range: &SourceRange<usize>,
     is_cursor: bool,
     max_width: usize,
+    fill_width: usize,
     symbols: &Symbols,
 ) -> Vec<VirtualLine<'a>> {
     if text.is_empty() {
@@ -190,7 +205,7 @@ fn edit_line<'a>(
     // Headings always keep their rendered style (bold, colour, underline) while
     // editing; the `#` markers stay visible but dimmed so they can still be edited.
     if let Some(level) = heading_level(rest) {
-        return heading_lines(text, line_range, indent_len, level, max_width, symbols);
+        return heading_lines(text, line_range, indent_len, level, fill_width, symbols);
     }
 
     if is_cursor {
@@ -212,9 +227,13 @@ fn is_code_fence(text: &str) -> bool {
 
 /// Renders a code-block line literally, with the code background, so its content
 /// is never interpreted as markdown.
-fn code_line<'a>(text: &str, line_range: &SourceRange<usize>, max_width: usize) -> VirtualLine<'a> {
+fn code_line<'a>(
+    text: &str,
+    line_range: &SourceRange<usize>,
+    fill_width: usize,
+) -> VirtualLine<'a> {
     let code_bg = Style::new().bg(CODE_BG);
-    let pad = max_width.saturating_sub(text.chars().count() + 1);
+    let pad = fill_width.saturating_sub(display_width(text) + 1);
     virtual_line!([
         synthetic_span!(Span::styled(" ", code_bg)),
         content_span!(Span::raw(text.to_string()).bg(CODE_BG), line_range.clone()),
@@ -230,7 +249,7 @@ fn heading_lines<'a>(
     line_range: &SourceRange<usize>,
     indent_len: usize,
     level: usize,
-    max_width: usize,
+    fill_width: usize,
     symbols: &Symbols,
 ) -> Vec<VirtualLine<'a>> {
     let marker_end = (indent_len + level + 1).min(text.len());
@@ -251,11 +270,11 @@ fn heading_lines<'a>(
 
     match level {
         1 => lines.push(virtual_line!([synthetic_span!(Span::raw(
-            symbols.h1_underline.repeat(max_width)
+            symbols.h1_underline.repeat(fill_width)
         ))])),
         2 => lines.push(virtual_line!([synthetic_span!(symbols
             .h2_underline
-            .repeat(max_width)
+            .repeat(fill_width)
             .yellow())])),
         _ => {}
     }
@@ -455,6 +474,7 @@ pub fn heading<'a>(
     text: &RichText,
     source_range: &SourceRange<usize>,
     max_width: usize,
+    horizontal_offset: usize,
     option: &RenderStyle,
     symbols: &Symbols,
 ) -> VirtualBlock<'a> {
@@ -511,6 +531,8 @@ pub fn heading<'a>(
         wrapped_heading
     };
 
+    // Extend the underline by the horizontal scroll so it still spans the viewport when panned.
+    let underline_width = (max_width + horizontal_offset).saturating_sub(prefix_width);
     let mut lines = match level {
         H1 => h_with_underline(
             if option.is_styled() {
@@ -518,17 +540,11 @@ pub fn heading<'a>(
             } else {
                 text.bold()
             },
-            symbols
-                .h1_underline
-                .repeat(max_width.saturating_sub(prefix_width))
-                .into(),
+            symbols.h1_underline.repeat(underline_width).into(),
         ),
         H2 => h_with_underline(
             text.bold().yellow(),
-            symbols
-                .h2_underline
-                .repeat(max_width.saturating_sub(prefix_width))
-                .yellow(),
+            symbols.h2_underline.repeat(underline_width).yellow(),
         ),
         H3 => h(format!("{} ", symbols.h3_marker).cyan(), text.bold().cyan()),
         H4 => h(
@@ -654,6 +670,8 @@ pub fn paragraph<'a>(
     VirtualBlock::new(&lines, source_range)
 }
 
+// FIXME: Use options struct or similar
+#[allow(clippy::too_many_arguments)]
 pub fn code_block<'a>(
     content: &str,
     prefix: Span<'static>,
@@ -663,8 +681,11 @@ pub fn code_block<'a>(
     text: &RichText,
     source_range: &SourceRange<usize>,
     max_width: usize,
+    horizontal_offset: usize,
     option: &RenderStyle,
 ) -> VirtualBlock<'a> {
+    // Extend the background by the horizontal scroll so it still spans the viewport when panned.
+    let fill_width = max_width + horizontal_offset;
     let lines = match option {
         RenderStyle::Raw => {
             let content = content.get(source_range.clone()).unwrap_or(content);
@@ -682,7 +703,7 @@ pub fn code_block<'a>(
                         content_span!(line.to_string().bg(CODE_BG), line_range),
                         synthetic_span!(" "
                             .repeat(
-                                max_width
+                                fill_width
                                     .saturating_sub(prefix.width() + line.chars().count())
                                     .saturating_sub(1)
                             )
@@ -700,7 +721,7 @@ pub fn code_block<'a>(
             let padding_line = virtual_line!([
                 synthetic_span!(prefix.clone()),
                 synthetic_span!(" "
-                    .repeat(max_width.saturating_sub(prefix.width()))
+                    .repeat(fill_width.saturating_sub(prefix.width()))
                     .bg(CODE_BG))
             ]);
 
@@ -717,7 +738,7 @@ pub fn code_block<'a>(
                     content_span!(line.to_string().bg(CODE_BG), source_range),
                     synthetic_span!(" "
                         .repeat(
-                            max_width
+                            fill_width
                                 .saturating_sub(prefix.width() + line.chars().count())
                                 .saturating_sub(1)
                         )
@@ -741,6 +762,7 @@ pub fn list<'a>(
     nodes: &[ast::Node],
     source_range: &SourceRange<usize>,
     max_width: usize,
+    horizontal_offset: usize,
     option: &RenderStyle,
     symbols: &Symbols,
     list_depth: usize,
@@ -770,6 +792,7 @@ pub fn list<'a>(
                             content.to_string(),
                             node,
                             max_width,
+                            horizontal_offset,
                             prefix.clone(),
                             option,
                             symbols,
@@ -809,6 +832,7 @@ pub fn task<'a>(
     nodes: &[ast::Node],
     source_range: &SourceRange<usize>,
     max_width: usize,
+    horizontal_offset: usize,
     option: &RenderStyle,
     symbols: &Symbols,
     list_depth: usize,
@@ -854,6 +878,7 @@ pub fn task<'a>(
                     content.to_string(),
                     node,
                     max_width,
+                    horizontal_offset,
                     prefix.merge("  ".into()),
                     option,
                     symbols,
@@ -878,6 +903,7 @@ pub fn item<'a>(
     nodes: &[ast::Node],
     source_range: &SourceRange<usize>,
     max_width: usize,
+    horizontal_offset: usize,
     option: &RenderStyle,
     symbols: &Symbols,
     list_depth: usize,
@@ -922,6 +948,7 @@ pub fn item<'a>(
                     content.to_string(),
                     node,
                     max_width,
+                    horizontal_offset,
                     prefix.merge("  ".into()),
                     option,
                     symbols,
@@ -957,6 +984,7 @@ pub fn block_quote<'a>(
     nodes: &[ast::Node],
     source_range: &SourceRange<usize>,
     max_width: usize,
+    horizontal_offset: usize,
     option: &RenderStyle,
     symbols: &Symbols,
 ) -> VirtualBlock<'a> {
@@ -970,6 +998,7 @@ pub fn block_quote<'a>(
                     content.to_string(),
                     node,
                     max_width,
+                    horizontal_offset,
                     prefix.merge(Span::raw("┃ ").magenta()),
                     option,
                     symbols,
@@ -996,6 +1025,7 @@ pub fn render_node<'a>(
     content: String,
     node: &ast::Node,
     max_width: usize,
+    horizontal_offset: usize,
     prefix: Span<'static>,
     option: &RenderStyle,
     symbols: &Symbols,
@@ -1014,6 +1044,7 @@ pub fn render_node<'a>(
             text,
             source_range,
             max_width,
+            horizontal_offset,
             option,
             symbols,
         ),
@@ -1037,6 +1068,7 @@ pub fn render_node<'a>(
             text,
             source_range,
             max_width,
+            horizontal_offset,
             option,
         ),
         List {
@@ -1048,6 +1080,7 @@ pub fn render_node<'a>(
             nodes,
             source_range,
             max_width,
+            horizontal_offset,
             option,
             symbols,
             list_depth,
@@ -1063,6 +1096,7 @@ pub fn render_node<'a>(
             nodes,
             source_range,
             max_width,
+            horizontal_offset,
             option,
             symbols,
             list_depth,
@@ -1078,6 +1112,7 @@ pub fn render_node<'a>(
             nodes,
             source_range,
             max_width,
+            horizontal_offset,
             option,
             symbols,
             list_depth,
@@ -1093,6 +1128,7 @@ pub fn render_node<'a>(
             nodes,
             source_range,
             max_width,
+            horizontal_offset,
             option,
             symbols,
         ),

@@ -295,6 +295,9 @@ impl<'a> NoteEditorState<'a> {
                     self.virtual_document.lines(),
                     &None,
                 );
+                // Read mode never pans horizontally; reset so its width-sized
+                // fills (code backgrounds, rules) line up with the viewport.
+                self.ensure_cursor_visible();
             }
             View::Edit(..) => {
                 self.enter_insert(block_idx);
@@ -322,6 +325,7 @@ impl<'a> NoteEditorState<'a> {
                 self.cursor.source_offset(),
                 &self.ast_nodes,
                 size.width.into(),
+                self.viewport.left().into(),
                 self.text_buffer.clone(),
             );
 
@@ -342,16 +346,27 @@ impl<'a> NoteEditorState<'a> {
     /// to move outside the visible area (e.g., resize, cursor movement).
     fn ensure_cursor_visible(&mut self) {
         let meta_len = self.virtual_document.meta().len() as i32;
-        let cursor_screen_row = self.cursor.virtual_row() as i32 + meta_len;
-        let viewport_top = self.viewport.top() as i32;
-        let viewport_bottom = self.viewport.bottom() as i32;
+        let cursor_row = self.cursor.virtual_row() as i32 + meta_len;
+        let cursor_column = self.cursor.virtual_column() as i32;
 
-        if cursor_screen_row < viewport_top {
-            let scroll_offset = cursor_screen_row - viewport_top;
-            self.viewport.scroll_by((scroll_offset, 0));
-        } else if cursor_screen_row >= viewport_bottom {
-            let scroll_offset = cursor_screen_row - viewport_bottom + 1;
-            self.viewport.scroll_by((scroll_offset, 0));
+        let vertical = if cursor_row < self.viewport.top() as i32 {
+            cursor_row - self.viewport.top() as i32
+        } else if cursor_row >= self.viewport.bottom() as i32 {
+            cursor_row - self.viewport.bottom() as i32 + 1
+        } else {
+            0
+        };
+
+        let horizontal = if cursor_column < self.viewport.left() as i32 {
+            cursor_column - self.viewport.left() as i32
+        } else if cursor_column >= self.viewport.right() as i32 {
+            cursor_column - self.viewport.right() as i32 + 1
+        } else {
+            0
+        };
+
+        if (vertical, horizontal) != (0, 0) {
+            self.viewport.scroll_by((vertical, horizontal));
         }
     }
 
@@ -486,6 +501,7 @@ impl<'a> NoteEditorState<'a> {
             self.cursor.source_offset(),
             &self.ast_nodes,
             self.viewport.area().width.into(),
+            self.viewport.left().into(),
             self.text_buffer.clone(),
         );
 
@@ -571,6 +587,7 @@ impl<'a> NoteEditorState<'a> {
             target_offset.unwrap_or_else(|| self.cursor.source_offset()),
             &self.ast_nodes,
             self.viewport.area().width.into(),
+            self.viewport.left().into(),
             self.text_buffer.clone(),
         );
 
@@ -641,6 +658,14 @@ mod tests {
         assert!(
             cursor_screen_row >= top && cursor_screen_row < bottom,
             "{context}: cursor screen row {cursor_screen_row} outside viewport [{top}, {bottom})",
+        );
+
+        let cursor_column = state.cursor.virtual_column() as i32;
+        let left = state.viewport().left() as i32;
+        let right = state.viewport().right() as i32;
+        assert!(
+            cursor_column >= left && cursor_column < right,
+            "{context}: cursor column {cursor_column} outside viewport [{left}, {right})",
         );
     }
 
@@ -1068,5 +1093,109 @@ mod tests {
 
         state.cursor_up(5);
         assert_cursor_visible(&state, "after cursor_up");
+    }
+
+    #[test]
+    fn test_viewport_scrolls_horizontally_on_long_code_line() {
+        // Code-block lines are not wrapped, so a long one overflows the viewport
+        // and the cursor must pan it horizontally to stay visible.
+        let long = "x".repeat(100);
+        let content = format!("```\n{long}\n```\n");
+
+        let mut state =
+            NoteEditorState::new(&content, "test", Path::new("test.md"), &Symbols::unicode());
+        state.resize_viewport(Size::new(20, 10));
+        state.set_view(View::Edit(EditMode::Source));
+
+        // Land on the code line and walk to its end.
+        state.cursor_down(1);
+        assert_eq!(state.viewport().left(), 0, "no scroll at line start");
+
+        state.cursor_right(80);
+        let panned = state.viewport().left();
+        assert!(panned > 0, "viewport should pan right to follow the cursor");
+        assert_cursor_visible(&state, "after cursor_right on long line");
+
+        state.cursor_left(80);
+        assert!(
+            state.viewport().left() < panned,
+            "viewport should pan back toward the start",
+        );
+        assert_cursor_visible(&state, "after cursor_left on long line");
+    }
+
+    fn widest_line_in_range(state: &NoteEditorState, range: std::ops::Range<usize>) -> usize {
+        state
+            .virtual_document
+            .lines()
+            .iter()
+            .filter(|line| {
+                line.source_range()
+                    .is_some_and(|r| range.contains(&r.start))
+            })
+            .map(|line| line.virtual_spans().iter().map(|span| span.width()).sum())
+            .max()
+            .expect("a line in the given source range")
+    }
+
+    #[test]
+    fn test_code_background_extends_past_horizontal_scroll() {
+        // The active code block has a short line and a long one. Panning right to
+        // follow the long line must keep the short line's background reaching the
+        // viewport's right edge (left + width), not stop at its own content.
+        let content = format!("```\nshort\n{}\n```\n", "x".repeat(100));
+
+        let mut state =
+            NoteEditorState::new(&content, "", Path::new("test.md"), &Symbols::unicode());
+        let width = 20;
+        state.resize_viewport(Size::new(width, 10));
+        state.set_view(View::Edit(EditMode::Source));
+
+        // Step onto the long line and pan into it.
+        state.cursor_down(2);
+        state.cursor_right(80);
+        state.update_layout(); // editor.rs re-lays out against the scroll each frame.
+
+        let left = state.viewport().left() as usize;
+        assert!(left > 0, "expected a horizontal scroll");
+
+        let short_line_width = widest_line_in_range(&state, 4..10);
+        assert!(
+            short_line_width >= left + width as usize,
+            "code background ({short_line_width}) must cover the viewport \
+             ({left} + {width})",
+        );
+    }
+
+    #[test]
+    fn test_non_active_block_fills_extend_past_horizontal_scroll() {
+        // Editing a long line in one block pans the whole viewport. The fills of
+        // the *other* visible blocks must extend too, even though those blocks
+        // are not the one being edited. Here a second, non-active code block.
+        let long = "x".repeat(100);
+        let content = format!("```\n{long}\n```\n\n```\nbbb\n```\n");
+        // The second code block opens at the fence after the blank line.
+        let second_block_start = content.find("\n\n").unwrap() + 2;
+
+        let mut state =
+            NoteEditorState::new(&content, "", Path::new("test.md"), &Symbols::unicode());
+        let width = 20;
+        state.resize_viewport(Size::new(width, 10));
+        state.set_view(View::Edit(EditMode::Source));
+
+        // Pan into the long line of the first (active) code block.
+        state.cursor_down(1);
+        state.cursor_right(80);
+        state.update_layout();
+
+        let left = state.viewport().left() as usize;
+        assert!(left > 0, "expected a horizontal scroll");
+
+        let non_active_width = widest_line_in_range(&state, second_block_start..content.len());
+        assert!(
+            non_active_width >= left + width as usize,
+            "non-active code background ({non_active_width}) must cover the \
+             viewport ({left} + {width})",
+        );
     }
 }
