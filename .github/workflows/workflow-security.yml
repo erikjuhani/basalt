@@ -45,7 +45,7 @@ jobs:
           annotations: true
           advanced-security: false
           persona: "pedantic"
-          version: 1.25.2
+          version: 1.26.1
           min-severity: "low"
           inputs: |
               .github/workflows/
