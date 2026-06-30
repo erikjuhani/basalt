@@ -3,7 +3,6 @@ This page documents current limitations and features not yet implemented.
 ## Markdown rendering
 
 - Images are not rendered
-- Tables are not rendered
 - Horizontal rules are not rendered
 - Syntax highlighting is not supported
 - Inline text styles (bold, italic, strikethrough) are parsed but not styled
