@@ -1,5 +1,64 @@
 # Changelog
 
+## [0.12.7](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.7) (Unreleased)
+
+### Added
+
+- [1b66afd](https://github.com/erikjuhani/basalt/commit/1b66afdca6c036072981332877fa04b9a6610035) Pan viewport horizontally to follow the cursor in edit mode by @erikjuhani
+
+> Long source lines are shown raw (unwrapped) while editing, so the cursor
+> could move past the right edge and disappear. Track a horizontal scroll
+> offset and pan the document so the cursor stays visible, mirroring the
+> existing vertical follow logic.
+>
+> When the document pans, full-width fills must extend with it or they stop
+> short of the right edge. Thread the scroll offset through the render path
+> so code-block backgrounds, heading underlines, and the title rule span
+> `width + offset`, covering every visible block, not just the one being
+> edited.
+
+- [51d9f92](https://github.com/erikjuhani/basalt/commit/51d9f92a834f1e30c84edaee380d6f7e9d168052) Add markdown table rendering to the note editor
+
+> Tables were parsed away as paragraphs and never drawn. The note editor
+> now renders GFM tables as bordered boxes in reading view. Columns size
+> to their content and, when the table is too wide to fit, share the spare
+> width in proportion to each column's demand the way browsers lay out
+> tables, so a long column takes the most slack without starving the
+> others, and cell text wraps to fit.
+>
+> While editing, a table renders as the same box but reveals the row under
+> the cursor as raw markdown so its pipes stay editable, and every row
+> including the delimiter is reachable. The box is only drawn while the
+> buffer still parses as a table, so the moment the syntax breaks the block
+> falls back to raw line by line editing and a half broken table never
+> hides itself.
+>
+> A thematic break is now kept as a plain paragraph instead of being
+> dropped, because a table whose pipes are deleted degrades into a bare
+> dash row that would otherwise vanish from the document.
+
+### Breaking
+
+- [1863417](https://github.com/erikjuhani/basalt/commit/1863417adfd88ba2f82b7879ea456054ef01d38f) Relicense: GPL-3.0 for app, Apache-2.0 for libraries; add CLA by @erikjuhani
+
+> Move off MIT to a split model that protects against proprietary forks
+> while keeping the libraries reusable.
+>
+> - basalt-tui: MIT -> GPL-3.0-or-later (copyleft and patent grant)
+> - basalt-core and basalt-widgets: MIT -> Apache-2.0 (permissive,
+>   reusable, with a patent grant)
+>
+> Add a lightweight Contributor License Agreement so future GPL
+> contributions can still be relicensed, including under a commercial
+> license, without chasing past contributors for sign-off. Contributors
+> keep their copyright and agree by opening a pull request.
+>
+> Document the split in the README and CONTRIBUTING, and add a pull
+> request template that acknowledges the CLA.
+>
+> Already-published versions remain MIT for anyone who has them; the new
+> terms take effect with this release (0.12.7).
+
 ## [0.12.6](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.6) (Jun, 21 2026)
 
 ### Added
