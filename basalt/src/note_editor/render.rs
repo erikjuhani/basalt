@@ -1019,6 +1019,450 @@ pub fn block_quote<'a>(
     VirtualBlock::new(&lines, source_range)
 }
 
+/// Every table column is at least one cell wide so a border is always drawable.
+const MIN_COLUMN_WIDTH: usize = 1;
+
+// FIXME: Use options struct or similar
+#[allow(clippy::too_many_arguments)]
+pub fn table<'a>(
+    content: &str,
+    prefix: Span<'static>,
+    alignments: &[ast::Alignment],
+    head: &[RichText],
+    rows: &[Vec<RichText>],
+    source_range: &SourceRange<usize>,
+    max_width: usize,
+    option: &RenderStyle,
+    symbols: &Symbols,
+) -> VirtualBlock<'a> {
+    let lines = match option {
+        RenderStyle::Raw => render_raw(content, source_range, max_width, prefix, symbols),
+        // The table renders boxed both for reading and while editing (when this is
+        // not the active block). The active block reveals the cursor's row raw via
+        // `edit_table`.
+        RenderStyle::Visual | RenderStyle::Reader => render_table(
+            content,
+            &prefix,
+            alignments,
+            head,
+            rows,
+            source_range,
+            max_width,
+        ),
+    };
+
+    VirtualBlock::new(&lines, source_range)
+}
+
+/// Renders the active table block while editing: every row is boxed except the one under the
+/// cursor, which is shown raw so its pipes stay byte-aligned with the source and stay editable —
+/// the same "decorate, reveal raw on the cursor line" pattern used for lists and headings.
+///
+/// Columns and alignments are derived from the live buffer (not the possibly stale AST) so the box
+/// tracks in-flight edits. Until the buffer holds a header and a delimiter row, the whole block is
+/// edited raw line by line.
+pub fn edit_table<'a>(
+    content: &str,
+    base: usize,
+    cursor_offset: usize,
+    max_width: usize,
+    horizontal_offset: usize,
+    symbols: &Symbols,
+) -> Vec<VirtualLine<'a>> {
+    let prefix = Span::default();
+
+    let mut source_lines = Vec::new();
+    let mut start = base;
+    for line in content.split_inclusive('\n') {
+        let range = start..start + line.len();
+        start = range.end;
+        source_lines.push((line.strip_suffix('\n').unwrap_or(line).to_string(), range));
+    }
+    while source_lines
+        .last()
+        .is_some_and(|(text, _)| text.trim().is_empty())
+    {
+        source_lines.pop();
+    }
+
+    // Box only a buffer that actually parses as a table — the authoritative test,
+    // matching exactly what read mode shows. The moment the syntax breaks (a bad
+    // delimiter, a mismatched column count, a deleted row), it parses as a paragraph
+    // instead, so we fall back to raw line-by-line editing and the broken markdown
+    // stays visible and fixable.
+    if !matches!(
+        crate::note_editor::parser::from_str(content).as_slice(),
+        [ast::Node::Table { .. }]
+    ) {
+        return edit_lines(
+            content,
+            base,
+            cursor_offset,
+            max_width,
+            horizontal_offset,
+            symbols,
+        );
+    }
+
+    let mut header = split_table_row(&source_lines[0].0);
+    let alignments = split_table_row(&source_lines[1].0)
+        .iter()
+        .map(|cell| parse_alignment(cell))
+        .collect::<Vec<_>>();
+
+    let mut body = source_lines[2..]
+        .iter()
+        .map(|(text, _)| split_table_row(text))
+        .collect::<Vec<_>>();
+
+    let columns = header
+        .len()
+        .max(alignments.len())
+        .max(body.iter().map(Vec::len).max().unwrap_or(0));
+    header.resize(columns, String::new());
+    body.iter_mut()
+        .for_each(|row| row.resize(columns, String::new()));
+
+    let available = max_width.saturating_sub(prefix.width());
+    let widths = table_column_widths(&header, &body, columns, available);
+
+    let on_cursor = |range: &SourceRange<usize>| range.contains(&cursor_offset);
+    let raw = |text: &str, range: &SourceRange<usize>| {
+        render_raw_line(text, prefix.clone(), range, max_width, symbols)
+    };
+
+    let mut lines = vec![table_rule(&prefix, &widths, None, '┌', '┬', '┐')];
+
+    let (header_text, header_range) = &source_lines[0];
+    if on_cursor(header_range) {
+        lines.extend(raw(header_text, header_range));
+    } else {
+        lines.extend(table_content_rows(
+            &prefix,
+            &header,
+            &widths,
+            &alignments,
+            true,
+            Some(header_range.clone()),
+        ));
+    }
+
+    // The delimiter row renders as a separator unless the cursor is on it. Anchoring its source
+    // range keeps it reachable so it can be edited. With no body rows it closes the box.
+    let (delimiter_text, delimiter_range) = &source_lines[1];
+    if on_cursor(delimiter_range) {
+        lines.extend(raw(delimiter_text, delimiter_range));
+        if body.is_empty() {
+            lines.push(table_rule(&prefix, &widths, None, '└', '┴', '┘'));
+        }
+    } else {
+        let (left, junction, right) = if body.is_empty() {
+            ('└', '┴', '┘')
+        } else {
+            ('├', '┼', '┤')
+        };
+        lines.push(table_rule(
+            &prefix,
+            &widths,
+            Some(delimiter_range.clone()),
+            left,
+            junction,
+            right,
+        ));
+    }
+
+    for (i, row) in body.iter().enumerate() {
+        let (text, range) = &source_lines[i + 2];
+        if on_cursor(range) {
+            lines.extend(raw(text, range));
+        } else {
+            lines.extend(table_content_rows(
+                &prefix,
+                row,
+                &widths,
+                &alignments,
+                false,
+                Some(range.clone()),
+            ));
+        }
+        let (left, junction, right) = if i + 1 == body.len() {
+            ('└', '┴', '┘')
+        } else {
+            ('├', '┼', '┤')
+        };
+        lines.push(table_rule(&prefix, &widths, None, left, junction, right));
+    }
+
+    lines
+}
+
+/// Splits a table source row on its pipes into trimmed cell strings, tolerating rows with or
+/// without the optional leading and trailing pipe.
+fn split_table_row(line: &str) -> Vec<String> {
+    let trimmed = line.trim();
+    let trimmed = trimmed.strip_prefix('|').unwrap_or(trimmed);
+    let trimmed = trimmed.strip_suffix('|').unwrap_or(trimmed);
+    trimmed
+        .split('|')
+        .map(|cell| cell.trim().to_string())
+        .collect()
+}
+
+/// Reads a column's alignment from its delimiter cell (`:---`, `:--:`, `---:`).
+fn parse_alignment(cell: &str) -> ast::Alignment {
+    let cell = cell.trim();
+    match (cell.starts_with(':'), cell.ends_with(':')) {
+        (true, true) => ast::Alignment::Center,
+        (false, true) => ast::Alignment::Right,
+        (true, false) => ast::Alignment::Left,
+        (false, false) => ast::Alignment::None,
+    }
+}
+
+/// Renders a bordered table whose columns shrink to fit `max_width`, wrapping long cell text onto
+/// extra rows. Border and padding cells are synthetic; the first display line of each source row
+/// carries that row's source range so the read-mode cursor can traverse the table.
+fn render_table<'a>(
+    content: &str,
+    prefix: &Span<'static>,
+    alignments: &[ast::Alignment],
+    head: &[RichText],
+    rows: &[Vec<RichText>],
+    source_range: &SourceRange<usize>,
+    max_width: usize,
+) -> Vec<VirtualLine<'a>> {
+    let columns = head.len().max(rows.iter().map(Vec::len).max().unwrap_or(0));
+    if columns == 0 {
+        return vec![empty_virtual_line!()];
+    }
+
+    let header = table_cells(head, columns);
+    let body = rows
+        .iter()
+        .map(|row| table_cells(row, columns))
+        .collect::<Vec<_>>();
+
+    let available = max_width.saturating_sub(prefix.width());
+    let widths = table_column_widths(&header, &body, columns, available);
+    let source_lines = table_source_lines(content, source_range);
+
+    let mut lines = vec![table_rule(prefix, &widths, None, '┌', '┬', '┐')];
+    lines.extend(table_content_rows(
+        prefix,
+        &header,
+        &widths,
+        alignments,
+        true,
+        source_lines.first().cloned(),
+    ));
+
+    // A header-only table (no body rows) closes right after the header.
+    if body.is_empty() {
+        lines.push(table_rule(prefix, &widths, None, '└', '┴', '┘'));
+    } else {
+        lines.push(table_rule(prefix, &widths, None, '├', '┼', '┤'));
+        for (i, row) in body.iter().enumerate() {
+            // Skip the header line and the delimiter line to reach this row's source.
+            let row_source = source_lines.get(i + 2).cloned();
+            lines.extend(table_content_rows(
+                prefix, row, &widths, alignments, false, row_source,
+            ));
+            let (left, junction, right) = if i + 1 == body.len() {
+                ('└', '┴', '┘')
+            } else {
+                ('├', '┼', '┤')
+            };
+            lines.push(table_rule(prefix, &widths, None, left, junction, right));
+        }
+    }
+
+    lines.push(empty_virtual_line!());
+    lines
+}
+
+/// Flattens a row's cells to single-line strings, padding short rows out to `columns`.
+fn table_cells(cells: &[RichText], columns: usize) -> Vec<String> {
+    let mut row = cells
+        .iter()
+        .map(|cell| cell.to_string().replace('\n', " "))
+        .collect::<Vec<_>>();
+    row.resize(columns, String::new());
+    row
+}
+
+/// Source range per line of the table's raw markdown, so display rows can map back to source.
+fn table_source_lines(content: &str, source_range: &SourceRange<usize>) -> Vec<SourceRange<usize>> {
+    let table = content.get(source_range.clone()).unwrap_or("");
+    let mut start = source_range.start;
+    table
+        .split_inclusive('\n')
+        .map(|line| {
+            let range = start..start + line.len();
+            start = range.end;
+            range
+        })
+        .collect()
+}
+
+/// Picks a width per column. Each column wants its natural (longest cell) width but never less
+/// than its longest word. When the natural widths fit `available` they are used as-is; otherwise
+/// the spare width is shared out in proportion to each column's demand (`natural - minimum`), the
+/// way browsers lay out tables — so a long column takes the most slack without starving the others.
+fn table_column_widths(
+    header: &[String],
+    body: &[Vec<String>],
+    columns: usize,
+    available: usize,
+) -> Vec<usize> {
+    let mut natural = vec![MIN_COLUMN_WIDTH; columns];
+    let mut minimum = vec![MIN_COLUMN_WIDTH; columns];
+
+    for row in std::iter::once(header).chain(body.iter().map(Vec::as_slice)) {
+        for (column, cell) in row.iter().enumerate() {
+            let longest_word = cell
+                .split_whitespace()
+                .map(|w| w.width())
+                .max()
+                .unwrap_or(0);
+            natural[column] = natural[column].max(cell.width());
+            minimum[column] = minimum[column].max(longest_word);
+        }
+    }
+
+    // One vertical border between and around columns, plus a space of padding each side.
+    let chrome = (columns + 1) + 2 * columns;
+    let budget = available.saturating_sub(chrome);
+
+    if natural.iter().sum::<usize>() <= budget {
+        return natural;
+    }
+
+    // Too wide: give every column its minimum, then share the surplus in proportion to demand.
+    let demand = (0..columns)
+        .map(|column| natural[column] - minimum[column])
+        .collect::<Vec<_>>();
+    let total_demand = demand.iter().sum::<usize>();
+    let surplus = budget.saturating_sub(minimum.iter().sum());
+    if total_demand == 0 || surplus == 0 {
+        return minimum;
+    }
+
+    let mut widths = minimum;
+    let mut remaining = surplus;
+    for column in 0..columns {
+        let share = surplus * demand[column] / total_demand;
+        widths[column] += share;
+        remaining -= share;
+    }
+    // Hand out the rounding remainder to the columns furthest from their natural width.
+    while remaining > 0 {
+        match (0..columns)
+            .filter(|&column| widths[column] < natural[column])
+            .max_by_key(|&column| natural[column] - widths[column])
+        {
+            Some(column) => {
+                widths[column] += 1;
+                remaining -= 1;
+            }
+            None => break,
+        }
+    }
+    widths
+}
+
+/// Wraps a row's cells to their column widths, emitting one [`VirtualLine`] per wrapped text row.
+fn table_content_rows<'a>(
+    prefix: &Span<'static>,
+    row: &[String],
+    widths: &[usize],
+    alignments: &[ast::Alignment],
+    header: bool,
+    source_range: Option<SourceRange<usize>>,
+) -> Vec<VirtualLine<'a>> {
+    let wrapped = row
+        .iter()
+        .zip(widths)
+        .map(|(cell, &width)| wrap_preserve_trailing(cell, width, 0))
+        .collect::<Vec<_>>();
+
+    let height = wrapped.iter().map(Vec::len).max().unwrap_or(1).max(1);
+
+    (0..height)
+        .map(|line| {
+            let mut spans = vec![synthetic_span!(prefix.clone())];
+            // Anchor the row's source range on its first line (zero-width) so the
+            // read-mode cursor and selection can resolve the table.
+            if let (0, Some(range)) = (line, &source_range) {
+                spans.push(content_span!("".to_string(), range.clone()));
+            }
+            spans.push(synthetic_span!(table_border("│")));
+            for (column, &width) in widths.iter().enumerate() {
+                // `wrap_preserve_trailing` keeps trailing spaces, which would over-fill a cell
+                // and push the border out of alignment; cells don't need that fidelity.
+                let text = wrapped[column]
+                    .get(line)
+                    .map(|cell| cell.trim_end())
+                    .unwrap_or("");
+                let alignment = alignments
+                    .get(column)
+                    .copied()
+                    .unwrap_or(ast::Alignment::None);
+                let cell = Span::raw(format!(" {} ", pad_cell(text, width, alignment)));
+                spans.push(synthetic_span!(if header { cell.bold() } else { cell }));
+                spans.push(synthetic_span!(table_border("│")));
+            }
+            VirtualLine::new(&spans)
+        })
+        .collect()
+}
+
+/// Builds a horizontal border line such as `├───┼───┤` spanning every column.
+///
+/// When `anchor` is set, a zero-width content span carries that source range so the line is a
+/// navigation stop — used for the delimiter row, whose only rendering while editing is this
+/// separator; without it the cursor could never reach the delimiter to edit it.
+fn table_rule<'a>(
+    prefix: &Span<'static>,
+    widths: &[usize],
+    anchor: Option<SourceRange<usize>>,
+    left: char,
+    junction: char,
+    right: char,
+) -> VirtualLine<'a> {
+    let mut rule = String::from(left);
+    for (column, &width) in widths.iter().enumerate() {
+        if column > 0 {
+            rule.push(junction);
+        }
+        rule.push_str(&"─".repeat(width + 2));
+    }
+    rule.push(right);
+
+    let mut spans = vec![synthetic_span!(prefix.clone())];
+    if let Some(range) = anchor {
+        spans.push(content_span!("".to_string(), range));
+    }
+    spans.push(synthetic_span!(table_border(&rule)));
+    VirtualLine::new(&spans)
+}
+
+/// Pads `content` to `width` display columns according to `alignment`.
+fn pad_cell(content: &str, width: usize, alignment: ast::Alignment) -> String {
+    let fill = width.saturating_sub(content.width());
+    match alignment {
+        ast::Alignment::Right => format!("{}{content}", " ".repeat(fill)),
+        ast::Alignment::Center => {
+            let left = fill / 2;
+            format!("{}{content}{}", " ".repeat(left), " ".repeat(fill - left))
+        }
+        ast::Alignment::Left | ast::Alignment::None => format!("{content}{}", " ".repeat(fill)),
+    }
+}
+
+fn table_border<'a>(text: &str) -> Span<'a> {
+    Span::raw(text.to_string()).dark_gray()
+}
+
 // FIXME: Use options struct or similar
 #[allow(clippy::too_many_arguments)]
 pub fn render_node<'a>(
@@ -1129,6 +1573,22 @@ pub fn render_node<'a>(
             source_range,
             max_width,
             horizontal_offset,
+            option,
+            symbols,
+        ),
+        Table {
+            alignments,
+            head,
+            rows,
+            source_range,
+        } => table(
+            &content,
+            prefix,
+            alignments,
+            head,
+            rows,
+            source_range,
+            max_width,
             option,
             symbols,
         ),

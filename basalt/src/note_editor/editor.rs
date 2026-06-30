@@ -431,6 +431,138 @@ mod tests {
                 }),
             ),
             (
+                // A table edits as a box; only the cursor's row reveals raw. Here
+                // the cursor is on the header row.
+                "edit_mode_table_cursor_header",
+                Box::new(|area| {
+                    let content = indoc! { r#"## Tables
+
+                    | Name  | Role       |
+                    | :---- | :--------: |
+                    | Alice | Maintainer |
+                    | Bob   | Reviewer   |
+                    "#};
+                    let mut state = NoteEditorState::new(
+                        content,
+                        "Test",
+                        Path::new("test.md"),
+                        &Symbols::unicode(),
+                    );
+                    state.resize_viewport(area.as_size());
+                    state.set_view(View::Edit(EditMode::Source));
+                    state.cursor_down(1);
+                    state
+                }),
+            ),
+            (
+                // A broken table (invalid delimiter row) is edited fully raw so the
+                // broken markdown stays visible and fixable — no box hides it, even
+                // with the cursor away from the broken line.
+                "edit_mode_table_broken_is_raw",
+                Box::new(|area| {
+                    let content = indoc! { r#"## Tables
+
+                    | Name  | Role       |
+                    | :xx-- | :--------: |
+                    | Alice | Maintainer |
+                    | Bob   | Reviewer   |
+                    "#};
+                    let mut state = NoteEditorState::new(
+                        content,
+                        "Test",
+                        Path::new("test.md"),
+                        &Symbols::unicode(),
+                    );
+                    state.resize_viewport(area.as_size());
+                    state.set_view(View::Edit(EditMode::Source));
+                    state.cursor_down(1);
+                    state
+                }),
+            ),
+            (
+                // Breaking a live table by deleting a delimiter column (so the
+                // delimiter no longer matches the header) drops it out of table
+                // syntax. Even though the cursor moves away from the broken line, the
+                // whole block falls back to raw so it stays visible and fixable.
+                "edit_mode_table_break_column_count",
+                Box::new(|area| {
+                    let content = indoc! { r#"## Tables
+
+                    | Name | Role |
+                    | ---- | ---- |
+                    | A    | B    |
+                    "#};
+                    let mut state = NoteEditorState::new(
+                        content,
+                        "Test",
+                        Path::new("test.md"),
+                        &Symbols::unicode(),
+                    );
+                    state.resize_viewport(area.as_size());
+                    state.set_view(View::Edit(EditMode::Source));
+                    // Onto the delimiter row, then delete its second column.
+                    state.cursor_down(1);
+                    state.cursor_down(1);
+                    state.cursor_right(40);
+                    for _ in 0..7 {
+                        state.delete_char();
+                    }
+                    // Move the cursor back up to the header, away from the break.
+                    state.cursor_up(1);
+                    state
+                }),
+            ),
+            (
+                // The delimiter row is reachable too: landing on it reveals it raw
+                // so its alignment markers can be edited.
+                "edit_mode_table_cursor_delimiter",
+                Box::new(|area| {
+                    let content = indoc! { r#"## Tables
+
+                    | Name  | Role       |
+                    | :---- | :--------: |
+                    | Alice | Maintainer |
+                    | Bob   | Reviewer   |
+                    "#};
+                    let mut state = NoteEditorState::new(
+                        content,
+                        "Test",
+                        Path::new("test.md"),
+                        &Symbols::unicode(),
+                    );
+                    state.resize_viewport(area.as_size());
+                    state.set_view(View::Edit(EditMode::Source));
+                    state.cursor_down(1);
+                    state.cursor_down(1);
+                    state
+                }),
+            ),
+            (
+                // Stepping down reveals a body row raw while the rest stays boxed.
+                "edit_mode_table_cursor_body",
+                Box::new(|area| {
+                    let content = indoc! { r#"## Tables
+
+                    | Name  | Role       |
+                    | :---- | :--------: |
+                    | Alice | Maintainer |
+                    | Bob   | Reviewer   |
+                    "#};
+                    let mut state = NoteEditorState::new(
+                        content,
+                        "Test",
+                        Path::new("test.md"),
+                        &Symbols::unicode(),
+                    );
+                    state.resize_viewport(area.as_size());
+                    state.set_view(View::Edit(EditMode::Source));
+                    state.cursor_down(1);
+                    state.cursor_down(1);
+                    state.cursor_down(1);
+                    state
+                }),
+            ),
+            (
                 // Only the list item under the cursor should render raw; the
                 // surrounding items stay rendered. Ref: issue #486.
                 "edit_mode_list_line_by_line_raw",
@@ -594,6 +726,17 @@ mod tests {
             //     _ _ _
             //     "#},
             // ),
+            (
+                "tables",
+                indoc! { r#"## Tables
+                Columns size to their content and wrap long text so the table fits.
+
+                | Name  | Role       | Notes                                                            |
+                | :---- | :--------: | ---------------------------------------------------------------: |
+                | Alice | Maintainer | Writes most of the core code and reviews incoming pull requests. |
+                | Bob   | Reviewer   | Short note.                                                      |
+                "#},
+            ),
             (
                 "code_blocks",
                 indoc! { r#"## Code blocks

@@ -1,0 +1,28 @@
+---
+source: basalt/src/note_editor/parser.rs
+expression: "format!(\"{}\\n ---\\n\\n{}\", text, ast::nodes_to_sexp(&from_str(text), 0))"
+---
+## Horizontal rule
+
+---
+
+A broken table degrades to a dash row, which must stay visible:
+
+First Header | Second Header
+------------ ------------
+Content | Content
+
+ ---
+
+(heading H2 @0..19
+  "Horizontal rule")
+(paragraph @20..24
+  "---")
+(paragraph @25..89
+  "A broken table degrades to a dash row, which must stay visible:")
+(paragraph @90..119
+  "First Header | Second Header")
+(paragraph @119..145
+  "------------ ------------")
+(paragraph @145..163
+  "Content | Content")
