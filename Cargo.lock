@@ -126,7 +126,7 @@ dependencies = [
 
 [[package]]
 name = "basalt-tui"
-version = "0.12.6"
+version = "0.12.7"
 dependencies = [
  "basalt-core 0.9.0",
  "clap",
