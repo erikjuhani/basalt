@@ -12,7 +12,9 @@ use crate::{
     config::Symbols,
     note_editor::{
         ast::{self, SourceRange},
-        render::{edit_lines, render_node, text_wrap, trailing_empty_lines, RenderStyle},
+        render::{
+            edit_lines, edit_table, render_node, text_wrap, trailing_empty_lines, RenderStyle,
+        },
         state::View,
         text_buffer::TextBuffer,
     },
@@ -297,14 +299,27 @@ impl<'a> VirtualDocument<'a> {
                             .as_ref()
                             .map(|b| b.content.as_str())
                             .unwrap_or("");
-                        let lines = edit_lines(
-                            buffer_content,
-                            range.start,
-                            cursor_offset,
-                            width,
-                            horizontal_offset,
-                            &self.symbols,
-                        );
+                        // A table edits as a box with the cursor's row revealed raw;
+                        // every other block edits raw line by line.
+                        let lines = if matches!(node, ast::Node::Table { .. }) {
+                            edit_table(
+                                buffer_content,
+                                range.start,
+                                cursor_offset,
+                                width,
+                                horizontal_offset,
+                                &self.symbols,
+                            )
+                        } else {
+                            edit_lines(
+                                buffer_content,
+                                range.start,
+                                cursor_offset,
+                                width,
+                                horizontal_offset,
+                                &self.symbols,
+                            )
+                        };
                         VirtualBlock::new(&lines, range)
                     }
                     None => render_node(

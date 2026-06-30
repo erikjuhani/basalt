@@ -65,6 +65,30 @@ pub enum TaskKind {
     LooselyChecked,
 }
 
+/// Column alignment for a table, derived from the delimiter row (e.g. `:---:`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Alignment {
+    /// No explicit alignment; rendered left aligned.
+    None,
+    /// Left aligned (`:---`).
+    Left,
+    /// Centered (`:---:`).
+    Center,
+    /// Right aligned (`---:`).
+    Right,
+}
+
+impl From<pulldown_cmark::Alignment> for Alignment {
+    fn from(value: pulldown_cmark::Alignment) -> Self {
+        match value {
+            pulldown_cmark::Alignment::None => Alignment::None,
+            pulldown_cmark::Alignment::Left => Alignment::Left,
+            pulldown_cmark::Alignment::Center => Alignment::Center,
+            pulldown_cmark::Alignment::Right => Alignment::Right,
+        }
+    }
+}
+
 pub type SourceRange<Idx> = std::ops::Range<Idx>;
 
 /// The Markdown AST node enumeration.
@@ -103,6 +127,14 @@ pub enum Node {
         nodes: Vec<Node>,
         source_range: SourceRange<usize>,
     },
+    /// A GFM table with a header row and zero or more body rows. Each cell is the [`RichText`]
+    /// between two pipes; `alignments` holds one [`Alignment`] per column.
+    Table {
+        alignments: Vec<Alignment>,
+        head: Vec<RichText>,
+        rows: Vec<Vec<RichText>>,
+        source_range: SourceRange<usize>,
+    },
 }
 
 impl Node {
@@ -114,7 +146,8 @@ impl Node {
             | Self::List { source_range, .. }
             | Self::BlockQuote { source_range, .. }
             | Self::Item { source_range, .. }
-            | Self::Task { source_range, .. } => source_range,
+            | Self::Task { source_range, .. }
+            | Self::Table { source_range, .. } => source_range,
         }
     }
 
@@ -126,7 +159,8 @@ impl Node {
             | Self::List { source_range, .. }
             | Self::BlockQuote { source_range, .. }
             | Self::Item { source_range, .. }
-            | Self::Task { source_range, .. } => *source_range = new_range,
+            | Self::Task { source_range, .. }
+            | Self::Table { source_range, .. } => *source_range = new_range,
         }
     }
 
@@ -251,6 +285,35 @@ pub fn node_to_sexp(node: &Node, indent_level: usize) -> String {
                 source_range,
                 nodes_to_sexp(nodes, indent_level + indent_increment),
                 indent = indent_level
+            )
+        }
+        Node::Table {
+            alignments,
+            head,
+            rows,
+            source_range,
+        } => {
+            let cells = |row: &[RichText]| {
+                row.iter()
+                    .map(|cell| format!("\"{cell}\""))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            };
+            let inner_indent = indent_level + indent_increment;
+            let body = rows
+                .iter()
+                .map(|row| format!("{:inner_indent$}(row {})", "", cells(row)))
+                .collect::<Vec<_>>()
+                .join("\n");
+            format!(
+                "{:indent$}(table {:?} @{:?}\n{:inner_indent$}(head {})\n{})",
+                "",
+                alignments,
+                source_range,
+                "",
+                cells(head),
+                body,
+                indent = indent_level,
             )
         }
     }

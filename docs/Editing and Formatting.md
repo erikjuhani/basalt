@@ -42,6 +42,21 @@ Checkbox items are rendered with visual indicators:
 - [x] Completed task
 ```
 
+## Tables
+
+GitHub Flavored Markdown tables are rendered as bordered boxes. Columns size to their content and share any spare width in proportion to each column when the table is too wide to fit, and long cell text wraps to fit the column:
+
+```markdown
+| Feature  | Status | Notes                                  |
+| :------- | :----: | -------------------------------------- |
+| Borders  | done   | Columns size to their content          |
+| Wrapping | done   | Long cell text wraps to fit the column |
+```
+
+![[table.gif]]
+
+While editing, the table stays rendered and only the row under the cursor reveals its raw markdown. If the table syntax breaks the whole block falls back to raw text so it stays visible and editable.
+
 ## Code blocks
 
 Fenced code blocks are rendered with a distinct background:

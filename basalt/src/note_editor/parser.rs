@@ -7,18 +7,21 @@ use crate::note_editor::{
     rich_text::{RichText, Style, TextSegment},
 };
 
-pub struct Parser<'a>(pulldown_cmark::TextMergeWithOffset<'a, pulldown_cmark::OffsetIter<'a>>);
+pub struct Parser<'a> {
+    events: pulldown_cmark::TextMergeWithOffset<'a, pulldown_cmark::OffsetIter<'a>>,
+    source: &'a str,
+}
 
 impl<'a> Deref for Parser<'a> {
     type Target = pulldown_cmark::TextMergeWithOffset<'a, pulldown_cmark::OffsetIter<'a>>;
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.events
     }
 }
 
 impl DerefMut for Parser<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        &mut self.events
     }
 }
 
@@ -58,20 +61,43 @@ impl<'a> Parser<'a> {
             pulldown_cmark::Parser::new_ext(text, options).into_offset_iter(),
         );
 
-        Self(parser)
+        Self {
+            events: parser,
+            source: text,
+        }
+    }
+
+    /// A thematic break (`---`, or a table's leftover dash row once the pipes are gone) is kept as
+    /// a plain paragraph so its source stays visible and editable. Without this it parses as a
+    /// [`pulldown_cmark::Event::Rule`], which carries no text and would leave that line uncovered
+    /// by any node — invisible and impossible to fix. Horizontal rules are not rendered specially.
+    fn rule_node(&self, source_range: SourceRange<usize>) -> Node {
+        let text = self
+            .source
+            .get(source_range.clone())
+            .unwrap_or("")
+            .trim_end_matches('\n');
+        Node::Paragraph {
+            text: RichText::from(vec![TextSegment::plain(text)]),
+            source_range,
+        }
     }
 
     pub fn parse(mut self) -> Vec<Node> {
         let mut result = Vec::new();
         let mut state = ParserState::default();
 
-        while let Some((event, _)) = self.next() {
+        while let Some((event, source_range)) = self.next() {
             match event {
+                Event::Start(Tag::Table(alignments)) => {
+                    result.push(self.parse_table(alignments, source_range));
+                }
                 Event::Start(tag) if Self::is_container_tag(&tag) => {
                     if let Some(node) = self.parse_container(tag, &mut state) {
                         result.push(node);
                     }
                 }
+                Event::Rule => result.push(self.rule_node(source_range)),
                 _ => {}
             }
         }
@@ -96,6 +122,10 @@ impl<'a> Parser<'a> {
 
         while let Some((event, source_range)) = self.next() {
             match event {
+                Event::Start(Tag::Table(alignments)) => {
+                    nodes.push(self.parse_table(alignments, source_range));
+                }
+
                 Event::Start(inner_tag) if Self::is_container_tag(&inner_tag) => {
                     if let Some(node) = self.parse_container(inner_tag, state) {
                         nodes.push(node);
@@ -107,6 +137,8 @@ impl<'a> Parser<'a> {
                         inline_styles.push(style);
                     }
                 }
+
+                Event::Rule => nodes.push(self.rule_node(source_range)),
 
                 Event::TaskListMarker(checked) => {
                     state.task_kind.push(if checked {
@@ -217,6 +249,69 @@ impl<'a> Parser<'a> {
         }
 
         None
+    }
+
+    /// Parses a table from the events between `Start(Table)` and `End(Table)`.
+    ///
+    /// Cells before the first `TableRow` belong to the header; the rest form body rows. Inline
+    /// styles are tracked per cell so emphasis inside a cell is preserved.
+    fn parse_table(
+        &mut self,
+        alignments: Vec<pulldown_cmark::Alignment>,
+        source_range: SourceRange<usize>,
+    ) -> Node {
+        let alignments = alignments.into_iter().map(Into::into).collect();
+        let mut head = Vec::new();
+        let mut rows = Vec::new();
+        let mut row = Vec::new();
+        let mut cell = Vec::new();
+        let mut inline_styles = Vec::new();
+        let mut in_head = false;
+
+        for (event, _) in self.by_ref() {
+            match event {
+                Event::Start(Tag::TableHead) => in_head = true,
+                Event::Start(Tag::TableRow) => in_head = false,
+                Event::Start(Tag::TableCell) => {
+                    cell = Vec::new();
+                    inline_styles.clear();
+                }
+                Event::Start(inner_tag) if Self::is_inline_tag(&inner_tag) => {
+                    if let Some(style) = Self::tag_to_style(&inner_tag) {
+                        inline_styles.push(style);
+                    }
+                }
+                Event::End(TagEnd::Emphasis | TagEnd::Strong | TagEnd::Strikethrough) => {
+                    inline_styles.pop();
+                }
+                Event::Code(text) => cell.push(TextSegment::styled(&text, Style::Code)),
+                Event::Text(text) => {
+                    let mut text_segment = TextSegment::plain(&text);
+                    inline_styles
+                        .iter()
+                        .for_each(|style| text_segment.add_style(style));
+                    cell.push(text_segment);
+                }
+                Event::End(TagEnd::TableCell) => {
+                    let text = RichText::from(std::mem::take(&mut cell));
+                    if in_head {
+                        head.push(text);
+                    } else {
+                        row.push(text);
+                    }
+                }
+                Event::End(TagEnd::TableRow) => rows.push(std::mem::take(&mut row)),
+                Event::End(TagEnd::Table) => break,
+                _ => {}
+            }
+        }
+
+        Node::Table {
+            alignments,
+            head,
+            rows,
+            source_range,
+        }
     }
 
     fn is_container_tag(tag: &Tag) -> bool {
@@ -381,23 +476,22 @@ mod tests {
                   - [ ] Subtask 2
                 "#},
             ),
-            // TODO: Implement horizontal rule
-            // (
-            //     "horizontal_rule",
-            //     indoc! { r#"## Horizontal rule
-            //     You can use three or more stars `***`, hyphens `---`, or underscore `___` on its own line to add a horizontal bar. You can also separate symbols using spaces.
-            //
-            //     ***
-            //     ****
-            //     * * *
-            //     ---
-            //     ----
-            //     - - -
-            //     ___
-            //     ____
-            //     _ _ _
-            //     "#},
-            // ),
+            (
+                // A thematic break (and a table's leftover dash row once the pipes are
+                // deleted) is kept as a plain paragraph so its source stays visible and
+                // editable rather than vanishing.
+                "horizontal_rule",
+                indoc! { r#"## Horizontal rule
+
+                ---
+
+                A broken table degrades to a dash row, which must stay visible:
+
+                First Header | Second Header
+                ------------ ------------
+                Content | Content
+                "#},
+            ),
             (
                 "code_blocks",
                 indoc! { r#"## Code blocks
@@ -411,6 +505,17 @@ mod tests {
 
                     cd ~/Desktop
 
+                "#},
+            ),
+            (
+                "tables",
+                indoc! { r#"## Tables
+                You can create a table by separating columns with `|` and the header from the body with a row of dashes.
+
+                | Name  | Role      | Notes                       |
+                | :---- | :-------: | --------------------------: |
+                | Alice | Maintainer | Writes most of the **core** code |
+                | Bob   | Reviewer  | `reviews`                   |
                 "#},
             ),
             (
