@@ -4,6 +4,21 @@
 
 ### Added
 
+- [8f58061](https://github.com/erikjuhani/basalt/commit/8f5806145a422c2e6d3c23e2bb6fe9bd55001f58) Render callout block quotes by @erikjuhani
+
+> Render Obsidian and GitHub callouts (`> [!note]`) with a per-kind
+> coloured bar and an icon + title header above the body, keeping the
+> accent colour while editing.
+>
+> Support the full Obsidian type set (note, abstract, info, todo, tip,
+> success, question, warning, failure, danger, bug, example, quote) and
+> their aliases, plus custom titles and fold markers (`[!note]- Title`),
+> which pulldown-cmark does not recognise. Type names are case-insensitive
+> and unknown types fall back to note, as in Obsidian.
+>
+> Each type has a configurable symbol across the ascii, unicode and nerd
+> font presets.
+
 - [00430a8](https://github.com/erikjuhani/basalt/commit/00430a85d15c49a0b6d5ea81038608ab15abe57d) Add vim visual selection with clipboard yank by @erikjuhani
 
 > Visual selection comes to the vim-mode note editor. `v` starts a

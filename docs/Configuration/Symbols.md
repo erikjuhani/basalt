@@ -68,6 +68,19 @@ task_unchecked = "[ ]"
 | `task_unchecked`     | Unchecked task marker             | `□`      | `[ ]`    | (checkbox-blank icon)  |
 | `task_checked`       | Checked task marker               | `■`      | `[x]`    | (checkbox-marked icon) |
 | `blockquote_border`  | Border character for block quotes | `┃`      | `\|`     | `┃`                    |
+| `callout_note`       | Icon for `note` callouts          | `✎`      | `(i)`    | (info icon)            |
+| `callout_abstract`   | Icon for `abstract` callouts      | `▤`      | `[=]`    | (file icon)            |
+| `callout_info`       | Icon for `info` callouts          | `ⓘ`      | `(i)`    | (info icon)            |
+| `callout_todo`       | Icon for `todo` callouts          | `⛝`      | `[ ]`    | (tasks icon)           |
+| `callout_tip`        | Icon for `tip` callouts           | `☆`      | `(*)`    | (lightbulb icon)       |
+| `callout_success`    | Icon for `success` callouts       | `✓`      | `[v]`    | (check icon)           |
+| `callout_question`   | Icon for `question` callouts      | `？`     | `[?]`    | (question icon)        |
+| `callout_warning`    | Icon for `warning` callouts       | `⚠`      | `/!\`    | (warning icon)         |
+| `callout_failure`    | Icon for `failure` callouts       | `✗`      | `[x]`    | (times icon)           |
+| `callout_danger`     | Icon for `danger` callouts        | `‼`      | `(!)`    | (bolt icon)            |
+| `callout_bug`        | Icon for `bug` callouts           | `⊙`      | `[b]`    | (bug icon)             |
+| `callout_example`    | Icon for `example` callouts       | `≡`      | `[e]`    | (list icon)            |
+| `callout_quote`      | Icon for `quote` callouts         | `❞`      | `"`      | (quote icon)           |
 
 ### List markers
 

@@ -1,0 +1,39 @@
+---
+source: basalt/src/note_editor/parser.rs
+expression: "format!(\"{}\\n ---\\n\\n{}\", text, ast::nodes_to_sexp(&from_str(text), 0))"
+---
+## Callouts
+
+> [!NOTE]
+> Strict GitHub form.
+
+> [!summary] Aliased to abstract
+> Body line.
+
+> [!danger]- Foldable with a title
+> Body line.
+
+> [!custom] Unknown defaults to note
+> Body line.
+
+> A plain quote, not a callout.
+
+ ---
+
+(heading H2 @0..12
+  "Callouts")
+(blockquote Some(Note) None @13..45
+  (paragraph @25..45
+    "Strict GitHub form."))
+(blockquote Some(Abstract) Some("Aliased to abstract") @46..92
+  (paragraph @48..92
+    "Body line."))
+(blockquote Some(Danger) Some("Foldable with a title") @93..141
+  (paragraph @95..141
+    "Body line."))
+(blockquote Some(Note) Some("Unknown defaults to note") @142..192
+  (paragraph @144..192
+    "Body line."))
+(blockquote None None @193..225
+  (paragraph @195..225
+    "A plain quote, not a callout."))

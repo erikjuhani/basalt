@@ -34,7 +34,7 @@ You can toggle a task in Reading view by selecting the checkbox.
       "This is an incomplete task.")))
 (paragraph @169..234
   "You can toggle a task in Reading view by selecting the checkbox.")
-(blockquote Some(Tip) @235..357
+(blockquote Some(Tip) None @235..357
   (paragraph @246..316
     "You can use any character inside the brackets to mark it as complete.")
   (list @320..357
