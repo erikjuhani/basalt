@@ -57,6 +57,21 @@ Key differences from the defaults:
 
 In the note editor, vim mode introduces Normal/Insert sub-modes within EDIT. Pressing `i` enters Insert mode for typing; `Esc` returns to Normal mode for navigation; pressing `Esc` again exits back to READ.
 
+### Visual selection and yank
+
+From Normal mode you can select text and yank it to the system clipboard:
+
+| Key   | Command                          |
+| ----- | -------------------------------- |
+| `v`   | Start a charwise selection       |
+| `V`   | Start a linewise selection       |
+| `y`   | Yank the selection to clipboard  |
+| `Esc` | Cancel the selection             |
+
+Motions extend the selection, a short flash marks the yanked range, and the copy uses your platform clipboard utility with an OSC 52 fallback for SSH and tmux.
+
+![[visual-selection.gif]]
+
 The full vim preset is defined in `vim.toml`. Sections not defined in the preset keep their default bindings.
 
 ## Symbols
