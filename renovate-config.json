@@ -6,6 +6,7 @@
     "schedule:daily"
   ],
   "rebaseWhen": "behind-base-branch",
+  "rangeStrategy": "update-lockfile",
   "onboarding": false,
   "commitBodyTable": true,
   "minimumReleaseAge": "3 days",
