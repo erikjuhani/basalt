@@ -11,7 +11,7 @@ This page documents current limitations and features not yet implemented.
 - HTML content is not supported
 - External links are not clickable
 - Code blocks are rendered without syntax highlighting
-- Callouts are parsed but types are not visually differentiated
+- Callout folding (`> [!note]-`) is not interactive; folds render expanded
 - Task items `- [ ]` and `- [x]` work; `- [?]` is not supported
 
 ## File operations

@@ -36,6 +36,13 @@ impl SpanExt for &Span<'_> {
 /// user's colour scheme rather than a hard-coded shade.
 const CODE_BG: Color = Color::Black;
 
+/// Vertical bar drawn down the side of a plain block quote.
+const QUOTE_BAR: &str = "┃ ";
+
+/// Bolder solid bar for callout blocks so they stand out from plain quotes.
+/// Ref: #79.
+const CALLOUT_BAR: &str = "▋ ";
+
 #[derive(Clone, PartialEq, Debug)]
 pub enum RenderStyle {
     Raw,
@@ -158,6 +165,8 @@ pub fn edit_lines<'a>(
     let mut start = base;
     // Lines inside a fenced code block are literal — never decorated as markdown.
     let mut in_code = false;
+    // A quote's first line fixes the accent its body lines inherit.
+    let mut quote: Option<QuoteStyle> = None;
 
     for line in content.split_inclusive('\n') {
         let line_range = start..start + line.len();
@@ -166,16 +175,21 @@ pub fn edit_lines<'a>(
         let fence = is_code_fence(text);
 
         if in_code || fence {
+            quote = None;
             lines.push(code_line(text, &line_range, fill_width));
             // A fence toggles the block: the opener enters it, the next closes it.
             in_code ^= fence;
         } else {
+            let rest = text.trim_start();
+            quote = quote_prefix(rest)
+                .map(|(prefix_len, _)| quote.unwrap_or_else(|| quote_style(&rest[prefix_len..])));
             lines.extend(edit_line(
                 text,
                 &line_range,
                 line_range.contains(&cursor_offset),
                 max_width,
                 fill_width,
+                quote,
                 symbols,
             ));
         }
@@ -184,12 +198,14 @@ pub fn edit_lines<'a>(
 }
 
 /// Renders a single non-code source line for edit mode.
+#[allow(clippy::too_many_arguments)]
 fn edit_line<'a>(
     text: &str,
     line_range: &SourceRange<usize>,
     is_cursor: bool,
     max_width: usize,
     fill_width: usize,
+    quote: Option<QuoteStyle>,
     symbols: &Symbols,
 ) -> Vec<VirtualLine<'a>> {
     if text.is_empty() {
@@ -211,12 +227,14 @@ fn edit_line<'a>(
     if is_cursor {
         // Raw, but keep the block-quote markers coloured.
         if let Some((prefix_len, _)) = quote_prefix(rest) {
-            return vec![raw_quote_line(text, line_range, indent_len, prefix_len)];
+            return vec![raw_quote_line(
+                text, line_range, indent_len, prefix_len, quote,
+            )];
         }
         return render_raw_line(text, Span::default(), line_range, max_width, symbols);
     }
 
-    decorate_line(text, line_range, max_width, symbols)
+    decorate_line(text, line_range, max_width, quote, symbols)
 }
 
 /// True if the line opens or closes a fenced code block (``` ``` ``` or `~~~`).
@@ -288,13 +306,15 @@ fn raw_quote_line<'a>(
     line_range: &SourceRange<usize>,
     indent_len: usize,
     prefix_len: usize,
+    quote: Option<QuoteStyle>,
 ) -> VirtualLine<'a> {
     let start = line_range.start;
     let marker_end = indent_len + prefix_len;
+    let color = quote.map_or(Color::Magenta, |quote| quote.color);
     virtual_line!([
         content_span!(text[..indent_len].to_string(), start..start + indent_len),
         content_span!(
-            text[indent_len..marker_end].to_string().magenta(),
+            text[indent_len..marker_end].to_string().fg(color),
             (start + indent_len)..(start + marker_end)
         ),
         content_span!(
@@ -311,6 +331,7 @@ fn decorate_line<'a>(
     text: &str,
     line_range: &SourceRange<usize>,
     max_width: usize,
+    quote: Option<QuoteStyle>,
     symbols: &Symbols,
 ) -> Vec<VirtualLine<'a>> {
     let indent_len = text.len() - text.trim_start().len();
@@ -374,8 +395,9 @@ fn decorate_line<'a>(
     }
     if let Some((prefix_len, levels)) = quote_prefix(rest) {
         let content_start = indent_len + prefix_len;
+        let quote = quote.unwrap_or_default();
         return render(
-            Some(Span::raw("┃ ".repeat(levels)).magenta()),
+            Some(Span::raw(quote.bar().repeat(levels)).fg(quote.color)),
             content_start,
             Span::raw(text[content_start..].to_string()),
         );
@@ -971,16 +993,106 @@ pub fn line_range(start: usize, line_width: usize, newline: bool) -> SourceRange
     start..end
 }
 
+/// Colour and bar a quote block's body lines inherit from its first line while
+/// editing, since they carry no `[!kind]` marker of their own.
+#[derive(Clone, Copy)]
+struct QuoteStyle {
+    color: Color,
+    callout: bool,
+}
+
+impl Default for QuoteStyle {
+    fn default() -> Self {
+        Self {
+            color: Color::Magenta,
+            callout: false,
+        }
+    }
+}
+
+impl QuoteStyle {
+    fn bar(&self) -> &'static str {
+        if self.callout {
+            CALLOUT_BAR
+        } else {
+            QUOTE_BAR
+        }
+    }
+}
+
+fn quote_style(first_line: &str) -> QuoteStyle {
+    match ast::parse_callout_marker(first_line) {
+        Some(marker) => QuoteStyle {
+            color: callout_color(&Some(marker.kind)),
+            callout: true,
+        },
+        None => QuoteStyle::default(),
+    }
+}
+
+/// Per-kind accent colour for a callout block quote; plain quotes (`None`) keep
+/// the default magenta border.
+fn callout_color(kind: &Option<ast::BlockQuoteKind>) -> Color {
+    use ast::BlockQuoteKind::*;
+    match kind {
+        None => Color::Magenta,
+        Some(Note | Info | Todo) => Color::Blue,
+        Some(Abstract | Tip) => Color::Cyan,
+        Some(Success) => Color::Green,
+        Some(Question | Warning) => Color::Yellow,
+        Some(Failure | Danger | Bug) => Color::Red,
+        Some(Example) => Color::Magenta,
+        Some(Quote) => Color::Gray,
+    }
+}
+
+/// Header label shown next to the icon on a callout's first line.
+fn callout_label(kind: &ast::BlockQuoteKind) -> &'static str {
+    use ast::BlockQuoteKind::*;
+    match kind {
+        Note => "Note",
+        Abstract => "Abstract",
+        Info => "Info",
+        Todo => "Todo",
+        Tip => "Tip",
+        Success => "Success",
+        Question => "Question",
+        Warning => "Warning",
+        Failure => "Failure",
+        Danger => "Danger",
+        Bug => "Bug",
+        Example => "Example",
+        Quote => "Quote",
+    }
+}
+
+/// Configurable icon for a callout kind, pulled from the active symbol set.
+fn callout_symbol<'a>(kind: &ast::BlockQuoteKind, symbols: &'a Symbols) -> &'a str {
+    use ast::BlockQuoteKind::*;
+    match kind {
+        Note => &symbols.callout_note,
+        Abstract => &symbols.callout_abstract,
+        Info => &symbols.callout_info,
+        Todo => &symbols.callout_todo,
+        Tip => &symbols.callout_tip,
+        Success => &symbols.callout_success,
+        Question => &symbols.callout_question,
+        Warning => &symbols.callout_warning,
+        Failure => &symbols.callout_failure,
+        Danger => &symbols.callout_danger,
+        Bug => &symbols.callout_bug,
+        Example => &symbols.callout_example,
+        Quote => &symbols.callout_quote,
+    }
+}
+
 // FIXME: Use options struct or similar
 #[allow(clippy::too_many_arguments)]
 pub fn block_quote<'a>(
     content: &str,
     prefix: Span<'static>,
-    // TODO: Add kind support
-    // Should be as simple as adding a synthetic icon span and a content span
-    // visual_line!([synthetic, content])
-    // Ref: https://github.com/erikjuhani/basalt/issues/79
-    _kind: &Option<ast::BlockQuoteKind>,
+    kind: &Option<ast::BlockQuoteKind>,
+    title: &Option<String>,
     nodes: &[ast::Node],
     source_range: &SourceRange<usize>,
     max_width: usize,
@@ -988,32 +1100,59 @@ pub fn block_quote<'a>(
     option: &RenderStyle,
     symbols: &Symbols,
 ) -> VirtualBlock<'a> {
+    let color = callout_color(kind);
+    let bar = if kind.is_some() {
+        CALLOUT_BAR
+    } else {
+        QUOTE_BAR
+    };
     let lines = match option {
         RenderStyle::Raw => render_raw(content, source_range, max_width, prefix, symbols),
-        RenderStyle::Visual | RenderStyle::Reader => nodes
-            .iter()
-            .enumerate()
-            .flat_map(|(i, node)| {
-                let mut lines = render_node(
-                    content.to_string(),
-                    node,
-                    max_width,
-                    horizontal_offset,
-                    prefix.merge(Span::raw("┃ ").magenta()),
-                    option,
-                    symbols,
-                    0,
-                )
-                .lines;
-                if prefix.to_string().is_empty() && i != nodes.len().saturating_sub(1) {
-                    lines.extend([virtual_line!([synthetic_span!(Span::raw("┃ ").magenta())])]);
+        RenderStyle::Visual | RenderStyle::Reader => {
+            let is_root = prefix.to_string().is_empty();
+            let bar_prefix = || prefix.merge(Span::raw(bar).fg(color));
+
+            let mut lines: Vec<VirtualLine<'a>> = kind
+                .iter()
+                .map(|kind| {
+                    let label = title
+                        .clone()
+                        .unwrap_or_else(|| callout_label(kind).to_string());
+                    virtual_line!([
+                        synthetic_span!(bar_prefix()),
+                        synthetic_span!(Span::styled(
+                            format!("{} {}", callout_symbol(kind, symbols), label),
+                            Style::new().fg(color).add_modifier(Modifier::BOLD),
+                        ))
+                    ])
+                })
+                .collect();
+
+            for (i, node) in nodes.iter().enumerate() {
+                lines.extend(
+                    render_node(
+                        content.to_string(),
+                        node,
+                        max_width,
+                        horizontal_offset,
+                        bar_prefix(),
+                        option,
+                        symbols,
+                        0,
+                    )
+                    .lines,
+                );
+                if is_root && i != nodes.len() - 1 {
+                    lines.push(virtual_line!([synthetic_span!(bar_prefix())]));
                 }
-                if prefix.to_string().is_empty() && i == nodes.len().saturating_sub(1) {
-                    lines.extend([empty_virtual_line!()]);
-                }
-                lines
-            })
-            .collect::<Vec<_>>(),
+            }
+
+            if is_root {
+                lines.push(empty_virtual_line!());
+            }
+
+            lines
+        }
     };
 
     VirtualBlock::new(&lines, source_range)
@@ -1563,12 +1702,14 @@ pub fn render_node<'a>(
         ),
         BlockQuote {
             kind,
+            title,
             nodes,
             source_range,
         } => block_quote(
             &content,
             prefix,
             kind,
+            title,
             nodes,
             source_range,
             max_width,

@@ -837,6 +837,120 @@ mod tests {
         );
     }
 
+    /// A callout (`> [!NOTE]`) renders an icon + label header above its body in
+    /// read mode, accented in the kind's colour. Ref: #79.
+    #[test]
+    fn test_callout_renders_icon_and_label() {
+        use ratatui::style::Color;
+
+        let mut state = NoteEditorState::new(
+            "> [!warning]\n> Mind the gap.\n",
+            "test",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.resize_viewport(Size::new(50, 14));
+
+        let read = line_texts(&state);
+        assert!(
+            read.iter().any(|line| line.contains("⚠ Warning")),
+            "callout header shows the icon and label, got {read:?}",
+        );
+        assert!(
+            read.iter().any(|line| line.contains("Mind the gap.")),
+            "callout body follows the header, got {read:?}",
+        );
+
+        let header_colored = state
+            .virtual_document
+            .lines()
+            .iter()
+            .flat_map(|line| line.clone().spans())
+            .any(|span| span.content.contains("Warning") && span.style.fg == Some(Color::Yellow));
+        assert!(header_colored, "warning callout header is yellow");
+    }
+
+    /// Obsidian's titled/foldable callouts (`[!note]- Title`), which pulldown
+    /// does not recognise, render with the custom title and drop the raw marker
+    /// line from the body. Ref: #79.
+    #[test]
+    fn test_obsidian_callout_with_title() {
+        let mut state = NoteEditorState::new(
+            "> [!note]- A word on moving your vault folder\n> Body text.\n",
+            "test",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.resize_viewport(Size::new(60, 14));
+
+        let read = line_texts(&state);
+        assert!(
+            read.iter()
+                .any(|line| line.contains("✎ A word on moving your vault folder")),
+            "callout header shows the custom title, got {read:?}",
+        );
+        assert!(
+            read.iter().any(|line| line.contains("Body text.")),
+            "callout body follows the header, got {read:?}",
+        );
+        assert!(
+            !read.iter().any(|line| line.contains("[!note]")),
+            "raw marker line must not leak into the body, got {read:?}",
+        );
+    }
+
+    /// The full Obsidian type set is supported, including aliases (`summary` is
+    /// an alias of `abstract`) and types beyond GitHub's five. Ref: #79.
+    #[test]
+    fn test_obsidian_callout_aliases_and_types() {
+        let mut state = NoteEditorState::new(
+            "> [!summary] Overview\n> Body.\n\n> [!bug]\n> Squashed.\n",
+            "test",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.resize_viewport(Size::new(60, 20));
+
+        let read = line_texts(&state);
+        assert!(
+            read.iter().any(|line| line.contains("▤ Overview")),
+            "summary alias renders as an abstract callout, got {read:?}",
+        );
+        assert!(
+            read.iter().any(|line| line.contains("⊙ Bug")),
+            "bug is a first-class Obsidian callout type, got {read:?}",
+        );
+    }
+
+    /// While editing, a callout keeps its per-kind accent colour instead of
+    /// falling back to the magenta plain-quote bar. Ref: #79.
+    #[test]
+    fn test_callout_keeps_color_when_editing() {
+        use ratatui::style::Color;
+
+        let mut state = NoteEditorState::new(
+            "> [!warning]\n> Mind the gap.\n",
+            "test",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.resize_viewport(Size::new(50, 14));
+        state.set_view(View::Edit(EditMode::Source));
+
+        let bars: Vec<_> = state
+            .virtual_document
+            .lines()
+            .iter()
+            .flat_map(|line| line.clone().spans())
+            .filter(|span| span.content.contains('▌') || span.content.contains('>'))
+            .collect();
+        assert!(!bars.is_empty(), "callout bars/markers should be present");
+        assert!(
+            bars.iter().all(|span| span.style.fg == Some(Color::Yellow)),
+            "callout keeps its yellow accent while editing, got {bars:?}",
+        );
+    }
+
     /// The block-quote markers are coloured even on the raw cursor line — and
     /// every nesting level, not just the first. Ref: #486.
     #[test]

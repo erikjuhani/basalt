@@ -235,11 +235,16 @@ impl<'a> Parser<'a> {
                             text,
                             source_range,
                         }),
-                        Tag::BlockQuote(kind) => Some(Node::BlockQuote {
-                            kind: kind.map(|kind| kind.into()),
-                            nodes,
-                            source_range,
-                        }),
+                        Tag::BlockQuote(kind) => {
+                            let (kind, title, nodes) =
+                                resolve_callout(kind.map(|kind| kind.into()), nodes);
+                            Some(Node::BlockQuote {
+                                kind,
+                                title,
+                                nodes,
+                                source_range,
+                            })
+                        }
                         Tag::Paragraph => Some(Node::Paragraph { text, source_range }),
                         _ => None,
                     };
@@ -360,6 +365,51 @@ impl<'a> Parser<'a> {
     }
 }
 
+/// Resolves a quote's callout kind and title. `pulldown_cmark` handles bare
+/// GitHub alerts (`kind` is `Some`); otherwise we look for an Obsidian-style
+/// marker on the first line and strip that line from the body.
+fn resolve_callout(
+    kind: Option<ast::BlockQuoteKind>,
+    mut nodes: Vec<Node>,
+) -> (Option<ast::BlockQuoteKind>, Option<String>, Vec<Node>) {
+    if kind.is_some() {
+        return (kind, None, nodes);
+    }
+
+    let stripped = match nodes.first() {
+        Some(Node::Paragraph { text, source_range }) => {
+            let segments = text.segments();
+            let break_index = segments.iter().position(|segment| segment.content == "\n");
+            let first_line: String = segments[..break_index.unwrap_or(segments.len())]
+                .iter()
+                .map(|segment| segment.content.as_str())
+                .collect();
+            ast::parse_callout_marker(&first_line).map(|marker| {
+                let body = break_index
+                    .map(|index| segments[index + 1..].to_vec())
+                    .unwrap_or_default();
+                (marker, body, source_range.clone())
+            })
+        }
+        _ => None,
+    };
+
+    let Some((marker, body, source_range)) = stripped else {
+        return (None, None, nodes);
+    };
+
+    if body.is_empty() {
+        nodes.remove(0);
+    } else {
+        nodes[0] = Node::Paragraph {
+            text: RichText::from(body),
+            source_range,
+        };
+    }
+
+    (Some(marker.kind), marker.title, nodes)
+}
+
 pub fn from_str(text: &str) -> Vec<Node> {
     Parser::new(text).parse()
 }
@@ -450,6 +500,25 @@ mod tests {
                 > - [x] Milk
                 > - [?] Eggs
                 > - [-] Eggs
+                "#},
+            ),
+            (
+                "callouts",
+                indoc! { r#"## Callouts
+
+                > [!NOTE]
+                > Strict GitHub form.
+
+                > [!summary] Aliased to abstract
+                > Body line.
+
+                > [!danger]- Foldable with a title
+                > Body line.
+
+                > [!custom] Unknown defaults to note
+                > Body line.
+
+                > A plain quote, not a callout.
                 "#},
             ),
             (

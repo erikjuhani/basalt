@@ -75,24 +75,43 @@ fn main() {
 
 ## Callouts
 
-Obsidian-style callout blocks are recognized:
+![[callouts.gif]]
+
+Callout blocks are rendered with an icon and a coloured label header above the
+body. A custom title and Obsidian's fold markers (`-`/`+`) are supported:
 
 ```markdown
 > [!NOTE]
 > This is a note callout.
 
-> [!TIP]
-> This is a tip callout.
+> [!tip] Custom title
+> Callouts can have a custom title.
 
-> [!WARNING]
-> This is a warning callout.
-
-> [!CAUTION]
-> This is a caution callout.
-
-> [!IMPORTANT]
-> This is an important callout.
+> [!warning]- Foldable
+> The `-`/`+` fold markers are accepted (folding itself is not yet interactive).
 ```
+
+All Obsidian callout types are recognized (case-insensitive), including their
+aliases; unknown types fall back to `note`:
+
+| Type | Aliases |
+| ---- | ------- |
+| `note` | |
+| `abstract` | `summary`, `tldr` |
+| `info` | |
+| `todo` | |
+| `tip` | `hint`, `important` |
+| `success` | `check`, `done` |
+| `question` | `help`, `faq` |
+| `warning` | `caution`, `attention` |
+| `failure` | `fail`, `missing` |
+| `danger` | `error` |
+| `bug` | |
+| `example` | |
+| `quote` | `cite` |
+
+The icons follow the active symbol [preset](Configuration/Symbols.md) and can be
+overridden per type (`callout_note`, `callout_abstract`, …).
 
 ## Links
 
