@@ -34,6 +34,14 @@ fn render_highlight(
     let viewport_top = viewport.top() as usize;
     let horizontal_scroll = viewport.left();
 
+    let paint = |buf: &mut Buffer, col: u16, y: u16, width: u16| {
+        if col >= horizontal_scroll {
+            let cell = Rect::new(inner_area.x + col - horizontal_scroll, y, width.max(1), 1)
+                .intersection(inner_area);
+            buf.set_style(cell, style);
+        }
+    };
+
     lines
         .iter()
         .enumerate()
@@ -42,28 +50,36 @@ fn render_highlight(
         .filter(|(idx, _)| *idx >= meta_len)
         .for_each(|(idx, line)| {
             let y = inner_area.y + (idx - viewport_top) as u16;
+            let spans = line.virtual_spans();
+            let mut col = 0u16;
 
-            line.virtual_spans()
-                .iter()
-                .fold(0u16, |col, span| match span.source_range() {
-                    Some(source_range) => span.char_indices().fold(col, |col, (byte_idx, ch)| {
-                        let width = ch.width().unwrap_or(0) as u16;
-                        if col >= horizontal_scroll
-                            && range.contains(&(source_range.start + byte_idx))
-                        {
-                            let cell = Rect::new(
-                                inner_area.x + col - horizontal_scroll,
-                                y,
-                                width.max(1),
-                                1,
-                            )
-                            .intersection(inner_area);
-                            buf.set_style(cell, style);
+            for (i, span) in spans.iter().enumerate() {
+                match span.source_range() {
+                    Some(source_range) => {
+                        span.char_indices().fold(col, |col, (byte_idx, ch)| {
+                            let width = ch.width().unwrap_or(0) as u16;
+                            if range.contains(&(source_range.start + byte_idx)) {
+                                paint(buf, col, y, width);
+                            }
+                            col + width
+                        });
+                    }
+                    // A synthetic span (rendered list marker, prefix, quote glyph)
+                    // stands in for source it does not carry. Highlight it when the
+                    // content it precedes is selected, so a selected line's marker
+                    // is not left blank.
+                    None => {
+                        let precedes_selection = spans[i + 1..]
+                            .iter()
+                            .find_map(|span| span.source_range())
+                            .is_some_and(|next| range.contains(&next.start));
+                        if precedes_selection {
+                            paint(buf, col, y, span.width() as u16);
                         }
-                        col + width
-                    }),
-                    None => col + span.width() as u16,
-                });
+                    }
+                }
+                col += span.width() as u16;
+            }
         });
 }
 
@@ -862,5 +878,46 @@ mod tests {
                 .unwrap();
             assert_snapshot!(name, terminal.backend());
         });
+    }
+
+    #[test]
+    fn test_selected_list_marker_is_highlighted() {
+        use ratatui::{layout::Size, style::Modifier};
+
+        let mut state = NoteEditorState::new(
+            "- alpha\n- beta\n",
+            "test",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.set_vim_mode(true);
+        state.set_editor_enabled(true);
+        state.resize_viewport(Size::new(40, 10));
+        state.set_view(View::Edit(EditMode::Source));
+
+        // Linewise-select from the first item down onto the second. The cursor
+        // lands on line two (rendered raw), so line one keeps its prettified
+        // "●" marker while sitting inside the selection.
+        state.toggle_selection(SelectionMode::Line);
+        state.cursor_down(1);
+
+        let mut terminal = Terminal::new(TestBackend::new(40, 10)).unwrap();
+        terminal
+            .draw(|frame| {
+                NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut state)
+            })
+            .unwrap();
+
+        let highlighted = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .any(|cell| cell.symbol() == "●" && cell.modifier.contains(Modifier::REVERSED));
+
+        assert!(
+            highlighted,
+            "the prettified list marker on a selected line should be highlighted"
+        );
     }
 }
