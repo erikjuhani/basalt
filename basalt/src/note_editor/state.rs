@@ -1,8 +1,11 @@
 use std::{
+    borrow::Cow,
     fmt,
     fs::File,
     io::{self, Write},
+    ops::Range,
     path::{Path, PathBuf},
+    time::{Duration, Instant},
 };
 
 use ratatui::layout::Size;
@@ -37,6 +40,28 @@ pub enum View {
     Edit(EditMode),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SelectionMode {
+    Char,
+    Line,
+}
+
+/// `anchor` is the source byte offset where selection began; the moving end is
+/// the cursor's current source offset.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Selection {
+    pub anchor: usize,
+    pub mode: SelectionMode,
+}
+
+const YANK_FLASH_DURATION: Duration = Duration::from_millis(150);
+
+#[derive(Clone, Debug)]
+struct YankFlash {
+    range: Range<usize>,
+    started: Instant,
+}
+
 impl fmt::Display for View {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -63,6 +88,8 @@ pub struct NoteEditorState<'a> {
     editor_enabled: bool,
     modified: bool,
     viewport: Viewport,
+    selection: Option<Selection>,
+    yank_flash: Option<YankFlash>,
     text_buffer: Option<TextBuffer>,
     /// Which block is currently in raw/edit mode. Stored explicitly so
     /// the layout always matches the text_buffer, even when the cursor
@@ -90,6 +117,8 @@ impl<'a> NoteEditorState<'a> {
             vim_mode: false,
             editor_enabled: false,
             modified: false,
+            selection: None,
+            yank_flash: None,
             editing_block: None,
         }
     }
@@ -376,6 +405,86 @@ impl<'a> NoteEditorState<'a> {
 
     pub fn modified(&self) -> bool {
         self.modified || self.text_buffer().is_some_and(|buffer| buffer.modified)
+    }
+
+    pub fn selection(&self) -> Option<Selection> {
+        self.selection
+    }
+
+    pub fn is_selecting(&self) -> bool {
+        self.selection.is_some()
+    }
+
+    /// Enters visual selection in `mode`, or exits if that mode is already active.
+    pub fn toggle_selection(&mut self, mode: SelectionMode) {
+        self.selection = match self.selection {
+            Some(selection) if selection.mode == mode => None,
+            _ => Some(Selection {
+                anchor: self.cursor.source_offset(),
+                mode,
+            }),
+        };
+    }
+
+    pub fn clear_selection(&mut self) {
+        self.selection = None;
+    }
+
+    /// Source content as currently displayed, accounting for unsaved edits.
+    fn live_content(&self) -> Cow<'_, str> {
+        self.text_buffer
+            .as_ref()
+            .filter(|buffer| buffer.modified)
+            .map(|buffer| Cow::Owned(buffer.write(&self.content)))
+            .unwrap_or(Cow::Borrowed(&self.content))
+    }
+
+    /// Source byte range from anchor to cursor. Charwise includes the character
+    /// under the cursor; linewise rounds out to whole lines.
+    pub fn selection_range(&self) -> Option<Range<usize>> {
+        let selection = self.selection?;
+        let content = self.live_content();
+        let cursor = self.cursor.source_offset().min(content.len());
+        let anchor = selection.anchor.min(content.len());
+        let (lo, hi) = (anchor.min(cursor), anchor.max(cursor));
+
+        let range = match selection.mode {
+            SelectionMode::Char => {
+                let end = hi + content[hi..].chars().next().map_or(0, char::len_utf8);
+                lo..end
+            }
+            SelectionMode::Line => {
+                let start = content[..lo].rfind('\n').map_or(0, |i| i + 1);
+                let end = content[hi..]
+                    .find('\n')
+                    .map_or(content.len(), |i| hi + i + 1);
+                start..end
+            }
+        };
+
+        Some(range)
+    }
+
+    pub fn selected_text(&self) -> Option<String> {
+        let range = self.selection_range()?;
+        self.live_content().get(range).map(str::to_string)
+    }
+
+    /// Flashes `range` to acknowledge a yank. The highlight fades on its own
+    /// after [`YANK_FLASH_DURATION`].
+    pub fn flash_yank(&mut self, range: Range<usize>) {
+        self.yank_flash = Some(YankFlash {
+            range,
+            started: Instant::now(),
+        });
+    }
+
+    /// The range to flash right now, or `None` once the flash has elapsed.
+    pub fn yank_flash_range(&self) -> Option<Range<usize>> {
+        self.yank_flash
+            .as_ref()
+            .filter(|flash| flash.started.elapsed() < YANK_FLASH_DURATION)
+            .map(|flash| flash.range.clone())
     }
 
     pub fn cursor_word_forward(&mut self) {
@@ -1197,5 +1306,56 @@ mod tests {
             "non-active code background ({non_active_width}) must cover the \
              viewport ({left} + {width})",
         );
+    }
+
+    fn edit_state(content: &str) -> NoteEditorState<'static> {
+        let mut state =
+            NoteEditorState::new(content, "test", Path::new("test.md"), &Symbols::unicode());
+        state.resize_viewport(Size::new(40, 10));
+        state.set_view(View::Edit(EditMode::Source));
+        state
+    }
+
+    #[test]
+    fn test_charwise_selection_is_inclusive() {
+        let mut state = edit_state("hello world\n");
+
+        state.toggle_selection(SelectionMode::Char);
+        state.cursor_right(4);
+
+        assert_eq!(state.selected_text().as_deref(), Some("hello"));
+    }
+
+    #[test]
+    fn test_charwise_selection_extends_backwards() {
+        let mut state = edit_state("hello world\n");
+
+        state.cursor_right(4);
+        state.toggle_selection(SelectionMode::Char);
+        state.cursor_left(4);
+
+        assert_eq!(state.selected_text().as_deref(), Some("hello"));
+    }
+
+    #[test]
+    fn test_linewise_selection_covers_whole_line() {
+        let mut state = edit_state("line one\nline two\n");
+
+        state.cursor_right(3);
+        state.toggle_selection(SelectionMode::Line);
+
+        assert_eq!(state.selected_text().as_deref(), Some("line one\n"));
+    }
+
+    #[test]
+    fn test_toggle_same_mode_clears_selection() {
+        let mut state = edit_state("hello\n");
+
+        state.toggle_selection(SelectionMode::Char);
+        assert!(state.is_selecting());
+
+        state.toggle_selection(SelectionMode::Char);
+        assert!(!state.is_selecting());
+        assert_eq!(state.selection_range(), None);
     }
 }

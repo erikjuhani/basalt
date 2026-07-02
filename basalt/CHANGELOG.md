@@ -4,6 +4,18 @@
 
 ### Added
 
+- [00430a8](https://github.com/erikjuhani/basalt/commit/00430a85d15c49a0b6d5ea81038608ab15abe57d) Add vim visual selection with clipboard yank by @erikjuhani
+
+> Visual selection comes to the vim-mode note editor. `v` starts a
+> charwise selection and `V` a linewise one, motions extend it, `y` yanks
+> the selection to the system clipboard and `esc` cancels. A brief flash
+> marks the yanked range, and the highlight is painted per character and
+> clipped to the editor viewport.
+>
+> Clipboard writes use the platform utility (pbcopy, wl-copy, xclip, xsel
+> or clip) with an OSC 52 fallback for SSH and tmux, so no new dependency
+> is added.
+
 - [1b66afd](https://github.com/erikjuhani/basalt/commit/1b66afdca6c036072981332877fa04b9a6610035) Pan viewport horizontally to follow the cursor in edit mode by @erikjuhani
 
 > Long source lines are shown raw (unwrapped) while editing, so the cursor

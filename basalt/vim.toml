@@ -16,6 +16,10 @@ key_bindings = [
 
   # Experimental editor
   { key = "i", command = "note_editor_insert_mode" },
+  { key = "v", command = "note_editor_visual_mode" },
+  { key = "V", command = "note_editor_visual_line_mode" },
+  { key = "y", command = "note_editor_yank" },
+  { key = "esc", command = "note_editor_experimental_exit" },
   { key = "ctrl+e", command = "note_editor_experimental_toggle_view" },
   { key = "shift+r", command = "note_editor_experimental_set_read_view" },
   { key = "ctrl+x", command = "note_editor_experimental_save" },

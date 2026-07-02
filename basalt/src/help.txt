@@ -187,8 +187,8 @@ INTERFACE
 
       LIMITATIONS:
         • No undo/redo support
-        • No clipboard operations (copy/paste/cut)
-        • No text selection
+        • No paste or cut (yank to clipboard is supported in vim mode)
+        • Text selection only via vim visual mode (‹v› / ‹V›, then ‹y›)
         • No multi-line deletion
         • No line/word deletion commands
         • No jumping to start/end of line or document
@@ -260,7 +260,9 @@ CONFIGURATION
     note_editor_experimental_set_edit_mode, note_editor_experimental_set_read_mode,
     note_editor_experimental_save, note_editor_experimental_exit_mode,
     note_editor_experimental_cursor_word_forward,
-    note_editor_experimental_cursor_word_backward
+    note_editor_experimental_cursor_word_backward,
+    note_editor_insert_mode, note_editor_visual_mode,
+    note_editor_visual_line_mode, note_editor_yank
 
   INPUT MODAL COMMANDS:
     input_modal_edit_mode, input_modal_accept, input_modal_cancel,

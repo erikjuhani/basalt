@@ -70,6 +70,9 @@
 # note_editor_experimental_cursor_word_forward: moves cursor forward by a word
 # note_editor_experimental_cursor_word_backward: moves cursor backwards by a word
 # note_editor_insert_mode: enters insert mode (vim mode)
+# note_editor_visual_mode: starts charwise visual selection (vim mode)
+# note_editor_visual_line_mode: starts linewise visual selection (vim mode)
+# note_editor_yank: copies the visual selection to the clipboard (vim mode)
 #
 # Input modal commands:
 #
