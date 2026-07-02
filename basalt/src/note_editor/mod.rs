@@ -20,7 +20,7 @@ use ratatui::{
 use crate::{
     app::{calc_scroll_amount, ActivePane, Message as AppMessage, ScrollAmount},
     explorer,
-    note_editor::state::{EditMode, NoteEditorState, View},
+    note_editor::state::{EditMode, NoteEditorState, SelectionMode, View},
     outline, toast,
 };
 
@@ -49,6 +49,9 @@ pub enum Message {
     JumpToBlock(usize),
     Delete,
     InsertMode,
+    VisualMode,
+    VisualLineMode,
+    Yank,
 }
 
 // FIXME: Add resize message to handle resize related updates like cursor positioning
@@ -156,8 +159,24 @@ pub fn update<'a>(
             // Normal mode (vim): navigation and read-mode equivalents
             Message::CursorWordForward => state.cursor_word_forward(),
             Message::CursorWordBackward => state.cursor_word_backward(),
-            Message::InsertMode | Message::EditView => state.set_insert_mode(true),
+            Message::VisualMode => state.toggle_selection(SelectionMode::Char),
+            Message::VisualLineMode => state.toggle_selection(SelectionMode::Line),
+            Message::Yank => {
+                if let Some(text) = state.selected_text() {
+                    if let Some(range) = state.selection_range() {
+                        state.flash_yank(range);
+                    }
+                    state.clear_selection();
+                    return Some(AppMessage::CopyToClipboard(text));
+                }
+            }
+            Message::Exit => state.clear_selection(),
+            Message::InsertMode | Message::EditView => {
+                state.clear_selection();
+                state.set_insert_mode(true);
+            }
             Message::ToggleView | Message::ReadView => {
+                state.clear_selection();
                 state.exit_insert();
                 state.set_view(View::Read);
                 return Some(AppMessage::UpdateSelectedNoteContent((
@@ -275,5 +294,55 @@ pub fn handle_editing_event(key: KeyEvent) -> Option<Message> {
             Some(Message::ToggleView)
         }
         _ => Some(Message::KeyEvent(key)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use ratatui::layout::Size;
+
+    use super::*;
+    use crate::{config::Symbols, note_editor::state::EditMode};
+
+    fn vim_edit_state(content: &str) -> NoteEditorState<'static> {
+        let mut state =
+            NoteEditorState::new(content, "test", Path::new("test.md"), &Symbols::unicode());
+        state.set_vim_mode(true);
+        state.resize_viewport(Size::new(40, 10));
+        state.set_view(View::Edit(EditMode::Source));
+        state
+    }
+
+    #[test]
+    fn test_yank_emits_copy_to_clipboard() {
+        let mut state = vim_edit_state("hello world\n");
+        let size = Size::new(40, 10);
+
+        update(Message::VisualMode, size, &mut state);
+        update(Message::CursorRight, size, &mut state);
+        update(Message::CursorRight, size, &mut state);
+        update(Message::CursorRight, size, &mut state);
+        update(Message::CursorRight, size, &mut state);
+
+        let message = update(Message::Yank, size, &mut state);
+
+        assert_eq!(
+            message,
+            Some(AppMessage::CopyToClipboard("hello".to_string()))
+        );
+        assert!(!state.is_selecting(), "yank should clear the selection");
+        assert_eq!(
+            state.yank_flash_range(),
+            Some(0..5),
+            "yank should flash the copied range"
+        );
+    }
+
+    #[test]
+    fn test_yank_without_selection_is_noop() {
+        let mut state = vim_edit_state("hello world\n");
+        assert_eq!(update(Message::Yank, Size::new(40, 10), &mut state), None);
     }
 }

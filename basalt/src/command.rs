@@ -93,6 +93,9 @@ pub(crate) enum Command {
     NoteEditorExperimentalCursorLeft,
     NoteEditorExperimentalCursorRight,
     NoteEditorInsertMode,
+    NoteEditorVisualMode,
+    NoteEditorVisualLineMode,
+    NoteEditorYank,
 
     VaultSelectorModalUp,
     VaultSelectorModalDown,
@@ -205,6 +208,9 @@ fn str_to_command(s: &str) -> Option<Command> {
         "note_editor_experimental_cursor_left" => Some(Command::NoteEditorExperimentalCursorLeft),
         "note_editor_experimental_cursor_right" => Some(Command::NoteEditorExperimentalCursorRight),
         "note_editor_insert_mode" => Some(Command::NoteEditorInsertMode),
+        "note_editor_visual_mode" => Some(Command::NoteEditorVisualMode),
+        "note_editor_visual_line_mode" => Some(Command::NoteEditorVisualLineMode),
+        "note_editor_yank" => Some(Command::NoteEditorYank),
 
         "vault_selector_modal_up" => Some(Command::VaultSelectorModalUp),
         "vault_selector_modal_down" => Some(Command::VaultSelectorModalDown),
@@ -392,6 +398,11 @@ impl From<Command> for Message<'_> {
                 Message::NoteEditor(note_editor::Message::CursorRight)
             }
             Command::NoteEditorInsertMode => Message::NoteEditor(note_editor::Message::InsertMode),
+            Command::NoteEditorVisualMode => Message::NoteEditor(note_editor::Message::VisualMode),
+            Command::NoteEditorVisualLineMode => {
+                Message::NoteEditor(note_editor::Message::VisualLineMode)
+            }
+            Command::NoteEditorYank => Message::NoteEditor(note_editor::Message::Yank),
 
             Command::VaultSelectorModalClose => {
                 Message::VaultSelectorModal(vault_selector_modal::Message::Close)

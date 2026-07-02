@@ -116,6 +116,7 @@ pub enum Message<'a> {
     Quit,
     Exec(String),
     Spawn(String),
+    CopyToClipboard(String),
     Resize(Size),
     SetActivePane(ActivePane),
     RefreshVault {
@@ -666,6 +667,14 @@ impl<'a> App<'a> {
                     .unwrap_or_default();
 
                 return command::spawn_command(command, &state.vault.name, note_name, &note_path);
+            }
+
+            Message::CopyToClipboard(text) => {
+                let toast = match crate::clipboard::copy(&text) {
+                    Ok(_) => Toast::success("Yanked to clipboard", Duration::from_secs(2)),
+                    Err(_) => Toast::error("Failed to copy to clipboard", Duration::from_secs(2)),
+                };
+                return Some(Message::Toast(toast::Message::Create(toast)));
             }
 
             Message::HelpModal(message) => {

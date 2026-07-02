@@ -1,20 +1,71 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, ops::Range};
 
 use ratatui::{
     buffer::Buffer,
     layout::{Offset, Rect},
-    style::{Color, Stylize},
+    style::{Color, Style, Stylize},
     text::Line,
     widgets::{
         Block, Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget,
         Widget,
     },
 };
+use unicode_width::UnicodeWidthChar;
 
 use crate::note_editor::{
     cursor::CursorWidget,
-    state::{NoteEditorState, View},
+    state::{NoteEditorState, SelectionMode, View},
+    viewport::Viewport,
+    virtual_document::VirtualLine,
 };
+
+const SELECTION_STYLE: Style = Style::new().reversed();
+const YANK_FLASH_STYLE: Style = Style::new().bg(Color::LightCyan);
+
+fn render_highlight(
+    buf: &mut Buffer,
+    inner_area: Rect,
+    viewport: &Viewport,
+    lines: &[VirtualLine],
+    meta_len: usize,
+    range: &Range<usize>,
+    style: Style,
+) {
+    let viewport_top = viewport.top() as usize;
+    let horizontal_scroll = viewport.left();
+
+    lines
+        .iter()
+        .enumerate()
+        .skip(viewport_top)
+        .take(inner_area.height as usize)
+        .filter(|(idx, _)| *idx >= meta_len)
+        .for_each(|(idx, line)| {
+            let y = inner_area.y + (idx - viewport_top) as u16;
+
+            line.virtual_spans()
+                .iter()
+                .fold(0u16, |col, span| match span.source_range() {
+                    Some(source_range) => span.char_indices().fold(col, |col, (byte_idx, ch)| {
+                        let width = ch.width().unwrap_or(0) as u16;
+                        if col >= horizontal_scroll
+                            && range.contains(&(source_range.start + byte_idx))
+                        {
+                            let cell = Rect::new(
+                                inner_area.x + col - horizontal_scroll,
+                                y,
+                                width.max(1),
+                                1,
+                            )
+                            .intersection(inner_area);
+                            buf.set_style(cell, style);
+                        }
+                        col + width
+                    }),
+                    None => col + span.width() as u16,
+                });
+        });
+}
 
 #[derive(Default)]
 pub struct NoteEditor<'a>(pub PhantomData<&'a ()>);
@@ -25,6 +76,12 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         let (mode_label, mode_color) = match state.view {
             View::Edit(..) if state.vim_mode() && state.insert_mode() => ("INSERT", Color::Green),
+            View::Edit(..) if state.vim_mode() && state.is_selecting() => {
+                match state.selection().map(|selection| selection.mode) {
+                    Some(SelectionMode::Line) => ("V-LINE", Color::Magenta),
+                    _ => ("VISUAL", Color::Magenta),
+                }
+            }
             View::Edit(..) if state.vim_mode() => ("NORMAL", Color::Yellow),
             View::Edit(..) => ("EDIT", Color::Green),
             View::Read => ("READ", Color::Red),
@@ -84,6 +141,30 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
             .scroll((0, state.viewport().left()))
             .block(block)
             .render(area, buf);
+
+        if let Some(range) = state.selection_range() {
+            render_highlight(
+                buf,
+                inner_area,
+                state.viewport(),
+                &lines,
+                meta_lines_count,
+                &range,
+                SELECTION_STYLE,
+            );
+        }
+
+        if let Some(range) = state.yank_flash_range() {
+            render_highlight(
+                buf,
+                inner_area,
+                state.viewport(),
+                &lines,
+                meta_lines_count,
+                &range,
+                YANK_FLASH_STYLE,
+            );
+        }
 
         if !state.content.is_empty() || state.is_editing() {
             CursorWidget::default()
