@@ -354,6 +354,16 @@ mod tests {
     }
 
     #[test]
+    fn test_vim_config_parses() {
+        // Guards against a binding or command in vim.toml that the parser rejects
+        // (e.g. a new motion key or operator command), which would panic when a
+        // user enables vim_mode.
+        toml::from_str::<TomlConfig>(VIM_CONFIGURATION_STR)
+            .map(Config::from)
+            .expect("bundled vim.toml should parse");
+    }
+
+    #[test]
     fn test_base_config_snapshot() {
         // TODO: Does not work cross-platform as macOS has different names for the keys
         // Potentially needs two snapshots

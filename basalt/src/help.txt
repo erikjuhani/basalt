@@ -185,13 +185,24 @@ INTERFACE
         ‹Alt+→›                  Move forward by word
         ‹Alt+←›                  Move backward by word
 
+      VIM NORMAL MODE (when vim_mode is enabled)
+
+        Motions      ‹h j k l›  ‹0 ^ $›  ‹w b e›  ‹W B E›  ‹{ }›  ‹%›
+                     ‹gg› top   ‹G› bottom   ‹f F t T›{char}   ‹; ,›
+                     counts, e.g. ‹3w›, ‹5j›, ‹10G›
+        Operators    ‹d› ‹c› ‹y› + a motion (‹dw›, ‹de›, ‹y$›, ‹ct.›)
+                     ‹dd› ‹cc› ‹yy› whole line   ‹x›   ‹D›   ‹C›   ‹s›
+        Text objects ‹i›/‹a› + object after an operator: ‹ciw› ‹ci"› ‹di(›
+                     ‹ca{› … (quotes ‹" ' `›, brackets ‹( [ { <›, word ‹w W›)
+        Insert       ‹i› insert   ‹a› append after cursor
+        Registers    ‹p› paste after   ‹P› paste before   (‹y› also copies
+                     to the system clipboard)
+        History      ‹u› undo   ‹Ctrl+R› redo
+        Visual       ‹v› / ‹V›, extend with a motion, then ‹d› / ‹c› / ‹y›
+
       LIMITATIONS:
-        • No undo/redo support
-        • No paste or cut (yank to clipboard is supported in vim mode)
-        • Text selection only via vim visual mode (‹v› / ‹V›, then ‹y›)
-        • No multi-line deletion
-        • No line/word deletion commands
-        • No jumping to start/end of line or document
+        • Undo/redo, paste and word/line deletion require vim mode
+        • Text selection only via vim visual mode (‹v› / ‹V›)
 
   INPUT MODAL
 

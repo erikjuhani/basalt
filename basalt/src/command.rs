@@ -11,8 +11,9 @@ use tracing::error;
 
 use crate::{
     app::{Message, ScrollAmount},
-    debug_log, explorer, help_modal, input, note_editor, outline, splash_modal,
-    vault_selector_modal,
+    debug_log, explorer, help_modal, input, note_editor,
+    note_editor::state::Operator,
+    outline, splash_modal, vault_selector_modal,
 };
 
 trait ReplaceVar {
@@ -93,9 +94,39 @@ pub(crate) enum Command {
     NoteEditorExperimentalCursorLeft,
     NoteEditorExperimentalCursorRight,
     NoteEditorInsertMode,
+    NoteEditorAppend,
+    NoteEditorReplaceChar,
     NoteEditorVisualMode,
     NoteEditorVisualLineMode,
-    NoteEditorYank,
+    NoteEditorCursorLineStart,
+    NoteEditorCursorLineEnd,
+    NoteEditorCursorFirstNonblank,
+    NoteEditorCursorWordEnd,
+    NoteEditorCursorWordForwardBig,
+    NoteEditorCursorWordBackwardBig,
+    NoteEditorCursorWordEndBig,
+    NoteEditorParagraphForward,
+    NoteEditorParagraphBackward,
+    NoteEditorMatchingPair,
+    NoteEditorCursorDocStart,
+    NoteEditorCursorDocEnd,
+    NoteEditorFindForward,
+    NoteEditorFindBackward,
+    NoteEditorTillForward,
+    NoteEditorTillBackward,
+    NoteEditorRepeatFind,
+    NoteEditorRepeatFindReverse,
+    NoteEditorDelete,
+    NoteEditorChange,
+    NoteEditorYankOperator,
+    NoteEditorDeleteUnderCursor,
+    NoteEditorDeleteToLineEnd,
+    NoteEditorChangeToLineEnd,
+    NoteEditorSubstituteChar,
+    NoteEditorPasteAfter,
+    NoteEditorPasteBefore,
+    NoteEditorUndo,
+    NoteEditorRedo,
 
     VaultSelectorModalUp,
     VaultSelectorModalDown,
@@ -208,9 +239,39 @@ fn str_to_command(s: &str) -> Option<Command> {
         "note_editor_experimental_cursor_left" => Some(Command::NoteEditorExperimentalCursorLeft),
         "note_editor_experimental_cursor_right" => Some(Command::NoteEditorExperimentalCursorRight),
         "note_editor_insert_mode" => Some(Command::NoteEditorInsertMode),
+        "note_editor_append" => Some(Command::NoteEditorAppend),
+        "note_editor_replace_char" => Some(Command::NoteEditorReplaceChar),
         "note_editor_visual_mode" => Some(Command::NoteEditorVisualMode),
         "note_editor_visual_line_mode" => Some(Command::NoteEditorVisualLineMode),
-        "note_editor_yank" => Some(Command::NoteEditorYank),
+        "note_editor_delete" => Some(Command::NoteEditorDelete),
+        "note_editor_change" => Some(Command::NoteEditorChange),
+        "note_editor_yank" => Some(Command::NoteEditorYankOperator),
+        "note_editor_delete_under_cursor" => Some(Command::NoteEditorDeleteUnderCursor),
+        "note_editor_delete_to_line_end" => Some(Command::NoteEditorDeleteToLineEnd),
+        "note_editor_change_to_line_end" => Some(Command::NoteEditorChangeToLineEnd),
+        "note_editor_substitute_char" => Some(Command::NoteEditorSubstituteChar),
+        "note_editor_paste_after" => Some(Command::NoteEditorPasteAfter),
+        "note_editor_paste_before" => Some(Command::NoteEditorPasteBefore),
+        "note_editor_undo" => Some(Command::NoteEditorUndo),
+        "note_editor_redo" => Some(Command::NoteEditorRedo),
+        "note_editor_cursor_line_start" => Some(Command::NoteEditorCursorLineStart),
+        "note_editor_cursor_line_end" => Some(Command::NoteEditorCursorLineEnd),
+        "note_editor_cursor_first_non_blank" => Some(Command::NoteEditorCursorFirstNonblank),
+        "note_editor_cursor_word_end" => Some(Command::NoteEditorCursorWordEnd),
+        "note_editor_cursor_word_forward_big" => Some(Command::NoteEditorCursorWordForwardBig),
+        "note_editor_cursor_word_backward_big" => Some(Command::NoteEditorCursorWordBackwardBig),
+        "note_editor_cursor_word_end_big" => Some(Command::NoteEditorCursorWordEndBig),
+        "note_editor_paragraph_forward" => Some(Command::NoteEditorParagraphForward),
+        "note_editor_paragraph_backward" => Some(Command::NoteEditorParagraphBackward),
+        "note_editor_matching_pair" => Some(Command::NoteEditorMatchingPair),
+        "note_editor_cursor_doc_start" => Some(Command::NoteEditorCursorDocStart),
+        "note_editor_cursor_doc_end" => Some(Command::NoteEditorCursorDocEnd),
+        "note_editor_find_forward" => Some(Command::NoteEditorFindForward),
+        "note_editor_find_backward" => Some(Command::NoteEditorFindBackward),
+        "note_editor_till_forward" => Some(Command::NoteEditorTillForward),
+        "note_editor_till_backward" => Some(Command::NoteEditorTillBackward),
+        "note_editor_repeat_find" => Some(Command::NoteEditorRepeatFind),
+        "note_editor_repeat_find_reverse" => Some(Command::NoteEditorRepeatFindReverse),
 
         "vault_selector_modal_up" => Some(Command::VaultSelectorModalUp),
         "vault_selector_modal_down" => Some(Command::VaultSelectorModalDown),
@@ -398,11 +459,103 @@ impl From<Command> for Message<'_> {
                 Message::NoteEditor(note_editor::Message::CursorRight)
             }
             Command::NoteEditorInsertMode => Message::NoteEditor(note_editor::Message::InsertMode),
+            Command::NoteEditorAppend => Message::NoteEditor(note_editor::Message::Append),
+            Command::NoteEditorReplaceChar => {
+                Message::NoteEditor(note_editor::Message::ReplaceChar)
+            }
             Command::NoteEditorVisualMode => Message::NoteEditor(note_editor::Message::VisualMode),
             Command::NoteEditorVisualLineMode => {
                 Message::NoteEditor(note_editor::Message::VisualLineMode)
             }
-            Command::NoteEditorYank => Message::NoteEditor(note_editor::Message::Yank),
+            Command::NoteEditorDelete => {
+                Message::NoteEditor(note_editor::Message::Operator(Operator::Delete))
+            }
+            Command::NoteEditorChange => {
+                Message::NoteEditor(note_editor::Message::Operator(Operator::Change))
+            }
+            Command::NoteEditorYankOperator => {
+                Message::NoteEditor(note_editor::Message::Operator(Operator::Yank))
+            }
+            Command::NoteEditorDeleteUnderCursor => {
+                Message::NoteEditor(note_editor::Message::DeleteUnderCursor)
+            }
+            Command::NoteEditorDeleteToLineEnd => {
+                Message::NoteEditor(note_editor::Message::DeleteToLineEnd)
+            }
+            Command::NoteEditorChangeToLineEnd => {
+                Message::NoteEditor(note_editor::Message::ChangeToLineEnd)
+            }
+            Command::NoteEditorSubstituteChar => {
+                Message::NoteEditor(note_editor::Message::SubstituteChar)
+            }
+            Command::NoteEditorPasteAfter => Message::NoteEditor(note_editor::Message::PasteAfter),
+            Command::NoteEditorPasteBefore => {
+                Message::NoteEditor(note_editor::Message::PasteBefore)
+            }
+            Command::NoteEditorUndo => Message::NoteEditor(note_editor::Message::Undo),
+            Command::NoteEditorRedo => Message::NoteEditor(note_editor::Message::Redo),
+            Command::NoteEditorCursorLineStart => {
+                Message::NoteEditor(note_editor::Message::CursorLineStart)
+            }
+            Command::NoteEditorCursorLineEnd => {
+                Message::NoteEditor(note_editor::Message::CursorLineEnd)
+            }
+            Command::NoteEditorCursorFirstNonblank => {
+                Message::NoteEditor(note_editor::Message::CursorFirstNonblank)
+            }
+            Command::NoteEditorCursorWordEnd => {
+                Message::NoteEditor(note_editor::Message::CursorWordEnd)
+            }
+            Command::NoteEditorCursorWordForwardBig => {
+                Message::NoteEditor(note_editor::Message::CursorWordForwardBig)
+            }
+            Command::NoteEditorCursorWordBackwardBig => {
+                Message::NoteEditor(note_editor::Message::CursorWordBackwardBig)
+            }
+            Command::NoteEditorCursorWordEndBig => {
+                Message::NoteEditor(note_editor::Message::CursorWordEndBig)
+            }
+            Command::NoteEditorParagraphForward => {
+                Message::NoteEditor(note_editor::Message::ParagraphForward)
+            }
+            Command::NoteEditorParagraphBackward => {
+                Message::NoteEditor(note_editor::Message::ParagraphBackward)
+            }
+            Command::NoteEditorMatchingPair => {
+                Message::NoteEditor(note_editor::Message::MatchingPair)
+            }
+            Command::NoteEditorCursorDocStart => {
+                Message::NoteEditor(note_editor::Message::CursorDocStart)
+            }
+            Command::NoteEditorCursorDocEnd => {
+                Message::NoteEditor(note_editor::Message::CursorDocEnd)
+            }
+            Command::NoteEditorFindForward => Message::NoteEditor(note_editor::Message::FindChar {
+                forward: true,
+                till: false,
+            }),
+            Command::NoteEditorFindBackward => {
+                Message::NoteEditor(note_editor::Message::FindChar {
+                    forward: false,
+                    till: false,
+                })
+            }
+            Command::NoteEditorTillForward => Message::NoteEditor(note_editor::Message::FindChar {
+                forward: true,
+                till: true,
+            }),
+            Command::NoteEditorTillBackward => {
+                Message::NoteEditor(note_editor::Message::FindChar {
+                    forward: false,
+                    till: true,
+                })
+            }
+            Command::NoteEditorRepeatFind => {
+                Message::NoteEditor(note_editor::Message::RepeatFind { reverse: false })
+            }
+            Command::NoteEditorRepeatFindReverse => {
+                Message::NoteEditor(note_editor::Message::RepeatFind { reverse: true })
+            }
 
             Command::VaultSelectorModalClose => {
                 Message::VaultSelectorModal(vault_selector_modal::Message::Close)
