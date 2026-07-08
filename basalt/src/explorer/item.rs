@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use basalt_core::obsidian::{Note, VaultEntry};
 
@@ -18,6 +18,13 @@ pub enum Item {
 }
 
 impl Item {
+    pub(crate) fn path(&self) -> &Path {
+        match self {
+            Self::File { note, .. } => note.path(),
+            Self::Directory { path, .. } => path,
+        }
+    }
+
     pub(crate) fn depth(&self) -> usize {
         match self {
             Self::Directory { depth, .. } | Self::File { depth, .. } => *depth,

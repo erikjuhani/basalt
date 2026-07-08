@@ -22,6 +22,7 @@ use crate::{
     config::{self, Config, Keystroke},
     debug_log::{self, DebugLogModal, DebugLogModalState, LogLevel},
     explorer::{self, Explorer, ExplorerState, Item, Visibility},
+    header::Header,
     help_modal::{self, HelpModal, HelpModalState},
     input::{self, Input, InputModalState},
     note_editor::{
@@ -33,6 +34,7 @@ use crate::{
     splash_modal::{self, SplashModal, SplashModalState},
     statusbar::{StatusBar, StatusBarState},
     stylized_text::{self, FontStyle},
+    tabs::{Tab, Tabs},
     text_counts::{CharCount, WordCount},
     toast::{self, Toast, TOAST_WIDTH},
     vault_selector_modal::{self, VaultSelectorModal, VaultSelectorModalState},
@@ -66,9 +68,8 @@ pub struct AppState<'a> {
 
     active_pane: ActivePane,
     explorer: ExplorerState,
-    note_editor: NoteEditorState<'a>,
+    tabs: Tabs<'a>,
     outline: OutlineState,
-    selected_note: Option<SelectedNote>,
     toasts: Vec<Toast>,
 
     input_modal: InputModalState,
@@ -129,6 +130,9 @@ pub enum Message<'a> {
     OpenVault(&'a Vault),
     SelectNote(SelectedNote),
     UpdateSelectedNoteContent((String, Option<Vec<ast::Node>>)),
+    TabNext,
+    TabPrevious,
+    CloseTab,
 
     Batch(Vec<Message<'a>>),
     Toast(toast::Message),
@@ -177,6 +181,32 @@ pub struct SelectedNote {
     content: String,
 }
 
+impl SelectedNote {
+    pub fn new(name: &str, path: &Path, content: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            path: path.to_path_buf(),
+            content: content.to_string(),
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub fn set_name(&mut self, name: &str) {
+        self.name = name.to_string();
+    }
+
+    pub fn set_path(&mut self, path: &Path) {
+        self.path = path.to_path_buf();
+    }
+}
+
 impl From<Note> for SelectedNote {
     fn from(value: Note) -> Self {
         Self {
@@ -214,6 +244,38 @@ fn active_config_section<'a>(
         ActivePane::Input => &config.input_modal,
         ActivePane::NoteEditor => &config.note_editor,
         ActivePane::DebugLogModal => &config.debug_log_modal,
+    }
+}
+
+fn rebuild_outline(state: &mut AppState, config: &Config) {
+    let is_open = state.outline.is_open();
+    let was_active = state.outline.active;
+    state.outline = match state.tabs.active_editor() {
+        Some(editor) => OutlineState::new(
+            &editor.ast_nodes,
+            editor.current_block_idx(),
+            is_open,
+            &config.symbols,
+        ),
+        None => OutlineState::new(&[], 0, is_open, &config.symbols),
+    };
+    state.outline.set_active(was_active);
+}
+
+fn focus_active_editor(state: &mut AppState) {
+    let focused = state.active_pane == ActivePane::NoteEditor;
+    if let Some(editor) = state.tabs.active_editor_mut() {
+        editor.set_active(focused);
+    }
+}
+
+fn sync_explorer_to_active_tab(state: &mut AppState) {
+    if let Some(path) = state
+        .tabs
+        .active_note()
+        .map(|note| note.path().to_path_buf())
+    {
+        state.explorer.reveal_path(&path);
     }
 }
 
@@ -390,7 +452,10 @@ impl<'a> App<'a> {
     ) -> Option<Message<'a>> {
         match state.active_component() {
             ActivePane::NoteEditor
-                if state.note_editor.is_editing() && state.note_editor.insert_mode() =>
+                if state
+                    .tabs
+                    .active_editor()
+                    .is_some_and(|editor| editor.is_editing() && editor.insert_mode()) =>
             {
                 state.pending_keys.clear();
                 note_editor::handle_editing_event(key_event).map(Message::NoteEditor)
@@ -468,6 +533,11 @@ impl<'a> App<'a> {
                     {
                         warn!(?error, "failed to update wiki links");
                     }
+                    let name = new
+                        .file_stem()
+                        .and_then(|stem| stem.to_str())
+                        .unwrap_or_default();
+                    state.tabs.rename(old, new, name);
                 }
                 state.explorer.with_entries(state.vault.entries(), select);
                 debug!(?rename, "refreshed vault");
@@ -486,7 +556,7 @@ impl<'a> App<'a> {
                         None
                     }
                 } else {
-                    state.selected_note.clone()
+                    state.tabs.active_note().cloned()
                 };
 
                 if let Some(note) = selected_note {
@@ -498,7 +568,10 @@ impl<'a> App<'a> {
                 return Some(Message::SetActivePane(ActivePane::Explorer));
             }
             Message::RescanVault => {
-                let select = state.selected_note.as_ref().map(|note| note.path.clone());
+                let select = state
+                    .tabs
+                    .active_note()
+                    .map(|note| note.path().to_path_buf());
                 state.explorer.with_entries(state.vault.entries(), select);
                 debug!("rescanned vault after watcher change");
             }
@@ -576,7 +649,9 @@ impl<'a> App<'a> {
                 ActivePane::NoteEditor => {
                     state.active_pane = active_pane;
                     // TODO: use event/message
-                    state.note_editor.set_active(true);
+                    if let Some(editor) = state.tabs.active_editor_mut() {
+                        editor.set_active(true);
+                    }
                     if state.explorer.visibility == Visibility::FullWidth {
                         return Some(Message::Explorer(explorer::Message::HidePane));
                     }
@@ -595,59 +670,72 @@ impl<'a> App<'a> {
                 info!(vault = %vault.name, "opened vault");
                 state.vault = vault.clone();
                 state.explorer = ExplorerState::new(&vault.name, vault.entries(), &config.symbols);
-                state.note_editor = NoteEditorState::default();
+                state.tabs = Tabs::default();
+                rebuild_outline(state, config);
                 return Some(Message::SetActivePane(ActivePane::Explorer));
             }
             Message::SelectNote(selected_note) => {
                 info!(note = %selected_note.name, "selected note");
                 let is_different = state
-                    .selected_note
-                    .as_ref()
+                    .tabs
+                    .active_note()
                     .is_some_and(|note| note.content != selected_note.content);
-                state.selected_note = Some(selected_note.clone());
 
-                state.note_editor = NoteEditorState::new(
-                    &selected_note.content,
-                    &selected_note.name,
-                    &selected_note.path,
-                    &config.symbols,
-                );
-
-                let vim_mode = config.vim_mode;
-                state.note_editor.set_vim_mode(vim_mode);
-
-                let editor_enabled = config.experimental_editor;
-                state.note_editor.set_editor_enabled(editor_enabled);
-
-                if editor_enabled && vim_mode {
-                    state.note_editor.set_view(View::Edit(EditMode::Source));
-                } else {
-                    state.note_editor.set_view(View::Read);
+                if !state.tabs.open_or_focus(selected_note.path()) {
+                    let mut editor = NoteEditorState::new(
+                        &selected_note.content,
+                        &selected_note.name,
+                        &selected_note.path,
+                        &config.symbols,
+                    );
+                    editor.set_vim_mode(config.vim_mode);
+                    editor.set_editor_enabled(config.experimental_editor);
+                    if config.experimental_editor && config.vim_mode {
+                        editor.set_view(View::Edit(EditMode::Source));
+                    } else {
+                        editor.set_view(View::Read);
+                    }
+                    state.tabs.open(Tab {
+                        note: selected_note,
+                        editor,
+                    });
                 }
 
-                // TODO: This should be behind an event/message
-                state.outline = OutlineState::new(
-                    &state.note_editor.ast_nodes,
-                    state.note_editor.current_block_idx(),
-                    state.outline.is_open(),
-                    &config.symbols,
-                );
+                rebuild_outline(state, config);
 
                 if state.explorer.visibility == Visibility::FullWidth && is_different {
                     return Some(Message::Explorer(explorer::Message::HidePane));
                 }
             }
             Message::UpdateSelectedNoteContent((updated_content, nodes)) => {
-                if let Some(selected_note) = state.selected_note.as_mut() {
+                if let Some(selected_note) = state.tabs.active_note_mut() {
                     selected_note.content = updated_content;
                     return nodes.map(|nodes| Message::Outline(outline::Message::SetNodes(nodes)));
                 }
             }
+            Message::TabNext => {
+                state.tabs.next();
+                focus_active_editor(state);
+                sync_explorer_to_active_tab(state);
+                rebuild_outline(state, config);
+            }
+            Message::TabPrevious => {
+                state.tabs.prev();
+                focus_active_editor(state);
+                sync_explorer_to_active_tab(state);
+                rebuild_outline(state, config);
+            }
+            Message::CloseTab => {
+                state.tabs.close_active();
+                focus_active_editor(state);
+                sync_explorer_to_active_tab(state);
+                rebuild_outline(state, config);
+            }
             Message::Exec(command) => {
                 let (note_name, note_path) = state
-                    .selected_note
-                    .as_ref()
-                    .map(|note| (note.name.as_str(), note.path.to_string_lossy()))
+                    .tabs
+                    .active_note()
+                    .map(|note| (note.name(), note.path().to_string_lossy()))
                     .unwrap_or_default();
 
                 return command::sync_command(
@@ -661,9 +749,9 @@ impl<'a> App<'a> {
 
             Message::Spawn(command) => {
                 let (note_name, note_path) = state
-                    .selected_note
-                    .as_ref()
-                    .map(|note| (note.name.as_str(), note.path.to_string_lossy()))
+                    .tabs
+                    .active_note()
+                    .map(|note| (note.name(), note.path().to_string_lossy()))
                     .unwrap_or_default();
 
                 return command::spawn_command(command, &state.vault.name, note_name, &note_path);
@@ -693,7 +781,10 @@ impl<'a> App<'a> {
                 return outline::update(&message, &mut state.outline);
             }
             Message::NoteEditor(message) => {
-                return note_editor::update(message, state.screen_size, &mut state.note_editor);
+                let size = state.screen_size;
+                if let Some(editor) = state.tabs.active_editor_mut() {
+                    return note_editor::update(message, size, editor);
+                }
             }
             Message::Input(message) => return input::update(message, &mut state.input_modal),
             Message::DebugLog(message) => {
@@ -712,9 +803,15 @@ impl<'a> App<'a> {
     }
 
     fn render_main(&self, area: Rect, buf: &mut Buffer, state: &mut AppState<'a>) {
-        let [content, statusbar] = Layout::vertical([Constraint::Fill(1), Constraint::Length(1)])
-            .horizontal_margin(1)
-            .areas(area);
+        let [header, content, statusbar] = Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Fill(1),
+            Constraint::Length(1),
+        ])
+        .horizontal_margin(1)
+        .areas(area);
+
+        Header::new(&self.config.symbols, &state.tabs).render(header, buf);
 
         let (left, right) = match state.explorer.visibility {
             Visibility::Hidden => (Constraint::Length(4), Constraint::Fill(1)),
@@ -734,24 +831,25 @@ impl<'a> App<'a> {
         .areas(content);
 
         Explorer::new().render(explorer_pane, buf, &mut state.explorer);
-        NoteEditor::default().render(note, buf, &mut state.note_editor);
+        match state.tabs.active_editor_mut() {
+            Some(editor) => NoteEditor::default().render(note, buf, editor),
+            None => {
+                let mut empty = NoteEditorState::new("", "", Path::new(""), &self.config.symbols);
+                NoteEditor::default().render(note, buf, &mut empty);
+            }
+        }
         Outline.render(outline, buf, &mut state.outline);
         let border_modal = self.config.symbols.border_modal.into();
         Input::new(border_modal).render(explorer_pane, buf, &mut state.input_modal);
 
-        let (_, counts) = state
-            .selected_note
-            .clone()
+        let (word_count, char_count) = state
+            .tabs
+            .active_note()
             .map(|note| {
                 let content = note.content.as_str();
-                (
-                    note.name,
-                    (WordCount::from(content), CharCount::from(content)),
-                )
+                (WordCount::from(content), CharCount::from(content))
             })
-            .unzip();
-
-        let (word_count, char_count) = counts.unwrap_or_default();
+            .unwrap_or_default();
 
         let mut status_bar_state = StatusBarState::new(
             state.active_pane.into(),

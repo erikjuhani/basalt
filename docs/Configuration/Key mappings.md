@@ -59,6 +59,9 @@ key_bindings = [
 | `quit`                        | Exit the application                 |
 | `vault_selector_modal_toggle` | Toggle vault selector modal          |
 | `help_modal_toggle`           | Toggle help modal                    |
+| `tab_next`                    | Focus the next open note tab         |
+| `tab_previous`                | Focus the previous open note tab     |
+| `tab_close`                   | Close the active note tab            |
 
 ### Splash commands
 
