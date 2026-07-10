@@ -498,7 +498,13 @@ impl<'a> App<'a> {
                 return Some(Message::SetActivePane(ActivePane::Explorer));
             }
             Message::RescanVault => {
-                let select = state.selected_note.as_ref().map(|note| note.path.clone());
+                // Preserve the cursor's current position rather than snapping back to the
+                // open note: a background rescan (e.g. from an autosave debounce) shouldn't
+                // undo explorer navigation the user just did.
+                let select = state.explorer.current_item().map(|item| match item {
+                    Item::File { note, .. } => note.path().to_path_buf(),
+                    Item::Directory { path, .. } => path.clone(),
+                });
                 state.explorer.with_entries(state.vault.entries(), select);
                 debug!("rescanned vault after watcher change");
             }
