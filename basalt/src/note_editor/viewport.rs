@@ -42,4 +42,12 @@ impl Viewport {
             self.scroll_by((-scroll, 0));
         }
     }
+
+    /// Scrolls down by `amount`, stopping so the top never passes `max_top`.
+    pub fn scroll_down(&mut self, amount: usize, max_top: usize) {
+        let scroll = amount.min(max_top.saturating_sub(self.area.y as usize)) as i32;
+        if scroll > 0 {
+            self.scroll_by((scroll, 0));
+        }
+    }
 }

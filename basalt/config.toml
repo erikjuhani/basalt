@@ -116,6 +116,12 @@
 experimental_editor = false
 vim_mode = false
 
+# Maximum on-screen height of an inline image, as a fraction of the note
+# viewport height. Aspect ratio is preserved, so raising this lets an image grow
+# wide enough to fill the available width. Values above 1.0 let a tall image
+# exceed the viewport and scroll into view.
+image_max_height = 1.0
+
 [symbols]
 preset = "unicode"
 

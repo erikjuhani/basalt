@@ -1,5 +1,6 @@
 use std::{
     borrow::Cow,
+    collections::{HashMap, HashSet},
     fmt,
     fs::File,
     io::{self, Write},
@@ -8,18 +9,20 @@ use std::{
     time::{Duration, Instant},
 };
 
-use ratatui::layout::Size;
+use ratatui::layout::{Rect, Size};
+use ratatui_image::sliced::SignedPosition;
 
 use crate::{
     config::Symbols,
+    image::ImageKey,
     note_editor::{
-        ast::{self},
+        ast::{self, ImageSource},
         cursor::{self, Cursor},
-        parser,
+        editor, parser,
         rich_text::RichText,
         text_buffer::TextBuffer,
         viewport::Viewport,
-        virtual_document::VirtualDocument,
+        virtual_document::{ImageContext, VirtualDocument},
     },
 };
 
@@ -95,6 +98,9 @@ pub struct NoteEditorState<'a> {
     /// the layout always matches the text_buffer, even when the cursor
     /// position would temporarily resolve to a different block.
     editing_block: Option<usize>,
+    /// Resolved image keys, decoded dimensions and font metrics used to size
+    /// inline images during layout. Populated by the app from the image store.
+    image_context: ImageContext,
 }
 
 impl<'a> NoteEditorState<'a> {
@@ -120,7 +126,67 @@ impl<'a> NoteEditorState<'a> {
             selection: None,
             yank_flash: None,
             editing_block: None,
+            image_context: ImageContext::default(),
         }
+    }
+
+    /// Sets the font-cell size and height ratio, and clears prior image state,
+    /// when a note is opened. Resolution then arrives asynchronously.
+    pub fn set_image_meta(&mut self, font_size: (u16, u16), max_height_ratio: Option<f32>) {
+        self.image_context.font_size = font_size;
+        if let Some(ratio) = max_height_ratio {
+            self.image_context.max_height_ratio = ratio;
+        }
+        self.image_context.resolved.clear();
+        self.image_context.dims.clear();
+        self.image_context.failed.clear();
+    }
+
+    /// Updates resolution, decoded dimensions and failures as background work
+    /// completes. Called each frame from the image store.
+    pub fn set_image_state(
+        &mut self,
+        resolved: HashMap<ImageSource, ImageKey>,
+        dims: HashMap<ImageKey, (u32, u32)>,
+        failed: HashSet<ImageSource>,
+    ) {
+        self.image_context.resolved = resolved;
+        self.image_context.dims = dims;
+        self.image_context.failed = failed;
+    }
+
+    pub fn image_keys(&self) -> impl Iterator<Item = &ImageKey> {
+        self.image_context.resolved.values()
+    }
+
+    /// The clip area and, for every image overlapping the viewport, its key,
+    /// encode size and top-left position relative to the clip (may be negative
+    /// when scrolled above). `area` is the editor's outer, bordered area.
+    pub fn image_overlays(&self, area: Rect) -> (Rect, Vec<(ImageKey, Size, SignedPosition)>) {
+        let inner = editor::inner_area(area);
+        let meta_len = self.virtual_document.meta().len() as i32;
+        let scroll = self.viewport.area().y as i32;
+
+        let overlays = self
+            .virtual_document
+            .image_placements()
+            .iter()
+            .filter_map(|placement| {
+                let top = meta_len + placement.doc_line as i32 - scroll;
+                let bottom = top + placement.height as i32;
+                if bottom <= 0 || top >= inner.height as i32 {
+                    return None;
+                }
+                let width = placement.width.min(inner.width);
+                (width > 0).then(|| {
+                    let size = Size::new(width, placement.height);
+                    let position = SignedPosition::from((0, top as i16));
+                    (placement.key.clone(), size, position)
+                })
+            })
+            .collect();
+
+        (inner, overlays)
     }
 
     pub fn viewport(&self) -> &Viewport {
@@ -338,6 +404,12 @@ impl<'a> NoteEditorState<'a> {
                 );
             }
         }
+
+        // The relayout can move the cursor's row, so pull the viewport back onto
+        // it. Skipped until the viewport is sized (set_view may run at note open).
+        if self.viewport.area().height > 0 {
+            self.ensure_cursor_visible();
+        }
     }
 
     pub fn resize_viewport(&mut self, size: Size) {
@@ -346,6 +418,7 @@ impl<'a> NoteEditorState<'a> {
 
             let current_block_idx = self.editing_block;
 
+            self.image_context.set_viewport_height(size.height);
             self.virtual_document.layout(
                 &self.filename,
                 &self.content,
@@ -356,6 +429,7 @@ impl<'a> NoteEditorState<'a> {
                 size.width.into(),
                 self.viewport.left().into(),
                 self.text_buffer.clone(),
+                &self.image_context,
             );
 
             self.viewport.resize(size);
@@ -602,6 +676,8 @@ impl<'a> NoteEditorState<'a> {
 
         let current_block_idx = self.editing_block;
 
+        self.image_context
+            .set_viewport_height(self.viewport.area().height);
         self.virtual_document.layout(
             &self.filename,
             &self.content,
@@ -612,6 +688,7 @@ impl<'a> NoteEditorState<'a> {
             self.viewport.area().width.into(),
             self.viewport.left().into(),
             self.text_buffer.clone(),
+            &self.image_context,
         );
 
         self.cursor.update(
@@ -639,15 +716,28 @@ impl<'a> NoteEditorState<'a> {
 
     pub fn cursor_down(&mut self, amount: usize) {
         let prev_block_idx = self.current_block_idx();
+        let prev_row = self.cursor.virtual_row();
 
         self.cursor.update(
             cursor::Message::MoveDown(amount),
             self.virtual_document.lines(),
             &self.text_buffer,
         );
+        let consumed = self.cursor.virtual_row().saturating_sub(prev_row);
 
         self.relayout_on_block_change(prev_block_idx);
-        self.ensure_cursor_visible();
+
+        // The cursor stops at the last source line, but a trailing block (e.g. an
+        // image) can reserve rows below it. Scroll on to reveal them, up to the
+        // document's end, so it can be viewed completely. Skip the cursor re-clamp
+        // once stopped, or it would drag the viewport back off the trailing rows.
+        if consumed > 0 {
+            self.ensure_cursor_visible();
+        }
+        let doc_height = self.virtual_document.meta().len() + self.virtual_document.lines().len();
+        let max_top = doc_height.saturating_sub(self.viewport.area().height as usize);
+        self.viewport
+            .scroll_down(amount.saturating_sub(consumed), max_top);
     }
 
     /// Re-layout while editing so the raw (source) line tracks the cursor.
@@ -688,6 +778,8 @@ impl<'a> NoteEditorState<'a> {
 
         self.enter_insert(target_block_idx);
 
+        self.image_context
+            .set_viewport_height(self.viewport.area().height);
         self.virtual_document.layout(
             &self.filename,
             &self.content,
@@ -698,6 +790,7 @@ impl<'a> NoteEditorState<'a> {
             self.viewport.area().width.into(),
             self.viewport.left().into(),
             self.text_buffer.clone(),
+            &self.image_context,
         );
 
         if let Some(offset) = target_offset {

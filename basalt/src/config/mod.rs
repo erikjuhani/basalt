@@ -86,6 +86,7 @@ impl fmt::Display for ConfigSection<'_> {
 pub struct Config<'a> {
     pub experimental_editor: bool,
     pub vim_mode: bool,
+    pub image_max_height: Option<f32>,
     pub symbols: Symbols,
     pub global: ConfigSection<'a>,
     pub splash: ConfigSection<'a>,
@@ -110,6 +111,7 @@ impl From<TomlConfig> for Config<'_> {
             symbols: value.symbols.into(),
             experimental_editor: value.experimental_editor,
             vim_mode: value.vim_mode,
+            image_max_height: value.image_max_height,
             global: value.global.into(),
             splash: value.splash.into(),
             explorer: value.explorer.into(),
@@ -141,6 +143,10 @@ impl Config<'_> {
         self.symbols = config.symbols;
         self.experimental_editor = config.experimental_editor;
         self.vim_mode = config.vim_mode;
+        // Inherit the base value when the incoming config omits it.
+        if config.image_max_height.is_some() {
+            self.image_max_height = config.image_max_height;
+        }
         self.global.merge_key_bindings(config.global);
         self.explorer.merge_key_bindings(config.explorer);
         self.splash.merge_key_bindings(config.splash);
@@ -239,6 +245,8 @@ struct TomlConfig {
     experimental_editor: bool,
     #[serde(default)]
     vim_mode: bool,
+    #[serde(default)]
+    image_max_height: Option<f32>,
     #[serde(default)]
     global: TomlConfigSection,
     #[serde(default)]

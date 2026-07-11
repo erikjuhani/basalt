@@ -6,6 +6,7 @@ pub mod config;
 pub mod debug_log;
 pub mod explorer;
 pub mod help_modal;
+pub mod image;
 pub mod input;
 pub mod note_editor;
 pub mod outline;

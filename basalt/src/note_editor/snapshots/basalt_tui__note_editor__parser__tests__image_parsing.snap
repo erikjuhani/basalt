@@ -1,0 +1,34 @@
+---
+source: basalt/src/note_editor/parser.rs
+expression: "format!(\"{}\\n ---\\n\\n{}\", text, ast::nodes_to_sexp(&from_str(text), 0))"
+---
+## Images
+
+![[diagram.png]]
+
+![[photo.png|240]]
+
+![[chart.png|200x300]]
+
+![alt text](./local.png)
+
+![Obsidian|200](https://obsidian.md/banner.png)
+
+![remote](https://example.com/pic.png)
+
+An inline ![x](y.png) image stays a paragraph.
+
+ ---
+
+(heading H2 @0..10
+  "Images")
+(image Embed("diagram.png") "diagram.png" @11..28)
+(image Embed("photo.png") "photo.png" 240 @29..48)
+(image Embed("chart.png") "chart.png" 200x300 @49..72)
+(image Path("./local.png") "alt text" @73..98)
+(image Url("https://obsidian.md/banner.png") "Obsidian" 200 @99..147)
+(image Url("https://example.com/pic.png") "remote" @148..187)
+(paragraph @188..235
+  "An inline "
+  "x"
+  " image stays a paragraph.")

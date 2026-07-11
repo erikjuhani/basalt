@@ -143,6 +143,29 @@ impl From<pulldown_cmark::Alignment> for Alignment {
 
 pub type SourceRange<Idx> = std::ops::Range<Idx>;
 
+/// Where a block image's pixels come from.
+///
+/// The variant captures the meaning of the source string so the renderer knows
+/// how to resolve it: an Obsidian embed resolves by file name against the vault,
+/// a path resolves against the note's directory, and a URL is fetched remotely.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum ImageSource {
+    /// Obsidian embed `![[name.ext]]`, resolved by file name within the vault.
+    Embed(String),
+    /// Local image `![alt](path)`, resolved against the note's directory.
+    Path(String),
+    /// Remote image `![alt](http(s)://...)`.
+    Url(String),
+}
+
+/// Explicit on-screen size from Obsidian `|width` or `|widthxheight` syntax, in
+/// pixels. `height` is `None` when only a width is given (aspect preserved).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ImageSize {
+    pub width: u32,
+    pub height: Option<u32>,
+}
+
 /// The Markdown AST node enumeration.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Node {
@@ -190,6 +213,12 @@ pub enum Node {
         rows: Vec<Vec<RichText>>,
         source_range: SourceRange<usize>,
     },
+    Image {
+        source: ImageSource,
+        alt: String,
+        size: Option<ImageSize>,
+        source_range: SourceRange<usize>,
+    },
 }
 
 impl Node {
@@ -202,7 +231,8 @@ impl Node {
             | Self::BlockQuote { source_range, .. }
             | Self::Item { source_range, .. }
             | Self::Task { source_range, .. }
-            | Self::Table { source_range, .. } => source_range,
+            | Self::Table { source_range, .. }
+            | Self::Image { source_range, .. } => source_range,
         }
     }
 
@@ -215,7 +245,8 @@ impl Node {
             | Self::BlockQuote { source_range, .. }
             | Self::Item { source_range, .. }
             | Self::Task { source_range, .. }
-            | Self::Table { source_range, .. } => *source_range = new_range,
+            | Self::Table { source_range, .. }
+            | Self::Image { source_range, .. } => *source_range = new_range,
         }
     }
 
@@ -371,6 +402,28 @@ pub fn node_to_sexp(node: &Node, indent_level: usize) -> String {
                 cells(head),
                 body,
                 indent = indent_level,
+            )
+        }
+        Node::Image {
+            source,
+            alt,
+            size,
+            source_range,
+        } => {
+            let size = size
+                .map(|size| match size.height {
+                    Some(height) => format!(" {}x{}", size.width, height),
+                    None => format!(" {}", size.width),
+                })
+                .unwrap_or_default();
+            format!(
+                "{:indent$}(image {:?} {:?}{} @{:?})",
+                "",
+                source,
+                alt,
+                size,
+                source_range,
+                indent = indent_level
             )
         }
     }

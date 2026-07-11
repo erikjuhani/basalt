@@ -1,10 +1,18 @@
 use basalt_core::obsidian::{self, create_untitled_dir, create_untitled_note, Note, Vault};
 use ratatui::{
     buffer::Buffer,
-    crossterm::event::{self, Event, KeyEvent, KeyEventKind},
+    crossterm::{
+        event::{self, Event, KeyEvent, KeyEventKind},
+        terminal,
+    },
     layout::{Constraint, Flex, Layout, Rect, Size},
-    widgets::{StatefulWidget, Widget},
+    text::Line,
+    widgets::{Block, Paragraph, StatefulWidget, Widget},
     DefaultTerminal,
+};
+use ratatui_image::{
+    picker::Picker,
+    sliced::{SignedPosition, SlicedImage},
 };
 use tracing::{debug, error, info, warn};
 
@@ -14,6 +22,13 @@ use std::{
     fs,
     io::Result,
     path::{Path, PathBuf},
+    rc::Rc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc::{self, Sender},
+        Arc, Mutex,
+    },
+    thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
 
@@ -23,6 +38,7 @@ use crate::{
     debug_log::{self, DebugLogModal, DebugLogModalState, LogLevel},
     explorer::{self, Explorer, ExplorerState, Item, Visibility},
     help_modal::{self, HelpModal, HelpModalState},
+    image::{ImageKey, ImageStore},
     input::{self, Input, InputModalState},
     note_editor::{
         self, ast,
@@ -76,6 +92,9 @@ pub struct AppState<'a> {
     help_modal: HelpModalState,
     vault_selector_modal: VaultSelectorModalState<'a>,
     debug_log_modal: DebugLogModalState,
+
+    /// Shared image cache, wrapped so `AppState` stays cheap to clone.
+    image_store: Rc<RefCell<ImageStore>>,
 }
 
 impl<'a> AppState<'a> {
@@ -201,6 +220,140 @@ fn help_text(version: &str) -> String {
     HELP_TEXT.replace("%version-notice", version)
 }
 
+/// Queues the note's image embeds for background resolution and decoding. The
+/// vault walk runs off the UI thread; results are pulled in each frame.
+fn request_note_images(state: &mut AppState<'_>, note_path: &Path) {
+    let note_dir = note_path
+        .parent()
+        .unwrap_or_else(|| Path::new(""))
+        .to_path_buf();
+    let vault_root = state.vault.path.clone();
+
+    // Recurse containers so embeds nested under lists and quotes are requested.
+    let mut sources = Vec::new();
+    collect_image_sources(&state.note_editor.ast_nodes, &mut sources);
+
+    let mut store = state.image_store.borrow_mut();
+    for source in sources {
+        store.request(source, note_dir.clone(), vault_root.clone());
+    }
+}
+
+/// Collects every image source in the tree, recursing into container nodes.
+fn collect_image_sources(nodes: &[ast::Node], sources: &mut Vec<ast::ImageSource>) {
+    for node in nodes {
+        match node {
+            ast::Node::Image { source, .. } => sources.push(source.clone()),
+            ast::Node::List { nodes, .. }
+            | ast::Node::Item { nodes, .. }
+            | ast::Node::Task { nodes, .. }
+            | ast::Node::BlockQuote { nodes, .. } => collect_image_sources(nodes, sources),
+            _ => {}
+        }
+    }
+}
+
+/// Overlays inline images on the editor's reserved rows, falling back to a
+/// placeholder box while an image is loading, failed or not yet encoded.
+fn render_note_images(area: Rect, buf: &mut Buffer, state: &mut AppState<'_>) {
+    let mut store = state.image_store.borrow_mut();
+    store.poll();
+
+    // Pull whatever the worker has resolved, decoded or failed so far.
+    let mut sources = Vec::new();
+    collect_image_sources(&state.note_editor.ast_nodes, &mut sources);
+
+    let mut resolved = std::collections::HashMap::new();
+    let mut failed = std::collections::HashSet::new();
+    // Sources still resolving, decoding or fetching on a worker; keep redrawing
+    // so they appear as soon as the work lands rather than on the next tick.
+    let mut awaiting = false;
+    for source in sources {
+        if let Some(key) = store.resolved(&source) {
+            resolved.insert(source, key);
+        } else if store.is_failed(&source) {
+            failed.insert(source);
+        } else {
+            awaiting = true;
+        }
+    }
+    let dims = resolved
+        .values()
+        .filter_map(|key| store.dims(key).map(|dims| (key.clone(), dims)))
+        .collect();
+    state.note_editor.set_image_state(resolved, dims, failed);
+
+    // A large image blocks the terminal write, so transmit at most one not-yet
+    // shown image per frame and defer the rest (already-shown ones are cheap).
+    let (clip, overlays) = state.note_editor.image_overlays(area);
+    let mut transmitted = false;
+    let mut pending = false;
+    for (key, size, position) in overlays {
+        let shown = store.is_shown(&key, size);
+        if !shown && transmitted {
+            render_image_placeholder(clipped_rect(clip, size, position), buf, &key);
+            pending = true;
+            continue;
+        }
+        match store.protocol_at(&key, size) {
+            Some(protocol) => {
+                SlicedImage::new(protocol, position).render(clip, buf);
+                if !shown {
+                    transmitted = true;
+                    store.mark_shown(key, size);
+                }
+            }
+            None => {
+                render_image_placeholder(clipped_rect(clip, size, position), buf, &key);
+                pending = true;
+            }
+        }
+    }
+    store.set_pending_transmit(pending || awaiting);
+}
+
+/// The visible portion of an image at `position` within `clip`, for placing the
+/// loading/error placeholder.
+fn clipped_rect(clip: Rect, size: Size, position: SignedPosition) -> Rect {
+    let top = position.y.max(0);
+    let bottom = (position.y + size.height as i16).min(clip.height as i16);
+    let height = (bottom - top).max(0) as u16;
+    Rect {
+        x: clip.x + position.x.max(0) as u16,
+        y: clip.y + top as u16,
+        width: size.width.min(clip.width),
+        height,
+    }
+}
+
+fn render_image_placeholder(area: Rect, buf: &mut Buffer, key: &ImageKey) {
+    let label = match key {
+        ImageKey::Path(path) => path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("image")
+            .to_string(),
+        ImageKey::Url(url) => url.clone(),
+    };
+
+    Paragraph::new(Line::from(format!("image: {label}")))
+        .block(Block::bordered())
+        .render(area, buf);
+}
+
+/// Copies `src` onto `dst` over their overlapping area, so a buffer built at a
+/// now-stale size (a resize race) is clipped rather than corrupting the diff.
+fn blit(dst: &mut Buffer, src: &Buffer) {
+    let area = dst.area.intersection(src.area);
+    for y in area.top()..area.bottom() {
+        for x in area.left()..area.right() {
+            if let (Some(cell), Some(slot)) = (src.cell((x, y)), dst.cell_mut((x, y))) {
+                *slot = cell.clone();
+            }
+        }
+    }
+}
+
 fn active_config_section<'a>(
     config: &'a Config,
     active: ActivePane,
@@ -220,17 +373,43 @@ fn active_config_section<'a>(
 pub struct App<'a> {
     state: AppState<'a>,
     config: Config<'a>,
-    terminal: RefCell<DefaultTerminal>,
+    /// The flush thread locks it to draw; the main thread only for `exec` suspend.
+    terminal: Arc<Mutex<DefaultTerminal>>,
+    /// Sends the latest rendered buffer to the flush thread; `None` after teardown.
+    flush_tx: Option<Sender<Buffer>>,
+    /// Set while the flush thread is drawing. The main thread skips building a
+    /// frame until it clears, so at most one is in flight and updates coalesce.
+    flush_busy: Arc<AtomicBool>,
+    flush_handle: Option<JoinHandle<()>>,
     vault_watcher: RefCell<Option<VaultWatcher>>,
 }
 
 impl<'a> App<'a> {
     pub fn new(state: AppState<'a>, config: Config<'a>, terminal: DefaultTerminal) -> Self {
+        // The blocking terminal write runs on a flush thread so transmitting a
+        // large image never stalls the main loop.
+        let terminal = Arc::new(Mutex::new(terminal));
+        let flush_busy = Arc::new(AtomicBool::new(false));
+        let (flush_tx, flush_rx) = mpsc::channel::<Buffer>();
+        let flush_terminal = Arc::clone(&terminal);
+        let flush_thread_busy = Arc::clone(&flush_busy);
+        let flush_handle = thread::spawn(move || {
+            while let Ok(buffer) = flush_rx.recv() {
+                if let Ok(mut terminal) = flush_terminal.lock() {
+                    let _ = terminal.draw(|frame| blit(frame.buffer_mut(), &buffer));
+                }
+                flush_thread_busy.store(false, Ordering::Release);
+            }
+        });
+
         Self {
             state,
             // TODO: Surface toast if read config returns error
             config,
-            terminal: RefCell::new(terminal),
+            terminal,
+            flush_tx: Some(flush_tx),
+            flush_busy,
+            flush_handle: Some(flush_handle),
             vault_watcher: RefCell::new(None),
         }
     }
@@ -264,6 +443,7 @@ impl<'a> App<'a> {
         initial_vault: Option<Vault>,
         debug: bool,
         log_level: LogLevel,
+        picker: Option<Picker>,
     ) -> Result<()> {
         let version = stylized_text::stylize(VERSION, FontStyle::Script);
         let size = terminal.size()?;
@@ -304,6 +484,7 @@ impl<'a> App<'a> {
                     toast::Toast::warn(&message, Duration::from_secs(5))
                 })
                 .collect(),
+            image_store: Rc::new(RefCell::new(ImageStore::new(picker))),
             ..Default::default()
         };
 
@@ -322,16 +503,21 @@ impl<'a> App<'a> {
         let mut last_tick = Instant::now();
 
         while state.is_running {
-            self.draw(&mut state)?;
+            let drew = self.draw(&mut state)?;
 
-            let timeout = tick_rate.saturating_sub(last_tick.elapsed());
+            // Retry soon after a skipped frame or while images are transmitting.
+            let timeout = if !drew || state.image_store.borrow().pending_transmit() {
+                Duration::from_millis(16)
+            } else {
+                tick_rate.saturating_sub(last_tick.elapsed())
+            };
 
             if event::poll(timeout)? {
                 let event = event::read()?;
 
                 let mut message = App::handle_event(&config, &mut state, event);
                 while message.is_some() {
-                    message = App::update(self.terminal.get_mut(), &config, &mut state, message);
+                    message = App::update(&self.terminal, &config, &mut state, message);
                 }
                 self.ensure_watcher_for(&state.vault.path);
             }
@@ -339,13 +525,13 @@ impl<'a> App<'a> {
             if self.watcher_has_changes() {
                 let mut message = Some(Message::RescanVault);
                 while message.is_some() {
-                    message = App::update(self.terminal.get_mut(), &config, &mut state, message);
+                    message = App::update(&self.terminal, &config, &mut state, message);
                 }
             }
 
             if last_tick.elapsed() >= tick_rate {
                 App::update(
-                    self.terminal.get_mut(),
+                    &self.terminal,
                     &config,
                     &mut state,
                     Some(Message::Toast(toast::Message::Tick)),
@@ -354,19 +540,38 @@ impl<'a> App<'a> {
             }
         }
 
+        // Stop the flush thread and let its last draw finish before the caller
+        // restores the terminal.
+        self.flush_tx = None;
+        if let Some(handle) = self.flush_handle.take() {
+            let _ = handle.join();
+        }
+
         Ok(())
     }
 
-    fn draw(&self, state: &mut AppState<'a>) -> Result<()> {
-        let mut terminal = self.terminal.borrow_mut();
+    /// Renders the current state into a buffer for the flush thread. Returns
+    /// `false` without drawing while the flush thread is still busy, so updates
+    /// coalesce onto the latest state. Skipping before rendering (rather than
+    /// dropping a built buffer) keeps a transmitted image's one-time data intact.
+    fn draw(&self, state: &mut AppState<'a>) -> Result<bool> {
+        if self.flush_busy.load(Ordering::Acquire) {
+            return Ok(false);
+        }
 
-        terminal.draw(move |frame| {
-            let area = frame.area();
-            let buf = frame.buffer_mut();
-            self.render(area, buf, state);
-        })?;
+        // Query the size directly to avoid locking the terminal here; a resize
+        // race is clipped by the flush thread's blit.
+        let (width, height) = terminal::size()?;
+        let area = Rect::new(0, 0, width, height);
+        let mut buffer = Buffer::empty(area);
+        self.render(area, &mut buffer, state);
 
-        Ok(())
+        if let Some(flush_tx) = &self.flush_tx {
+            self.flush_busy.store(true, Ordering::Release);
+            let _ = flush_tx.send(buffer);
+        }
+
+        Ok(true)
     }
 
     fn handle_event(
@@ -445,7 +650,7 @@ impl<'a> App<'a> {
     }
 
     fn update(
-        terminal: &mut DefaultTerminal,
+        terminal: &Arc<Mutex<DefaultTerminal>>,
         config: &Config,
         state: &mut AppState<'a>,
         message: Option<Message<'a>>,
@@ -613,6 +818,12 @@ impl<'a> App<'a> {
                     &config.symbols,
                 );
 
+                let font_size = state.image_store.borrow().font_size();
+                state
+                    .note_editor
+                    .set_image_meta(font_size, config.image_max_height);
+                request_note_images(state, &selected_note.path);
+
                 let vim_mode = config.vim_mode;
                 state.note_editor.set_vim_mode(vim_mode);
 
@@ -638,8 +849,15 @@ impl<'a> App<'a> {
                 }
             }
             Message::UpdateSelectedNoteContent((updated_content, nodes)) => {
-                if let Some(selected_note) = state.selected_note.as_mut() {
-                    selected_note.content = updated_content;
+                let note_path = state.selected_note.as_mut().map(|note| {
+                    note.content = updated_content;
+                    note.path.clone()
+                });
+                if let Some(note_path) = note_path {
+                    // Re-request in case an edit changed an embed.
+                    if nodes.is_some() {
+                        request_note_images(state, &note_path);
+                    }
                     return nodes.map(|nodes| Message::Outline(outline::Message::SetNodes(nodes)));
                 }
             }
@@ -650,8 +868,10 @@ impl<'a> App<'a> {
                     .map(|note| (note.name.as_str(), note.path.to_string_lossy()))
                     .unwrap_or_default();
 
+                // Hold the lock so the flush thread pauses while the editor runs.
+                let mut terminal = terminal.lock().unwrap();
                 return command::sync_command(
-                    terminal,
+                    &mut terminal,
                     command,
                     &state.vault.name,
                     note_name,
@@ -735,6 +955,7 @@ impl<'a> App<'a> {
 
         Explorer::new().render(explorer_pane, buf, &mut state.explorer);
         NoteEditor::default().render(note, buf, &mut state.note_editor);
+        render_note_images(note, buf, state);
         Outline.render(outline, buf, &mut state.outline);
         let border_modal = self.config.symbols.border_modal.into();
         Input::new(border_modal).render(explorer_pane, buf, &mut state.input_modal);

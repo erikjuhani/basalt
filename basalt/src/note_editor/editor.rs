@@ -86,6 +86,14 @@ fn render_highlight(
 #[derive(Default)]
 pub struct NoteEditor<'a>(pub PhantomData<&'a ()>);
 
+/// The text area inside the editor's border and padding. Must match the block
+/// built in [`NoteEditor::render`] so image overlays line up with the text.
+pub fn inner_area(area: Rect) -> Rect {
+    Block::bordered()
+        .padding(Padding::horizontal(1))
+        .inner(area)
+}
+
 impl<'a> StatefulWidget for NoteEditor<'a> {
     type State = NoteEditorState<'a>;
 
@@ -150,7 +158,6 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
             .map(|visual_line| visual_line.into())
             .collect::<Vec<Line>>();
 
-        let rendered_lines_count = state.virtual_document.lines().len();
         let meta_lines_count = state.virtual_document.meta().len();
 
         Paragraph::new(visible_lines)
@@ -193,8 +200,13 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
         }
 
         if !area.is_empty() && lines.len() as u16 > inner_area.bottom() {
+            // Track the scroll offset, not the cursor: the cursor pins to a
+            // trailing image's top row while the viewport scrolls on through it.
+            // Length is the number of scroll positions so the thumb reaches the
+            // bottom exactly when the last row is on screen.
+            let max_top = lines.len().saturating_sub(inner_area.height as usize);
             let mut scroll_state =
-                ScrollbarState::new(rendered_lines_count).position(state.cursor.virtual_row());
+                ScrollbarState::new(max_top + 1).position(state.viewport().top() as usize);
 
             Scrollbar::new(ScrollbarOrientation::VerticalRight).render(
                 area,
@@ -207,14 +219,85 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
+    use std::collections::{HashMap, HashSet};
+    use std::path::{Path, PathBuf};
 
-    use crate::{config::Symbols, note_editor::state::EditMode};
+    use crate::{
+        config::Symbols,
+        image::ImageKey,
+        note_editor::{ast::ImageSource, state::EditMode},
+    };
 
     use super::*;
     use indoc::indoc;
     use insta::assert_snapshot;
-    use ratatui::{backend::TestBackend, Terminal};
+    use ratatui::{backend::TestBackend, layout::Size, Terminal};
+
+    #[test]
+    fn test_image_reserves_space() {
+        let content = indoc! { r#"## Diagram
+
+            ![[diagram.png]]
+
+            Text after the image.
+            "#};
+
+        let mut state =
+            NoteEditorState::new(content, "Test", Path::new("test.md"), &Symbols::unicode());
+
+        // Simulate the app having resolved and decoded the embed: a 200x100px
+        // image at a 10x20 font cell scaled to fill the content width, preserving
+        // its 2:1 aspect ratio and bounded by the image_max_height ratio.
+        let source = ImageSource::Embed("diagram.png".to_string());
+        let key = ImageKey::Path(PathBuf::from("/vault/diagram.png"));
+        state.set_image_meta((10, 20), Some(0.8));
+        state.set_image_state(
+            HashMap::from([(source, key.clone())]),
+            HashMap::from([(key, (200, 100))]),
+            HashSet::new(),
+        );
+
+        let mut terminal = Terminal::new(TestBackend::new(40, 14)).unwrap();
+        terminal
+            .draw(|frame| {
+                NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut state)
+            })
+            .unwrap();
+        assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
+    fn scrolls_to_reveal_a_trailing_image() {
+        // A tall image as the last block reserves more rows than the cursor can
+        // reach; scrolling to the end must reveal it down to the document's edge.
+        let content = indoc! { r#"# Title
+
+            Some text.
+
+            ![[tall.png]]
+            "#};
+
+        let mut state =
+            NoteEditorState::new(content, "Test", Path::new("test.md"), &Symbols::unicode());
+
+        let source = ImageSource::Embed("tall.png".to_string());
+        let key = ImageKey::Path(PathBuf::from("/vault/tall.png"));
+        state.set_image_meta((10, 20), Some(3.0));
+        state.set_image_state(
+            HashMap::from([(source, key.clone())]),
+            HashMap::from([(key, (100, 400))]),
+            HashSet::new(),
+        );
+        state.resize_viewport(Size::new(40, 10));
+
+        let doc_height = state.virtual_document.meta().len() + state.virtual_document.lines().len();
+        let max_top = doc_height.saturating_sub(10);
+        assert!(max_top > 0, "the image should exceed the viewport height");
+
+        assert_eq!(state.viewport().y, 0);
+        state.cursor_to_end();
+        assert_eq!(state.viewport().y as usize, max_top);
+    }
 
     #[test]
     fn test_rendered_markdown_view() {
