@@ -1,6 +1,7 @@
 use std::ops::Range;
 
 use ratatui::{
+    layout::Size,
     style::{Color, Modifier, Style, Stylize},
     text::Span,
 };
@@ -9,6 +10,7 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
     config::{Symbols, Theme},
+    image::ImageKey,
     motion,
     note_editor::{
         ast::{self, SourceRange},
@@ -17,7 +19,7 @@ use crate::{
         text_wrap::wrap_preserve_trailing,
         virtual_document::{
             content_span, empty_virtual_line, synthetic_span, virtual_line, wrap_marker_span,
-            CodeCache, VirtualBlock, VirtualLine, VirtualSpan,
+            CodeCache, ImageContext, ImageMark, Placement, VirtualBlock, VirtualLine, VirtualSpan,
         },
     },
     stylized_text::stylize,
@@ -991,6 +993,7 @@ pub struct RenderContext<'c> {
     pub theme: &'c Theme,
     pub code_cache: &'c mut CodeCache,
     pub selected_link: Option<Range<usize>>,
+    pub images: &'c ImageContext,
 }
 
 pub fn code_block<'a>(
@@ -1928,6 +1931,45 @@ fn table_border<'a>(text: &str) -> Span<'a> {
     Span::raw(text.to_string()).dark_gray()
 }
 
+/// Rows are spaces, not empty, so trailing-blank trimming keeps them.
+pub fn image<'a>(size: Size, source_range: &SourceRange<usize>, key: ImageKey) -> VirtualBlock<'a> {
+    let fill = " ".repeat(size.width as usize);
+    let mark = ImageMark { key, size };
+    let mut lines = vec![
+        virtual_line!([content_span!(Span::raw(fill.clone()), source_range)]).with_image(mark),
+    ];
+    lines.extend(
+        (1..size.height).map(|_| virtual_line!([synthetic_span!(Span::raw(fill.clone()))])),
+    );
+    lines.push(empty_virtual_line!());
+    VirtualBlock::new(&lines, source_range)
+}
+
+pub fn image_notice<'a>(
+    text: String,
+    style: Style,
+    source_range: &SourceRange<usize>,
+    max_width: usize,
+) -> VirtualBlock<'a> {
+    let lines = vec![
+        virtual_line!([content_span!(
+            Span::styled(truncate_to_width(&text, max_width.saturating_sub(1)), style),
+            source_range
+        )]),
+        empty_virtual_line!(),
+    ];
+    VirtualBlock::new(&lines, source_range)
+}
+
+fn truncate_to_width(text: &str, width: usize) -> String {
+    text.chars()
+        .scan(0, |used, char| {
+            *used += char.width().unwrap_or(0);
+            (*used <= width).then_some(char)
+        })
+        .collect()
+}
+
 pub fn render_node<'a>(
     node: &ast::Node,
     prefix: Span<'static>,
@@ -1942,6 +1984,7 @@ pub fn render_node<'a>(
         option,
         symbols,
         theme,
+        images,
         ..
     } = *context;
     match node {
@@ -2013,5 +2056,33 @@ pub fn render_node<'a>(
             option,
             symbols,
         ),
+        Image {
+            source,
+            alt,
+            size,
+            source_range,
+        } => match option {
+            RenderStyle::Raw => VirtualBlock::new(
+                &render_raw(content, source_range, max_width, prefix, symbols),
+                source_range,
+            ),
+            RenderStyle::Visual | RenderStyle::Reader => {
+                match images.placement(source, *size, max_width) {
+                    Placement::Image { key, size } => image(size, source_range, key),
+                    Placement::Failed => image_notice(
+                        format!("image not found: {alt}"),
+                        Style::new().red(),
+                        source_range,
+                        max_width,
+                    ),
+                    Placement::Loading => image_notice(
+                        format!("loading image: {alt}"),
+                        Style::new().dim(),
+                        source_range,
+                        max_width,
+                    ),
+                }
+            }
+        },
     }
 }

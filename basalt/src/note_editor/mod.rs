@@ -17,6 +17,7 @@ use crate::motion;
 pub use crate::motion::Direction;
 // `LinkTarget` is carried by `AppMessage::FollowLink`, resolved in `app.rs`.
 pub use crate::motion::LinkTarget;
+pub use virtual_document::ImageEntry;
 
 use std::time::Duration;
 
