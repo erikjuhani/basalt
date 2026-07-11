@@ -1,5 +1,6 @@
 use std::{
     borrow::Cow,
+    collections::HashMap,
     fmt,
     fs::File,
     io::{self, Write},
@@ -9,21 +10,23 @@ use std::{
 };
 
 use ratatui::{
-    layout::{Position, Size},
+    layout::{Position, Rect, Size},
     style::Color,
 };
+use ratatui_image::sliced::SignedPosition;
 
 use crate::{
-    config::{LineNumbers, Symbols, Theme},
+    config::{ImageMaxHeight, LineNumbers, Symbols, Theme},
+    image::ImageKey,
     motion::{Direction, TextObjectKind},
     note_editor::{
-        ast::{self},
+        ast::{self, ImageSource},
         cursor::{self, Cursor},
-        parser,
+        editor, parser,
         rich_text::RichText,
         text_buffer::TextBuffer,
         viewport::Viewport,
-        virtual_document::VirtualDocument,
+        virtual_document::{ImageContext, ImageEntry, VirtualDocument},
     },
 };
 
@@ -155,6 +158,19 @@ impl Mode {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct ImageOverlay {
+    pub key: ImageKey,
+    pub size: Size,
+    pub position: SignedPosition,
+}
+
+#[derive(Clone, Debug)]
+pub struct ImageOverlays {
+    pub clip: Rect,
+    pub overlays: Vec<ImageOverlay>,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct NoteEditorState<'a> {
     // FIXME: Use Rope instead of String for O(log n) instead of O(n).
@@ -189,6 +205,7 @@ pub struct NoteEditorState<'a> {
     /// position would temporarily resolve to a different block.
     editing_block: Option<usize>,
     pub(crate) terminal_cursor: Option<Position>,
+    image_context: ImageContext,
 }
 
 impl<'a> NoteEditorState<'a> {
@@ -224,7 +241,44 @@ impl<'a> NoteEditorState<'a> {
             redo_stack: Vec::new(),
             editing_block: None,
             terminal_cursor: None,
+            image_context: ImageContext::default(),
         }
+    }
+
+    pub fn set_image_meta(&mut self, font_size: Size, max_height: ImageMaxHeight) {
+        self.image_context.set_meta(font_size, max_height);
+    }
+
+    pub fn set_image_entries(&mut self, entries: HashMap<ImageSource, ImageEntry>) {
+        self.image_context.set_entries(entries);
+    }
+
+    /// `area` is the editor's outer, bordered area.
+    pub fn image_overlays(&self, area: Rect) -> ImageOverlays {
+        let clip = editor::text_area(self, area);
+        let meta_len = self.virtual_document.meta().len() as i32;
+        let scroll = self.viewport.area().y as i32;
+
+        let overlays = self
+            .virtual_document
+            .image_placements()
+            .iter()
+            .filter_map(|placement| {
+                let top = meta_len + placement.doc_line as i32 - scroll;
+                let bottom = top + placement.mark.size.height as i32;
+                if bottom <= 0 || top >= clip.height as i32 {
+                    return None;
+                }
+                let width = placement.mark.size.width.min(clip.width);
+                (width > 0).then(|| ImageOverlay {
+                    key: placement.mark.key.clone(),
+                    size: Size::new(width, placement.mark.size.height),
+                    position: SignedPosition::from((0, top as i16)),
+                })
+            })
+            .collect();
+
+        ImageOverlays { clip, overlays }
     }
 
     pub fn viewport(&self) -> &Viewport {
@@ -504,25 +558,34 @@ impl<'a> NoteEditorState<'a> {
                 );
             }
         }
+
+        // The viewport has no size yet when a note opens.
+        if self.viewport.area().height > 0 {
+            self.ensure_cursor_visible();
+        }
+    }
+
+    fn relayout(&mut self, size: Size, cursor_offset: usize) {
+        self.image_context.set_viewport_height(size.height);
+        self.virtual_document.layout(
+            &self.filename,
+            &self.content,
+            &self.view,
+            self.editing_block,
+            cursor_offset,
+            &self.ast_nodes,
+            size.width.into(),
+            self.viewport.left().into(),
+            self.text_buffer.clone(),
+            &self.image_context,
+        );
     }
 
     pub fn resize_viewport(&mut self, size: Size) {
         if self.viewport.size_changed(size) {
             use cursor::Message::*;
 
-            let current_block_idx = self.editing_block;
-
-            self.virtual_document.layout(
-                &self.filename,
-                &self.content,
-                &self.view,
-                current_block_idx,
-                self.cursor.source_offset(),
-                &self.ast_nodes,
-                size.width.into(),
-                self.viewport.left().into(),
-                self.text_buffer.clone(),
-            );
+            self.relayout(size, self.cursor.source_offset());
 
             self.viewport.resize(size);
 
@@ -587,10 +650,7 @@ impl<'a> NoteEditorState<'a> {
     /// blank tail when the cursor is near the end of the document.
     fn scroll_cursor_to_top(&mut self) {
         let cursor_row = self.cursor_screen_row();
-        let total_rows =
-            (self.virtual_document.meta().len() + self.virtual_document.lines().len()) as i32;
-
-        let max_top = (total_rows - self.viewport.height as i32).max(0);
+        let max_top = self.max_scroll_top() as i32;
         let vertical = cursor_row.min(max_top) - self.viewport.top() as i32;
         let horizontal = -(self.viewport.left() as i32);
 
@@ -1049,19 +1109,7 @@ impl<'a> NoteEditorState<'a> {
             );
         }
 
-        let current_block_idx = self.editing_block;
-
-        self.virtual_document.layout(
-            &self.filename,
-            &self.content,
-            &self.view,
-            current_block_idx,
-            self.cursor.source_offset(),
-            &self.ast_nodes,
-            self.viewport.area().width.into(),
-            self.viewport.left().into(),
-            self.text_buffer.clone(),
-        );
+        self.relayout(self.viewport.area().as_size(), self.cursor.source_offset());
 
         self.cursor.update(
             Jump(self.cursor.source_offset()),
@@ -1088,15 +1136,30 @@ impl<'a> NoteEditorState<'a> {
 
     fn move_down(&mut self, amount: usize, movement: cursor::LineMovement) {
         let prev_block_idx = self.current_block_idx();
+        let prev_row = self.cursor.virtual_row();
 
         self.cursor.update(
             cursor::Message::MoveDown(amount, movement),
             self.virtual_document.lines(),
             &self.text_buffer,
         );
+        let consumed = self.cursor.virtual_row().saturating_sub(prev_row);
 
         self.relayout_on_block_change(prev_block_idx);
-        self.ensure_cursor_visible();
+
+        // A trailing image reserves rows below the last cursor stop. Scroll on to
+        // reveal them without letting the cursor clamp drag the viewport back.
+        if consumed > 0 {
+            self.ensure_cursor_visible();
+        }
+        self.viewport
+            .scroll_down(amount.saturating_sub(consumed), self.max_scroll_top());
+    }
+
+    fn max_scroll_top(&self) -> usize {
+        self.virtual_document
+            .height()
+            .saturating_sub(self.viewport.height as usize)
     }
 
     pub fn cursor_up(&mut self, amount: usize) {
@@ -1152,16 +1215,9 @@ impl<'a> NoteEditorState<'a> {
 
         self.enter_insert(target_block_idx);
 
-        self.virtual_document.layout(
-            &self.filename,
-            &self.content,
-            &self.view,
-            self.editing_block,
+        self.relayout(
+            self.viewport.area().as_size(),
             target_offset.unwrap_or_else(|| self.cursor.source_offset()),
-            &self.ast_nodes,
-            self.viewport.area().width.into(),
-            self.viewport.left().into(),
-            self.text_buffer.clone(),
         );
 
         if let Some(offset) = target_offset {

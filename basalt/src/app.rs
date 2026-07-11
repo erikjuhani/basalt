@@ -4,14 +4,19 @@ use basalt_core::obsidian::{
 use ratatui::{
     buffer::Buffer,
     crossterm::{
-        cursor::SetCursorStyle,
+        cursor::{MoveTo, SetCursorStyle, Show},
         event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
-        execute,
+        execute, terminal,
     },
     layout::{Constraint, Flex, Layout, Position, Rect, Size},
     style::Style,
-    widgets::{Block, StatefulWidget, Widget},
+    text::Line,
+    widgets::{Block, Paragraph, StatefulWidget, Widget},
     DefaultTerminal,
+};
+use ratatui_image::{
+    picker::Picker,
+    sliced::{SignedPosition, SlicedImage},
 };
 use tracing::{debug, error, info, warn};
 
@@ -21,9 +26,14 @@ use std::{
     fmt::Debug,
     fs,
     io::Result,
+    panic::{catch_unwind, AssertUnwindSafe},
     path::{Path, PathBuf},
-    sync::mpsc::{self, Receiver},
-    thread,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc::{self, Receiver, Sender},
+        Arc, Mutex,
+    },
+    thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
 
@@ -36,11 +46,12 @@ use crate::{
     explorer::{self, Explorer, ExplorerState, Item, Visibility},
     header::Header,
     help_modal::{self, HelpModal, HelpModalState},
+    image::{ImageKey, ImageStore},
     input::{self, Input, InputModalState},
     note_editor::{
         self, ast,
         editor::NoteEditor,
-        state::{EditMode, Mode, NoteEditorState, View},
+        state::{EditMode, ImageOverlay, ImageOverlays, Mode, NoteEditorState, View},
     },
     outline::{self, Outline, OutlineState},
     search::{self, SearchModal, SearchState},
@@ -288,6 +299,77 @@ fn apply_theme(state: &mut AppState, theme: Theme) {
     state.explorer.set_theme(&theme);
     state.outline.set_theme(&theme);
     state.tabs.set_theme(&theme);
+}
+
+/// Transmits at most one new image per frame. Returns whether one was held back.
+fn render_note_images(
+    area: Rect,
+    buf: &mut Buffer,
+    editor: &NoteEditorState,
+    store: &mut ImageStore,
+) -> bool {
+    let ImageOverlays { clip, overlays } = editor.image_overlays(area);
+    let mut transmitted = false;
+    let mut deferred = false;
+    for ImageOverlay {
+        key,
+        size,
+        position,
+    } in overlays
+    {
+        let shown = store.is_shown(&key, size);
+        if !shown && transmitted {
+            deferred = true;
+            render_image_placeholder(clipped_rect(clip, size, position), buf, &key);
+            continue;
+        }
+        match store.protocol_at(&key, size) {
+            Some(protocol) => {
+                SlicedImage::new(protocol, position).render(clip, buf);
+                transmitted |= !shown;
+            }
+            None => render_image_placeholder(clipped_rect(clip, size, position), buf, &key),
+        }
+    }
+    deferred
+}
+
+fn clipped_rect(clip: Rect, size: Size, position: SignedPosition) -> Rect {
+    let top = position.y.max(0);
+    let bottom = (position.y + size.height as i16).min(clip.height as i16);
+    let height = (bottom - top).max(0) as u16;
+    Rect {
+        x: clip.x + position.x.max(0) as u16,
+        y: clip.y + top as u16,
+        width: size.width.min(clip.width),
+        height,
+    }
+}
+
+fn render_image_placeholder(area: Rect, buf: &mut Buffer, key: &ImageKey) {
+    let label = match key {
+        ImageKey::Path(path) => path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("image")
+            .to_string(),
+        ImageKey::Url(url) => url.clone(),
+    };
+
+    Paragraph::new(Line::from(format!("image: {label}")))
+        .block(Block::bordered())
+        .render(area, buf);
+}
+
+fn blit(dst: &mut Buffer, src: &Buffer) {
+    dst.area
+        .intersection(src.area)
+        .positions()
+        .for_each(|position| {
+            if let (Some(cell), Some(slot)) = (src.cell(position), dst.cell_mut(position)) {
+                *slot = cell.clone();
+            }
+        });
 }
 
 fn active_config_section<'a>(
@@ -540,6 +622,95 @@ fn normal_mode_raw_key(
     }
 }
 
+pub struct Startup<'a> {
+    pub terminal: DefaultTerminal,
+    pub vaults: Vec<&'a Vault>,
+    pub initial_vault: Option<Vault>,
+    pub initial_file: Option<PathBuf>,
+    pub debug: bool,
+    pub log_level: LogLevel,
+    pub theme_override: Option<String>,
+    pub obsidian_config_error: Option<String>,
+    pub picker: Picker,
+}
+
+struct FlushFrame {
+    buffer: Buffer,
+    cursor: Option<Position>,
+    cursor_style: SetCursorStyle,
+}
+
+/// Writes frames on its own thread so an image transmit never stalls the main loop.
+struct Flusher {
+    busy: Arc<AtomicBool>,
+    worker: Option<(Sender<FlushFrame>, JoinHandle<()>)>,
+}
+
+impl Flusher {
+    fn spawn(terminal: Arc<Mutex<DefaultTerminal>>) -> Self {
+        let busy = Arc::new(AtomicBool::new(false));
+        let (frames, frame_rx) = mpsc::channel::<FlushFrame>();
+        let thread_busy = Arc::clone(&busy);
+        let handle = thread::spawn(move || {
+            while let Ok(FlushFrame {
+                buffer,
+                cursor,
+                cursor_style,
+            }) = frame_rx.recv()
+            {
+                let _ = catch_unwind(AssertUnwindSafe(|| {
+                    let mut terminal = terminal.lock().unwrap_or_else(|poison| poison.into_inner());
+                    // Image escapes move the cursor, and ratatui shows it before moving it back.
+                    let _ = terminal.hide_cursor();
+                    let _ = terminal.draw(|frame| {
+                        let target = frame.buffer_mut();
+                        if target.area == buffer.area {
+                            *target = buffer;
+                        } else {
+                            blit(target, &buffer);
+                        }
+                    });
+                    if let Some(position) = cursor {
+                        let _ = execute!(
+                            terminal.backend_mut(),
+                            MoveTo(position.x, position.y),
+                            cursor_style,
+                            Show
+                        );
+                    }
+                }));
+                thread_busy.store(false, Ordering::Release);
+            }
+        });
+        Self {
+            busy,
+            worker: Some((frames, handle)),
+        }
+    }
+
+    fn is_busy(&self) -> bool {
+        self.busy.load(Ordering::Acquire)
+    }
+
+    fn send(&self, frame: FlushFrame) {
+        if let Some((frames, _)) = &self.worker {
+            self.busy.store(true, Ordering::Release);
+            if frames.send(frame).is_err() {
+                self.busy.store(false, Ordering::Release);
+            }
+        }
+    }
+}
+
+impl Drop for Flusher {
+    fn drop(&mut self) {
+        if let Some((frames, handle)) = self.worker.take() {
+            drop(frames);
+            let _ = handle.join();
+        }
+    }
+}
+
 struct HydratedTab {
     path: PathBuf,
     content: String,
@@ -549,7 +720,9 @@ struct HydratedTab {
 pub struct App<'a> {
     state: AppState<'a>,
     config: Config<'a>,
-    terminal: RefCell<DefaultTerminal>,
+    terminal: Arc<Mutex<DefaultTerminal>>,
+    flusher: Flusher,
+    images: RefCell<ImageStore>,
     vault_watcher: RefCell<Option<VaultWatcher>>,
     background_hydration: RefCell<Option<Receiver<HydratedTab>>>,
     vault_scan: RefCell<Option<VaultScan>>,
@@ -579,12 +752,20 @@ impl VaultScan {
 }
 
 impl<'a> App<'a> {
-    pub fn new(state: AppState<'a>, config: Config<'a>, terminal: DefaultTerminal) -> Self {
+    pub fn new(
+        state: AppState<'a>,
+        config: Config<'a>,
+        terminal: DefaultTerminal,
+        picker: Picker,
+    ) -> Self {
+        let terminal = Arc::new(Mutex::new(terminal));
         Self {
             state,
             // TODO: Surface toast if read config returns error
             config,
-            terminal: RefCell::new(terminal),
+            flusher: Flusher::spawn(Arc::clone(&terminal)),
+            terminal,
+            images: RefCell::new(ImageStore::new(picker)),
             vault_watcher: RefCell::new(None),
             background_hydration: RefCell::new(None),
             vault_scan: RefCell::new(None),
@@ -709,17 +890,19 @@ impl<'a> App<'a> {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub fn start(
-        terminal: DefaultTerminal,
-        vaults: Vec<&Vault>,
-        initial_vault: Option<Vault>,
-        initial_file: Option<PathBuf>,
-        debug: bool,
-        log_level: LogLevel,
-        theme_override: Option<String>,
-        obsidian_config_error: Option<String>,
-    ) -> Result<()> {
+    pub fn start(startup: Startup) -> Result<()> {
+        let Startup {
+            terminal,
+            vaults,
+            initial_vault,
+            initial_file,
+            debug,
+            log_level,
+            theme_override,
+            obsidian_config_error,
+            picker,
+        } = startup;
+
         // Off the main thread: compiling every grammar would stall the first layout.
         std::thread::spawn(note_editor::highlight::preload);
 
@@ -810,7 +993,7 @@ impl<'a> App<'a> {
 
         apply_theme(&mut state, config.theme);
 
-        App::new(state, config, terminal).run()
+        App::new(state, config, terminal, picker).run()
     }
 
     fn run(&'a mut self) -> Result<()> {
@@ -827,16 +1010,21 @@ impl<'a> App<'a> {
 
         while state.is_running {
             self.apply_background_hydration(&mut state);
-            self.draw(&mut state)?;
+            self.sync_images(&mut state, &config);
+            let drew = self.draw(&mut state)?;
 
-            let timeout = tick_rate.saturating_sub(last_tick.elapsed());
+            let timeout = if !drew || self.images.borrow().is_busy() {
+                Duration::from_millis(16)
+            } else {
+                tick_rate.saturating_sub(last_tick.elapsed())
+            };
 
             if event::poll(timeout)? {
                 let event = event::read()?;
 
                 let mut message = App::handle_event(&config, &mut state, event);
                 while message.is_some() {
-                    message = App::update(self.terminal.get_mut(), &config, &mut state, message);
+                    message = App::update(&self.terminal, &config, &mut state, message);
                 }
                 self.ensure_watcher_for(&state.vault);
                 self.ensure_background_hydration(&mut state, &config);
@@ -847,22 +1035,23 @@ impl<'a> App<'a> {
             }
 
             if let Some(entries) = self.poll_vault_scan(&state.vault) {
+                self.images.borrow_mut().forget_failed();
                 let mut message = Some(Message::RescanVault(entries));
                 while message.is_some() {
-                    message = App::update(self.terminal.get_mut(), &config, &mut state, message);
+                    message = App::update(&self.terminal, &config, &mut state, message);
                 }
             }
 
             if last_tick.elapsed() >= tick_rate {
                 App::update(
-                    self.terminal.get_mut(),
+                    &self.terminal,
                     &config,
                     &mut state,
                     Some(Message::Toast(toast::Message::Tick)),
                 );
                 if state.search.visible {
                     App::update(
-                        self.terminal.get_mut(),
+                        &self.terminal,
                         &config,
                         &mut state,
                         Some(Message::Search(search::Message::Poll)),
@@ -883,23 +1072,59 @@ impl<'a> App<'a> {
         Ok(())
     }
 
-    fn draw(&self, state: &mut AppState<'a>) -> Result<()> {
-        let mut terminal = self.terminal.borrow_mut();
-
-        terminal.draw(|frame| {
-            let area = frame.area();
-            self.render(area, frame.buffer_mut(), state);
-
-            if let Some(position) = focused_cursor(state) {
-                frame.set_cursor_position(position);
-            }
-        })?;
-
-        if focused_cursor(state).is_some() {
-            execute!(terminal.backend_mut(), cursor_style(state))?;
+    /// Skips rendering while the flush thread is busy, so a transmit is never dropped.
+    fn draw(&self, state: &mut AppState<'a>) -> Result<bool> {
+        if self.flusher.is_busy() {
+            return Ok(false);
         }
 
-        Ok(())
+        // A resize race is clipped by `blit`.
+        let (width, height) = terminal::size()?;
+        let area = Rect::new(0, 0, width, height);
+        let mut buffer = Buffer::empty(area);
+        self.render(area, &mut buffer, state);
+
+        self.flusher.send(FlushFrame {
+            buffer,
+            cursor: focused_cursor(state),
+            cursor_style: cursor_style(state),
+        });
+
+        Ok(true)
+    }
+
+    fn sync_images(&self, state: &mut AppState<'a>, config: &Config) {
+        let mut store = self.images.borrow_mut();
+        store.set_vault(&state.vault);
+        store.poll();
+
+        let note_dir = state
+            .tabs
+            .active_note()
+            .and_then(|note| note.path().parent())
+            .map(Path::to_path_buf)
+            .unwrap_or_default();
+        let Some(editor) = state.tabs.active_editor_mut() else {
+            return;
+        };
+        editor.set_image_meta(store.font_size(), config.image_max_height);
+
+        let sources = ast::image_sources(&editor.ast_nodes);
+        sources
+            .iter()
+            .for_each(|source| store.request(source, &note_dir));
+        let entries = sources
+            .into_iter()
+            .map(|source| (source.clone(), store.entry(source, &note_dir)))
+            .collect();
+        editor.set_image_entries(entries);
+        store.retain_sizes(
+            editor
+                .virtual_document
+                .image_placements()
+                .iter()
+                .map(|placement| (&placement.mark.key, placement.mark.size)),
+        );
     }
 
     fn handle_event(
@@ -999,7 +1224,7 @@ impl<'a> App<'a> {
     }
 
     fn update(
-        terminal: &mut DefaultTerminal,
+        terminal: &Arc<Mutex<DefaultTerminal>>,
         config: &Config,
         state: &mut AppState<'a>,
         message: Option<Message<'a>>,
@@ -1238,8 +1463,10 @@ impl<'a> App<'a> {
                     .map(|note| (note.name(), note.path().to_string_lossy()))
                     .unwrap_or_default();
 
+                // Hold the lock so the flush thread pauses while the editor runs.
+                let mut terminal = terminal.lock().unwrap_or_else(|poison| poison.into_inner());
                 return command::sync_command(
-                    terminal,
+                    &mut terminal,
                     command,
                     &state.vault.name,
                     note_name,
@@ -1452,6 +1679,12 @@ impl<'a> App<'a> {
                 NoteEditor::default().render(note, buf, &mut empty);
             }
         }
+        let mut images = self.images.borrow_mut();
+        let deferred = state
+            .tabs
+            .active_editor()
+            .is_some_and(|editor| render_note_images(note, buf, editor, &mut images));
+        images.set_deferred_transmit(deferred);
         Outline.render(outline, buf, &mut state.outline);
 
         let (word_count, char_count) = state

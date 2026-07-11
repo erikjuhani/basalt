@@ -42,4 +42,11 @@ impl Viewport {
             self.scroll_by((-scroll, 0));
         }
     }
+
+    pub fn scroll_down(&mut self, amount: usize, max_top: usize) {
+        let scroll = amount.min(max_top.saturating_sub(self.area.y as usize)) as i32;
+        if scroll > 0 {
+            self.scroll_by((scroll, 0));
+        }
+    }
 }

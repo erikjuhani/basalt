@@ -207,46 +207,63 @@ fn render_gutter(
 #[derive(Default)]
 pub struct NoteEditor<'a>(pub PhantomData<&'a ()>);
 
+fn editor_block(state: &NoteEditorState) -> Block<'static> {
+    let theme = state.theme();
+    let active = state.active();
+    let pane = theme.note_editor;
+    let fallback = if active {
+        state.symbols.border_active
+    } else {
+        state.symbols.border_inactive
+    }
+    .into();
+    let border_line = pane.border_line(fallback);
+
+    // The editor mode is shown in the status bar and the modified marker in the
+    // tab, so the border only carries the pending-keys hint (which-key), and
+    // only while keys are pending, keeping a clean note's border unbroken.
+    let pending = state.pending_hint();
+    let footer: Vec<Span> = if pending.is_empty() {
+        Vec::new()
+    } else {
+        vec![format!(" {pending} ").fg(theme.accent).bold()]
+    };
+
+    let mut block = Block::new()
+        .borders(if border_line.is_some() {
+            pane.border_edges.to_borders()
+        } else {
+            Borders::NONE
+        })
+        .style(Style::new().fg(theme.text).bg(pane.background))
+        .border_style(Style::new().fg(pane.border(active)))
+        .title_bottom(footer)
+        .padding(Padding::horizontal(1));
+
+    if let Some(line) = border_line {
+        block = block.border_type(line);
+    }
+    block
+}
+
+pub fn text_area(state: &NoteEditorState, area: Rect) -> Rect {
+    beside_gutter(editor_block(state).inner(area), state.gutter_width())
+}
+
+fn beside_gutter(inner_area: Rect, gutter_width: u16) -> Rect {
+    Rect {
+        x: inner_area.x + gutter_width,
+        width: inner_area.width.saturating_sub(gutter_width),
+        ..inner_area
+    }
+}
+
 impl<'a> StatefulWidget for NoteEditor<'a> {
     type State = NoteEditorState<'a>;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         let theme = state.theme();
-        let active = state.active();
-        let pane = theme.note_editor;
-        let fallback = if active {
-            state.symbols.border_active
-        } else {
-            state.symbols.border_inactive
-        }
-        .into();
-        let border_line = pane.border_line(fallback);
-
-        // The editor mode is shown in the status bar and the modified marker in
-        // the tab, so the border only carries the pending-keys hint (which-key),
-        // and only while keys are pending, keeping a clean note's border unbroken.
-        let pending = state.pending_hint();
-        let footer: Vec<Span> = if pending.is_empty() {
-            Vec::new()
-        } else {
-            vec![format!(" {pending} ").fg(theme.accent).bold()]
-        };
-
-        let mut block = Block::new()
-            .borders(if border_line.is_some() {
-                pane.border_edges.to_borders()
-            } else {
-                Borders::NONE
-            })
-            .style(Style::new().fg(theme.text).bg(pane.background))
-            .border_style(Style::new().fg(pane.border(active)))
-            .title_bottom(footer)
-            .padding(Padding::horizontal(1));
-
-        if let Some(line) = border_line {
-            block = block.border_type(line);
-        }
-
+        let block = editor_block(state);
         let inner_area = block.inner(area);
 
         let gutter_width = state.gutter_width();
@@ -254,11 +271,7 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
             width: gutter_width,
             ..inner_area
         };
-        let text_area = Rect {
-            x: inner_area.x + gutter_width,
-            width: inner_area.width.saturating_sub(gutter_width),
-            ..inner_area
-        };
+        let text_area = beside_gutter(inner_area, gutter_width);
 
         // NOTE: We only reliably know the size of the area for the editor once we arrive at this point.
         // Calling the resize_width will cause the visual blocks to be populated in the state.
@@ -269,9 +282,7 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
 
         let meta = state.virtual_document.meta();
         let doc = state.virtual_document.lines();
-        let meta_lines_count = meta.len();
-        let rendered_lines_count = doc.len();
-        let total_lines = meta_lines_count + rendered_lines_count;
+        let total_lines = state.virtual_document.height();
 
         // Clone only the on-screen window, never the whole document.
         let visible_lines = meta
@@ -348,7 +359,7 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
         state.terminal_cursor = None;
         let scroll = state.viewport().area();
         let cursor_y = (state.cursor.virtual_row() as u16)
-            .saturating_add(meta_lines_count as u16)
+            .saturating_add(meta.len() as u16)
             .saturating_sub(scroll.top())
             .saturating_add(text_area.y);
 
@@ -373,8 +384,10 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
         }
 
         if !area.is_empty() && total_lines as u16 > inner_area.bottom() {
+            // Track the scroll offset, since the cursor cannot enter a trailing image.
+            let max_top = total_lines.saturating_sub(inner_area.height as usize);
             let mut scroll_state =
-                ScrollbarState::new(rendered_lines_count).position(state.cursor.virtual_row());
+                ScrollbarState::new(max_top + 1).position(state.viewport().top() as usize);
 
             Scrollbar::new(ScrollbarOrientation::VerticalRight).render(
                 area,
@@ -387,17 +400,125 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::path::Path;
 
     use crate::{
-        config::Symbols,
-        note_editor::state::{EditMode, SelectionMode, View},
+        config::{ImageMaxHeight, Symbols},
+        image::{ImageKey, PixelSize},
+        note_editor::{
+            ast::ImageSource,
+            state::{EditMode, ImageOverlays, SelectionMode, View},
+            ImageEntry,
+        },
     };
 
     use super::*;
     use indoc::indoc;
     use insta::assert_snapshot;
-    use ratatui::{backend::TestBackend, Terminal};
+    use ratatui::{backend::TestBackend, layout::Size, Terminal};
+
+    fn decoded(name: &str, width: u32, height: u32) -> HashMap<ImageSource, ImageEntry> {
+        HashMap::from([(
+            ImageSource::Embed(name.to_string()),
+            ImageEntry::Decoded {
+                key: ImageKey::Path(Path::new("/vault").join(name)),
+                size: PixelSize { width, height },
+            },
+        )])
+    }
+
+    #[test]
+    fn test_image_reserves_space() {
+        let content = indoc! { r#"## Diagram
+
+            ![[diagram.png]]
+
+            Text after the image.
+            "#};
+
+        let mut state =
+            NoteEditorState::new(content, "Test", Path::new("test.md"), &Symbols::unicode());
+
+        state.set_image_meta(Size::new(10, 20), ImageMaxHeight::try_from(0.8).unwrap());
+        state.set_image_entries(decoded("diagram.png", 200, 100));
+
+        let mut terminal = Terminal::new(TestBackend::new(40, 14)).unwrap();
+        terminal
+            .draw(|frame| {
+                NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut state)
+            })
+            .unwrap();
+        assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
+    fn image_reserves_rows_when_it_resolves_after_layout() {
+        let content = indoc! { r#"## Diagram
+
+            ![[diagram.png]]
+
+            Text after the image.
+            "#};
+
+        let mut state =
+            NoteEditorState::new(content, "Test", Path::new("test.md"), &Symbols::unicode());
+        state.set_image_meta(Size::new(10, 20), ImageMaxHeight::try_from(0.8).unwrap());
+        state.resize_viewport(Size::new(40, 20));
+        assert!(
+            state.virtual_document.image_placements().is_empty(),
+            "an unresolved image reserves no rows yet"
+        );
+
+        state.set_image_entries(decoded("diagram.png", 200, 100));
+        state.update_layout();
+
+        assert_eq!(
+            state.virtual_document.image_placements().len(),
+            1,
+            "a resolved image must reserve its rows without a resize"
+        );
+    }
+
+    #[test]
+    fn scrolls_to_reveal_a_trailing_image() {
+        let content = indoc! { r#"# Title
+
+            Some text.
+
+            ![[tall.png]]
+            "#};
+
+        let mut state =
+            NoteEditorState::new(content, "Test", Path::new("test.md"), &Symbols::unicode());
+
+        state.set_image_meta(Size::new(10, 20), ImageMaxHeight::try_from(3.0).unwrap());
+        state.set_image_entries(decoded("tall.png", 100, 400));
+        state.resize_viewport(Size::new(40, 10));
+
+        let max_top = state.virtual_document.height().saturating_sub(10);
+        assert!(max_top > 0, "the image should exceed the viewport height");
+
+        assert_eq!(state.viewport().y, 0);
+        state.cursor_to_end();
+        assert_eq!(state.viewport().y as usize, max_top);
+    }
+
+    #[test]
+    fn image_overlays_start_right_of_the_gutter() {
+        let mut state = edit_state("Text.\n\n![[diagram.png]]\n");
+        state.set_image_meta(Size::new(10, 20), ImageMaxHeight::try_from(0.8).unwrap());
+        state.set_image_entries(decoded("diagram.png", 200, 100));
+        rendered_rows(&mut state, 40, 14);
+
+        let area = Rect::new(0, 0, 40, 14);
+        let inner_area = editor_block(&state).inner(area);
+        let ImageOverlays { clip, overlays } = state.image_overlays(area);
+
+        assert!(state.gutter_width() > 0);
+        assert_eq!(clip.x, inner_area.x + state.gutter_width());
+        assert_eq!(overlays.len(), 1);
+    }
 
     #[test]
     fn test_rendered_markdown_view() {

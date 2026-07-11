@@ -5,15 +5,19 @@ use std::{
     str::{CharIndices, Chars},
 };
 
-use ratatui::text::{Line, Span};
+use ratatui::{
+    layout::Size,
+    text::{Line, Span},
+};
 use unicode_width::UnicodeWidthChar;
 
 use std::borrow::Cow;
 
 use crate::{
-    config::{Symbols, Theme},
+    config::{ImageMaxHeight, Symbols, Theme},
+    image::{ImageKey, PixelSize},
     note_editor::{
-        ast::{self, SourceRange},
+        ast::{self, ImageSize, ImageSource, SourceRange},
         highlight,
         render::{
             edit_lines, edit_table, render_node, text_wrap, trailing_empty_lines, RenderContext,
@@ -24,6 +28,122 @@ use crate::{
     },
     stylized_text::stylize,
 };
+
+const DEFAULT_FONT_SIZE: Size = Size::new(10, 20);
+
+/// Logical width of a monospace cell, to read the HiDPI scale off the device cell.
+const LOGICAL_CELL_WIDTH: f32 = 8.0;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ImageEntry {
+    Loading,
+    Failed,
+    Decoded { key: ImageKey, size: PixelSize },
+}
+
+#[derive(Clone, Debug)]
+pub enum Placement {
+    Image { key: ImageKey, size: Size },
+    Loading,
+    Failed,
+}
+
+/// `generation` bumps on a real change, so the layout cache sees new image state.
+#[derive(Clone, Debug)]
+pub struct ImageContext {
+    entries: HashMap<ImageSource, ImageEntry>,
+    generation: u64,
+    font_size: Size,
+    max_height: ImageMaxHeight,
+    max_rows: u16,
+}
+
+impl Default for ImageContext {
+    fn default() -> Self {
+        Self {
+            entries: HashMap::new(),
+            generation: 0,
+            font_size: DEFAULT_FONT_SIZE,
+            max_height: ImageMaxHeight::default(),
+            max_rows: 0,
+        }
+    }
+}
+
+impl ImageContext {
+    pub fn set_meta(&mut self, font_size: Size, max_height: ImageMaxHeight) {
+        if (font_size, max_height) != (self.font_size, self.max_height) {
+            self.font_size = font_size;
+            self.max_height = max_height;
+            self.generation = self.generation.wrapping_add(1);
+        }
+    }
+
+    pub fn set_entries(&mut self, entries: HashMap<ImageSource, ImageEntry>) {
+        if entries != self.entries {
+            self.entries = entries;
+            self.generation = self.generation.wrapping_add(1);
+        }
+    }
+
+    pub fn set_viewport_height(&mut self, height: u16) {
+        self.max_rows = (height as f32 * self.max_height.ratio()).round() as u16;
+    }
+
+    pub fn placement(
+        &self,
+        source: &ImageSource,
+        size: Option<ImageSize>,
+        max_width: usize,
+    ) -> Placement {
+        match self.entries.get(source) {
+            Some(ImageEntry::Decoded { key, size: pixels }) => Placement::Image {
+                key: key.clone(),
+                size: cell_size(*pixels, self.font_size, max_width, self.max_rows, size),
+            },
+            Some(ImageEntry::Failed) => Placement::Failed,
+            Some(ImageEntry::Loading) | None => Placement::Loading,
+        }
+    }
+}
+
+fn cell_size(
+    pixels: PixelSize,
+    font_size: Size,
+    max_width: usize,
+    max_rows: u16,
+    size: Option<ImageSize>,
+) -> Size {
+    let font_width = font_size.width as f32;
+    let font_height = font_size.height as f32;
+    let natural_cols = (pixels.width as f32 / font_width).max(1.0);
+    let natural_rows = (pixels.height as f32 / font_height).max(1.0);
+
+    // Obsidian sizes are logical pixels; the cell size is in device pixels.
+    let display_scale = (font_width / LOGICAL_CELL_WIDTH).round().max(1.0);
+    let max_cols = match size {
+        Some(size) => (size.width as f32 * display_scale / font_width).min(max_width as f32),
+        None => max_width as f32,
+    }
+    .max(1.0);
+    let max_rows = match size.and_then(|size| size.height) {
+        Some(height) => (height as f32 * display_scale / font_height).min(max_rows as f32),
+        None => max_rows as f32,
+    }
+    .max(1.0);
+
+    let scale = (max_cols / natural_cols).min(max_rows / natural_rows);
+    Size::new(
+        (natural_cols * scale).round().max(1.0) as u16,
+        (natural_rows * scale).round().max(1.0) as u16,
+    )
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ImagePlacement {
+    pub doc_line: usize,
+    pub mark: ImageMark,
+}
 
 macro_rules! content_span {
     ($span:expr, $range:expr) => {{
@@ -138,20 +258,38 @@ impl<'a> From<VirtualSpan<'a>> for Span<'a> {
     }
 }
 
+/// Marks an image's first row, so placements are found at any nesting depth.
+#[derive(Clone, PartialEq, Debug)]
+pub struct ImageMark {
+    pub key: ImageKey,
+    pub size: Size,
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub struct VirtualLine<'a> {
     spans: Vec<VirtualSpan<'a>>,
+    image: Option<ImageMark>,
 }
 
 impl<'a> VirtualLine<'a> {
     pub fn new(spans: &[VirtualSpan<'a>]) -> Self {
         VirtualLine {
             spans: spans.to_vec(),
+            image: None,
         }
     }
 
     pub fn is_wrap_continuation(&self) -> bool {
         self.spans.iter().any(VirtualSpan::is_wrap_marker)
+    }
+
+    pub fn with_image(mut self, mark: ImageMark) -> Self {
+        self.image = Some(mark);
+        self
+    }
+
+    pub fn image_mark(&self) -> Option<&ImageMark> {
+        self.image.as_ref()
     }
 
     pub fn spans(self) -> Vec<Span<'a>> {
@@ -292,6 +430,8 @@ struct LayoutKey {
     horizontal_offset: usize,
     buffer: Option<(u64, SourceRange<usize>, bool)>,
     grammars_preloaded: bool,
+    image_generation: u64,
+    image_max_rows: u16,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -304,6 +444,7 @@ pub struct VirtualDocument<'a> {
     line_to_block: Vec<usize>,
     cache_key: Option<LayoutKey>,
     code_cache: HashMap<u64, CodeTokens>,
+    image_placements: Vec<ImagePlacement>,
 }
 
 impl<'a> VirtualDocument<'a> {
@@ -328,12 +469,20 @@ impl<'a> VirtualDocument<'a> {
         &self.meta
     }
 
+    pub fn height(&self) -> usize {
+        self.meta.len() + self.lines.len()
+    }
+
     pub fn block_ranges(&self) -> &[SourceRange<usize>] {
         &self.block_ranges
     }
 
     pub fn lines(&self) -> &[VirtualLine<'_>] {
         &self.lines
+    }
+
+    pub fn image_placements(&self) -> &[ImagePlacement] {
+        &self.image_placements
     }
 
     pub fn line_to_block_idx(&self, line: usize) -> usize {
@@ -353,6 +502,7 @@ impl<'a> VirtualDocument<'a> {
         width: usize,
         horizontal_offset: usize,
         text_buffer: Option<TextBuffer>,
+        images: &ImageContext,
     ) {
         let edit = matches!(view, View::Edit(..));
         let key = LayoutKey {
@@ -375,6 +525,8 @@ impl<'a> VirtualDocument<'a> {
                 )
             }),
             grammars_preloaded: highlight::is_preloaded(),
+            image_generation: images.generation,
+            image_max_rows: images.max_rows,
         };
         if self.cache_key.as_ref() == Some(&key) {
             return;
@@ -424,6 +576,7 @@ impl<'a> VirtualDocument<'a> {
             symbols: &self.symbols,
             theme: &self.theme,
             code_cache: &mut code_cache,
+            images,
         };
 
         let (block_ranges, lines, line_to_block) = ast_nodes.iter().enumerate().fold(
@@ -545,6 +698,16 @@ impl<'a> VirtualDocument<'a> {
             },
         );
 
+        self.image_placements = lines
+            .iter()
+            .enumerate()
+            .filter_map(|(doc_line, line)| {
+                line.image_mark()
+                    .cloned()
+                    .map(|mark| ImagePlacement { doc_line, mark })
+            })
+            .collect();
+
         self.block_ranges = block_ranges;
         self.lines = lines;
         self.line_to_block = line_to_block;
@@ -595,5 +758,58 @@ mod code_cache_tests {
         assert!(CodeCache::default()
             .get_or_compute("no-such-language", "x")
             .is_none());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // 800x400px image, 10x20px font cells: 80x20 natural cells, 2:1 aspect.
+    const PIXELS: PixelSize = PixelSize {
+        width: 800,
+        height: 400,
+    };
+    const FONT: Size = Size::new(10, 20);
+
+    #[test]
+    fn unsized_image_fills_the_width() {
+        assert_eq!(cell_size(PIXELS, FONT, 40, 30, None), Size::new(40, 10));
+    }
+
+    #[test]
+    fn explicit_width_caps_the_box_and_preserves_aspect() {
+        let size = Some(ImageSize {
+            width: 200,
+            height: None,
+        });
+        assert_eq!(cell_size(PIXELS, FONT, 40, 30, size), Size::new(20, 5));
+    }
+
+    #[test]
+    fn explicit_width_scales_up_on_a_hidpi_cell() {
+        let size = Some(ImageSize {
+            width: 200,
+            height: None,
+        });
+        assert_eq!(cell_size(PIXELS, Size::new(16, 32), 80, 30, size).width, 25);
+    }
+
+    #[test]
+    fn explicit_width_never_exceeds_the_available_width() {
+        let size = Some(ImageSize {
+            width: 9999,
+            height: None,
+        });
+        assert_eq!(cell_size(PIXELS, FONT, 40, 30, size).width, 40);
+    }
+
+    #[test]
+    fn explicit_height_bounds_the_box() {
+        let size = Some(ImageSize {
+            width: 9999,
+            height: Some(100),
+        });
+        assert_eq!(cell_size(PIXELS, FONT, 40, 30, size), Size::new(20, 5));
     }
 }

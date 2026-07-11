@@ -1,9 +1,10 @@
 use std::ops::{Deref, DerefMut};
 
+use image::ImageFormat;
 use pulldown_cmark::{CodeBlockKind, Event, Options, Tag, TagEnd};
 
 use crate::note_editor::{
-    ast::{self, Node, SourceRange, TaskKind},
+    ast::{self, ImageSize, ImageSource, Node, SourceRange, TaskKind},
     rich_text::{RichText, Style, TextSegment},
 };
 
@@ -424,7 +425,173 @@ fn resolve_callout(
 }
 
 pub fn from_str(text: &str) -> Vec<Node> {
-    Parser::new(text).parse()
+    normalize_images(Parser::new(text).parse(), text)
+}
+
+/// Splits `![alt](url)` and `![[name]]` lines out of paragraphs as [`Node::Image`]s.
+fn normalize_images(nodes: Vec<Node>, source: &str) -> Vec<Node> {
+    // A loose list item's paragraph spans its nested list, so clamp at the next sibling.
+    let next_starts: Vec<Option<usize>> = nodes
+        .iter()
+        .skip(1)
+        .map(|node| Some(node.source_range().start))
+        .chain([None])
+        .collect();
+
+    nodes
+        .into_iter()
+        .enumerate()
+        .flat_map(|(i, mut node)| {
+            if let Some(children) = node.children_as_mut() {
+                *children = normalize_images(std::mem::take(children), source);
+                return vec![node];
+            }
+            match &node {
+                Node::Paragraph { source_range, .. } => {
+                    let end = next_starts[i]
+                        .filter(|start| source_range.contains(start))
+                        .unwrap_or(source_range.end);
+                    source
+                        .get(source_range.start..end)
+                        .and_then(|slice| split_block_images(slice, source_range.start))
+                        .unwrap_or_else(|| vec![node])
+                }
+                _ => vec![node],
+            }
+        })
+        .collect()
+}
+
+struct SourceLine<'s> {
+    start: usize,
+    text: &'s str,
+    image: Option<Node>,
+}
+
+/// Returns `None` when the paragraph holds no image.
+fn split_block_images(slice: &str, start: usize) -> Option<Vec<Node>> {
+    let lines: Vec<SourceLine> = slice
+        .split_inclusive('\n')
+        .scan(start, |offset, text| {
+            let line = SourceLine {
+                start: *offset,
+                text,
+                image: parse_block_image(text.trim(), *offset..*offset + text.len()),
+            };
+            *offset += text.len();
+            Some(line)
+        })
+        .collect();
+
+    if lines.iter().all(|line| line.image.is_none()) {
+        return None;
+    }
+
+    Some(
+        lines
+            .chunk_by(|a, b| a.image.is_none() && b.image.is_none())
+            .flat_map(|run| match run {
+                [SourceLine {
+                    image: Some(image), ..
+                }] => vec![image.clone()],
+                prose => parse_prose(prose),
+            })
+            .collect(),
+    )
+}
+
+fn parse_prose(lines: &[SourceLine]) -> Vec<Node> {
+    let text: String = lines.iter().map(|line| line.text).collect();
+    match lines.first() {
+        Some(first) if !text.trim().is_empty() => {
+            let mut nodes = Parser::new(&text).parse();
+            nodes
+                .iter_mut()
+                .for_each(|node| offset_source_range(node, first.start));
+            nodes
+        }
+        _ => Vec::new(),
+    }
+}
+
+fn offset_source_range(node: &mut Node, by: usize) {
+    let range = node.source_range();
+    node.set_source_range(range.start + by..range.end + by);
+    if let Some(children) = node.children_as_mut() {
+        children
+            .iter_mut()
+            .for_each(|child| offset_source_range(child, by));
+    }
+}
+
+fn has_image_extension(name: &str) -> bool {
+    ImageFormat::from_path(name).is_ok_and(|format| format.reading_enabled())
+}
+
+fn parse_block_image(line: &str, source_range: SourceRange<usize>) -> Option<Node> {
+    // Obsidian embed: `![[target#subpath|size]]`, resolved by file name.
+    if let Some(inner) = line.strip_prefix("![[").and_then(|s| s.strip_suffix("]]")) {
+        if inner.contains("]]") {
+            return None;
+        }
+        let target = inner.split(['|', '#']).next().unwrap_or(inner).trim();
+        if !has_image_extension(target) {
+            return None;
+        }
+        let size = inner
+            .rsplit_once('|')
+            .and_then(|(_, spec)| parse_image_size(spec.trim()));
+        return Some(Node::Image {
+            source: ImageSource::Embed(target.to_string()),
+            alt: target.to_string(),
+            size,
+            source_range,
+        });
+    }
+
+    // Standard markdown image: `![alt|size](dest "title")`.
+    let rest = line.strip_prefix("![")?.strip_suffix(')')?;
+    let close = rest.find("](")?;
+    let alt = &rest[..close];
+    if alt.contains("](") {
+        return None;
+    }
+    let dest = rest[close + 2..].split_whitespace().next()?;
+
+    let source = if dest.starts_with("http://") || dest.starts_with("https://") {
+        ImageSource::Url(dest.to_string())
+    } else {
+        ImageSource::Path(dest.to_string())
+    };
+    let (alt, size) = split_image_size(alt);
+    Some(Node::Image {
+        source,
+        alt: alt.to_string(),
+        size,
+        source_range,
+    })
+}
+
+fn split_image_size(alt: &str) -> (&str, Option<ImageSize>) {
+    alt.rsplit_once('|')
+        .and_then(|(label, spec)| {
+            parse_image_size(spec.trim()).map(|size| (label.trim_end(), Some(size)))
+        })
+        .unwrap_or((alt, None))
+}
+
+fn parse_image_size(spec: &str) -> Option<ImageSize> {
+    let (width, height) = match spec.split_once(['x', 'X']) {
+        Some((width, height)) => (width, Some(height)),
+        None => (spec, None),
+    };
+    Some(ImageSize {
+        width: width.trim().parse().ok()?,
+        height: height
+            .map(|height| height.trim().parse())
+            .transpose()
+            .ok()?,
+    })
 }
 
 #[cfg(test)]
@@ -664,5 +831,56 @@ mod tests {
                 )
             );
         });
+    }
+
+    #[test]
+    fn test_image_parsing() {
+        let text = indoc! { r#"## Images
+
+            ![[diagram.png]]
+
+            ![[photo.png|240]]
+
+            ![[chart.png|200x300]]
+
+            ![alt text](./local.png)
+
+            ![Obsidian|200](https://obsidian.md/banner.png)
+
+            ![remote](https://example.com/pic.png)
+
+            An inline ![x](y.png) image stays a paragraph.
+            "#};
+
+        assert_snapshot!(format!(
+            "{}\n ---\n\n{}",
+            text,
+            ast::nodes_to_sexp(&from_str(text), 0)
+        ));
+    }
+
+    fn image_count(text: &str) -> usize {
+        from_str(text)
+            .iter()
+            .filter(|node| matches!(node, ast::Node::Image { .. }))
+            .count()
+    }
+
+    #[test]
+    fn test_consecutive_embeds_split_into_images() {
+        assert_eq!(image_count("![[a.png]]\n"), 1);
+        assert_eq!(image_count("![[a.png]]\n![[b.png]]\n![[c.png]]\n"), 3);
+        assert_eq!(image_count("![one](a.png)\n![[b.png]]\n"), 2);
+        assert_eq!(image_count("Example:\n![[a.png]]\n"), 1);
+        assert_eq!(image_count("![[a.png]]\n![[b.png]]\ntrailing text\n"), 2);
+        assert_eq!(image_count("just text\nmore text\n"), 0);
+    }
+
+    #[test]
+    fn test_note_embeds_are_not_images() {
+        assert_eq!(image_count("![[Some note]]\n"), 0);
+        assert_eq!(image_count("![[Some note#Heading]]\n"), 0);
+        assert_eq!(image_count("![[slides.pdf]]\n"), 0);
+        assert_eq!(image_count("![[Photo.PNG|200]]\n"), 1);
     }
 }

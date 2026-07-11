@@ -115,6 +115,33 @@ pub enum TabsSync {
     Write,
 }
 
+/// The tallest an inline image may be, as a fraction of the viewport height.
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize)]
+#[serde(try_from = "f32")]
+pub struct ImageMaxHeight(f32);
+
+impl ImageMaxHeight {
+    pub fn ratio(self) -> f32 {
+        self.0
+    }
+}
+
+impl Default for ImageMaxHeight {
+    fn default() -> Self {
+        Self(1.0)
+    }
+}
+
+impl TryFrom<f32> for ImageMaxHeight {
+    type Error = String;
+
+    fn try_from(ratio: f32) -> Result<Self, Self::Error> {
+        (ratio.is_finite() && ratio > 0.0)
+            .then_some(Self(ratio))
+            .ok_or_else(|| format!("image_max_height must be a number above 0, got {ratio}"))
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Config<'a> {
     pub experimental_editor: bool,
@@ -123,6 +150,7 @@ pub struct Config<'a> {
     pub wrap: bool,
     pub line_numbers: LineNumbers,
     pub default_note_editor_mode: NoteEditorMode,
+    pub image_max_height: ImageMaxHeight,
     pub symbols: Symbols,
     pub theme: Theme,
     pub global: ConfigSection<'a>,
@@ -182,6 +210,7 @@ impl Config<'_> {
             default_note_editor_mode: value.note_editor.default_mode,
             wrap: value.wrap.unwrap_or(true),
             line_numbers: value.line_numbers,
+            image_max_height: value.image_max_height,
             global: ConfigSection::from_toml(value.global, leader),
             splash: ConfigSection::from_toml(value.splash, leader),
             explorer: ConfigSection::from_toml(value.explorer, leader),
@@ -207,6 +236,7 @@ impl Config<'_> {
         self.wrap = config.wrap;
         self.line_numbers = config.line_numbers;
         self.default_note_editor_mode = config.default_note_editor_mode;
+        self.image_max_height = config.image_max_height;
         self.global.merge_key_bindings(config.global);
         self.explorer.merge_key_bindings(config.explorer);
         self.splash.merge_key_bindings(config.splash);
@@ -339,6 +369,8 @@ struct TomlConfig {
     line_numbers: LineNumbers,
     #[serde(default)]
     leader: Leader,
+    #[serde(default)]
+    image_max_height: ImageMaxHeight,
     #[serde(default)]
     global: TomlConfigSection,
     #[serde(default)]

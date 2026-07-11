@@ -43,6 +43,12 @@ tree-sitter-python = "0.25.0"
 tree-sitter-go = "0.25.0"
 tree-sitter-yaml = "0.7.2"
 tree-sitter-c = "0.24.2"
+ratatui-image = { version = "11", default-features = false, features = [
+    "crossterm",
+    "image-defaults",
+] }
+ureq = "3.3.0"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }
 
 [dev-dependencies]
 indoc = "=2.0.8"

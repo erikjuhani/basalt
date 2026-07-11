@@ -7,6 +7,7 @@ pub mod debug_log;
 pub mod explorer;
 pub mod header;
 pub mod help_modal;
+pub mod image;
 pub mod input;
 pub mod motion;
 pub mod note_editor;
