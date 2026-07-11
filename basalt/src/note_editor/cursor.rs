@@ -12,15 +12,10 @@ use crate::note_editor::{text_buffer::TextBuffer, virtual_document::VirtualLine}
 
 #[derive(Clone, Debug)]
 pub enum Message {
-    // MoveTop,
-    // MoveBottom,
-    MoveWordForward,
-    MoveWordBackward,
     MoveUp(usize),
     MoveDown(usize),
     MoveLeft(usize),
     MoveRight(usize),
-    // Move(i32, i32),
     /// Jump the cursor according to the given byte index
     Jump(usize),
     SwitchMode(CursorMode),
@@ -140,7 +135,7 @@ pub fn source_offset_to_virtual_column<'a>(offset: usize, line: &VirtualLine<'a>
     virtual_col.break_value()
 }
 
-fn snap_to_char_boundary(text: &str, offset: usize) -> usize {
+pub(crate) fn snap_to_char_boundary(text: &str, offset: usize) -> usize {
     let offset = offset.min(text.len());
     (offset..=text.len())
         .find(|&i| text.is_char_boundary(i))
@@ -314,60 +309,6 @@ impl Cursor {
             Jump(source_offset) => {
                 self.source_offset = source_offset;
                 self.update_virtual_position(lines);
-            }
-
-            MoveWordForward => {
-                if let Some(text_buffer) = text_buffer {
-                    let offset = snap_to_char_boundary(
-                        &text_buffer.content,
-                        self.source_offset
-                            .saturating_sub(text_buffer.source_range.start),
-                    );
-
-                    let mut chars = text_buffer.content[offset..].char_indices();
-
-                    let byte_idx = chars
-                        .by_ref()
-                        .find(|&(_, c)| c == ' ')
-                        .map(|(i, _)| offset + i + 1);
-
-                    match byte_idx {
-                        Some(byte_idx) => {
-                            self.source_offset = text_buffer.source_range.start + byte_idx
-                        }
-                        _ => self.source_offset = text_buffer.source_range.end.saturating_sub(1),
-                    }
-
-                    self.update_virtual_position(lines);
-                }
-            }
-
-            MoveWordBackward => {
-                if let Some(text_buffer) = text_buffer {
-                    let offset = snap_to_char_boundary(
-                        &text_buffer.content,
-                        self.source_offset
-                            .saturating_sub(text_buffer.source_range.start),
-                    );
-
-                    let mut chars = text_buffer.content[..offset].char_indices().rev();
-
-                    let byte_idx = chars
-                        .by_ref()
-                        .try_fold(false, |found_whitespace, (byte_idx, c)| match c {
-                            ' ' if found_whitespace => ControlFlow::Break(offset - byte_idx - 1),
-                            ' ' => ControlFlow::Continue(true),
-                            _ => ControlFlow::Continue(found_whitespace),
-                        })
-                        .break_value();
-
-                    match byte_idx {
-                        Some(byte_idx) => self.source_offset -= byte_idx,
-                        _ => self.source_offset = text_buffer.source_range.start,
-                    }
-
-                    self.update_virtual_position(lines);
-                }
             }
         };
     }

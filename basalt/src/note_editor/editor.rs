@@ -103,6 +103,13 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
             View::Read => ("READ", Color::Red),
         };
 
+        let pending = state.pending_hint();
+        let mode_text = if pending.is_empty() {
+            format!(" {mode_label}")
+        } else {
+            format!(" {mode_label} {pending}")
+        };
+
         let block = Block::bordered()
             .border_type(if state.active() {
                 state.symbols.border_active.into()
@@ -118,7 +125,7 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
             // ))
             .title_bottom(
                 [
-                    format!(" {mode_label}").fg(mode_color).bold().italic(),
+                    mode_text.fg(mode_color).bold().italic(),
                     if state.modified() {
                         "* ".bold().italic()
                     } else {

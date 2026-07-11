@@ -1,7 +1,7 @@
 use basalt_core::obsidian::{self, create_untitled_dir, create_untitled_note, Note, Vault};
 use ratatui::{
     buffer::Buffer,
-    crossterm::event::{self, Event, KeyEvent, KeyEventKind},
+    crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
     layout::{Constraint, Flex, Layout, Rect, Size},
     widgets::{StatefulWidget, Widget},
     DefaultTerminal,
@@ -217,6 +217,33 @@ fn active_config_section<'a>(
     }
 }
 
+/// Raw normal-mode keys that no static binding can express; `None` falls
+/// through to the config keybindings.
+fn normal_mode_raw_key(
+    editor: &note_editor::state::NoteEditorState,
+    key: &KeyEvent,
+) -> Option<note_editor::Message> {
+    let KeyCode::Char(character) = key.code else {
+        return None;
+    };
+    if editor.awaiting_replace() {
+        return Some(note_editor::Message::ReplaceTarget(character));
+    }
+    if editor.awaiting_text_object() {
+        return Some(note_editor::Message::TextObjectTarget(character));
+    }
+    if editor.awaiting_find_target() {
+        return Some(note_editor::Message::FindTarget(character));
+    }
+    match character.to_digit(10) {
+        // A lone `0` is the line-start motion; only a count in progress claims it.
+        Some(digit) if digit != 0 || editor.has_pending_count() => {
+            Some(note_editor::Message::CountDigit(digit as u8))
+        }
+        _ => None,
+    }
+}
+
 pub struct App<'a> {
     state: AppState<'a>,
     config: Config<'a>,
@@ -388,6 +415,18 @@ impl<'a> App<'a> {
         state: &mut AppState<'_>,
         key_event: KeyEvent,
     ) -> Option<Message<'a>> {
+        // Vim normal-mode inputs no static binding can express: a pending
+        // replace/find/text-object target, or count digits.
+        if matches!(state.active_component(), ActivePane::NoteEditor) {
+            let editor = &state.note_editor;
+            if editor.is_editing() && editor.vim_mode() && !editor.insert_mode() {
+                if let Some(message) = normal_mode_raw_key(editor, &key_event) {
+                    state.pending_keys.clear();
+                    return Some(Message::NoteEditor(message));
+                }
+            }
+        }
+
         match state.active_component() {
             ActivePane::NoteEditor
                 if state.note_editor.is_editing() && state.note_editor.insert_mode() =>

@@ -54,6 +54,42 @@ pub struct Selection {
     pub mode: SelectionMode,
 }
 
+/// An armed find (`f`/`F`/`t`/`T`) waiting for its target character.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FindKind {
+    pub forward: bool,
+    pub till: bool,
+}
+
+/// The last completed find, replayed by `;` and `,`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct FindMotion {
+    target: char,
+    kind: FindKind,
+}
+
+/// A pending vim operator awaiting a motion (or a doubled key for linewise).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Operator {
+    Delete,
+    Change,
+    Yank,
+}
+
+/// The unnamed register: text captured by `d`/`c`/`y`/`x`, pasted by `p`/`P`.
+#[derive(Clone, Debug, Default)]
+pub struct Register {
+    pub text: String,
+    pub linewise: bool,
+}
+
+/// A full-content undo point.
+#[derive(Clone, Debug)]
+struct Snapshot {
+    content: String,
+    offset: usize,
+}
+
 const YANK_FLASH_DURATION: Duration = Duration::from_millis(150);
 
 #[derive(Clone, Debug)]
@@ -90,6 +126,17 @@ pub struct NoteEditorState<'a> {
     viewport: Viewport,
     selection: Option<Selection>,
     yank_flash: Option<YankFlash>,
+    pending_count: Option<usize>,
+    pending_find: Option<FindKind>,
+    last_find: Option<FindMotion>,
+    /// An armed text object waiting for its object char; `true` = around (`a`).
+    pending_text_object: Option<bool>,
+    /// `r` is armed and waiting for its replacement character.
+    pending_replace: bool,
+    pending_operator: Option<Operator>,
+    register: Register,
+    undo_stack: Vec<Snapshot>,
+    redo_stack: Vec<Snapshot>,
     text_buffer: Option<TextBuffer>,
     /// Which block is currently in raw/edit mode. Stored explicitly so
     /// the layout always matches the text_buffer, even when the cursor
@@ -119,6 +166,15 @@ impl<'a> NoteEditorState<'a> {
             modified: false,
             selection: None,
             yank_flash: None,
+            pending_count: None,
+            pending_find: None,
+            last_find: None,
+            pending_text_object: None,
+            pending_replace: false,
+            pending_operator: None,
+            register: Register::default(),
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
             editing_block: None,
         }
     }
@@ -430,6 +486,215 @@ impl<'a> NoteEditorState<'a> {
         self.selection = None;
     }
 
+    pub fn has_pending_count(&self) -> bool {
+        self.pending_count.is_some()
+    }
+
+    pub fn push_count_digit(&mut self, digit: u8) {
+        self.pending_count = Some(
+            self.pending_count
+                .unwrap_or(0)
+                .saturating_mul(10)
+                .saturating_add(digit as usize),
+        );
+    }
+
+    /// Consumes the pending count. `None` means no explicit count was given.
+    pub fn take_count(&mut self) -> Option<usize> {
+        self.pending_count.take()
+    }
+
+    pub fn reset_count(&mut self) {
+        self.pending_count = None;
+    }
+
+    pub fn awaiting_find_target(&self) -> bool {
+        self.pending_find.is_some()
+    }
+
+    pub fn arm_find(&mut self, forward: bool, till: bool) {
+        self.pending_find = Some(FindKind { forward, till });
+    }
+
+    pub fn clear_pending_find(&mut self) {
+        self.pending_find = None;
+    }
+
+    pub fn take_pending_find(&mut self) -> Option<FindKind> {
+        self.pending_find.take()
+    }
+
+    /// Records a completed find so `;` and `,` can replay it.
+    pub fn remember_find(&mut self, target: char, kind: FindKind) {
+        self.last_find = Some(FindMotion { target, kind });
+    }
+
+    pub fn last_find(&self) -> Option<(char, FindKind)> {
+        self.last_find.map(|find| (find.target, find.kind))
+    }
+
+    pub fn awaiting_text_object(&self) -> bool {
+        self.pending_text_object.is_some()
+    }
+
+    pub fn arm_text_object(&mut self, around: bool) {
+        self.pending_text_object = Some(around);
+    }
+
+    pub fn take_text_object(&mut self) -> Option<bool> {
+        self.pending_text_object.take()
+    }
+
+    pub fn clear_pending_text_object(&mut self) {
+        self.pending_text_object = None;
+    }
+
+    pub fn awaiting_replace(&self) -> bool {
+        self.pending_replace
+    }
+
+    pub fn arm_replace(&mut self) {
+        self.pending_replace = true;
+    }
+
+    pub fn clear_pending_replace(&mut self) {
+        self.pending_replace = false;
+    }
+
+    pub fn pending_operator(&self) -> Option<Operator> {
+        self.pending_operator
+    }
+
+    /// A short hint of the in-flight command (e.g. `3d`) for the mode indicator.
+    pub fn pending_hint(&self) -> String {
+        let count = self
+            .pending_count
+            .map(|c| c.to_string())
+            .unwrap_or_default();
+        let operator = match self.pending_operator {
+            Some(Operator::Delete) => "d",
+            Some(Operator::Change) => "c",
+            Some(Operator::Yank) => "y",
+            None => "",
+        };
+        format!("{count}{operator}")
+    }
+
+    pub fn set_operator(&mut self, operator: Operator) {
+        self.pending_operator = Some(operator);
+    }
+
+    pub fn take_operator(&mut self) -> Option<Operator> {
+        self.pending_operator.take()
+    }
+
+    pub fn clear_operator(&mut self) {
+        self.pending_operator = None;
+    }
+
+    pub fn register(&self) -> &Register {
+        &self.register
+    }
+
+    pub fn set_register(&mut self, text: String, linewise: bool) {
+        self.register = Register { text, linewise };
+    }
+
+    fn snapshot(&self) -> Snapshot {
+        Snapshot {
+            content: self.content.clone(),
+            offset: self.cursor.source_offset(),
+        }
+    }
+
+    /// Records the current content as an undo point, discarding the redo stack.
+    pub fn mark_undo_point(&mut self) {
+        self.undo_stack.push(self.snapshot());
+        self.redo_stack.clear();
+    }
+
+    pub fn undo(&mut self) -> bool {
+        match self.undo_stack.pop() {
+            Some(previous) => {
+                self.redo_stack.push(self.snapshot());
+                self.restore(previous);
+                true
+            }
+            None => false,
+        }
+    }
+
+    pub fn redo(&mut self) -> bool {
+        match self.redo_stack.pop() {
+            Some(next) => {
+                self.undo_stack.push(self.snapshot());
+                self.restore(next);
+                true
+            }
+            None => false,
+        }
+    }
+
+    fn restore(&mut self, snapshot: Snapshot) {
+        self.content = snapshot.content;
+        self.ast_nodes = parser::from_str(&self.content);
+        self.modified = true;
+        self.text_buffer = None;
+        self.editing_block = None;
+        self.jump_to_offset(snapshot.offset.min(self.content.len()));
+    }
+
+    /// Replaces `range` with `replacement`, re-parses, and leaves the cursor at
+    /// the edit site. Records an undo point first.
+    pub fn splice(&mut self, range: Range<usize>, replacement: &str) {
+        self.commit_text_buffer();
+        self.mark_undo_point();
+        self.content.replace_range(range.clone(), replacement);
+        self.ast_nodes = parser::from_str(&self.content);
+        self.modified = true;
+        self.text_buffer = None;
+        self.editing_block = None;
+        let target = (range.start + replacement.len()).min(self.content.len());
+        self.jump_to_offset(target);
+    }
+
+    /// Pastes the register at (or after) the cursor. Linewise registers land on
+    /// their own line below (`p`) or above (`P`).
+    pub fn paste(&mut self, after: bool) {
+        if self.register.text.is_empty() {
+            return;
+        }
+        let cursor = self.cursor.source_offset();
+
+        if self.register.linewise {
+            let insert_at = if after {
+                self.content[cursor..]
+                    .find('\n')
+                    .map_or(self.content.len(), |i| cursor + i + 1)
+            } else {
+                self.content[..cursor].rfind('\n').map_or(0, |i| i + 1)
+            };
+            let mut text = self.register.text.clone();
+            if !text.ends_with('\n') {
+                text.push('\n');
+            }
+            self.splice(insert_at..insert_at, &text);
+            let landing = self.content[insert_at..]
+                .char_indices()
+                .find(|&(_, c)| !c.is_whitespace())
+                .map_or(insert_at, |(i, _)| insert_at + i);
+            self.jump_to_offset(landing);
+        } else {
+            let char_len = self.content[cursor..]
+                .chars()
+                .next()
+                .map_or(0, char::len_utf8);
+            let insert_at = if after { cursor + char_len } else { cursor };
+            let text = self.register.text.clone();
+            self.splice(insert_at..insert_at, &text);
+        }
+    }
+
     /// Source content as currently displayed, accounting for unsaved edits.
     fn live_content(&self) -> Cow<'_, str> {
         self.text_buffer
@@ -487,34 +752,6 @@ impl<'a> NoteEditorState<'a> {
             .map(|flash| flash.range.clone())
     }
 
-    pub fn cursor_word_forward(&mut self) {
-        use cursor::Message::*;
-
-        let prev_block_idx = self.current_block_idx();
-        self.cursor.update(
-            MoveWordForward,
-            self.virtual_document.lines(),
-            &self.text_buffer,
-        );
-
-        self.relayout_on_block_change(prev_block_idx);
-        self.ensure_cursor_visible();
-    }
-
-    pub fn cursor_word_backward(&mut self) {
-        use cursor::Message::*;
-
-        let prev_block_idx = self.current_block_idx();
-        self.cursor.update(
-            MoveWordBackward,
-            self.virtual_document.lines(),
-            &self.text_buffer,
-        );
-
-        self.relayout_on_block_change(prev_block_idx);
-        self.ensure_cursor_visible();
-    }
-
     pub fn cursor_left(&mut self, amount: usize) {
         use cursor::Message::*;
 
@@ -563,6 +800,63 @@ impl<'a> NoteEditorState<'a> {
         }
 
         self.relayout_on_block_change(prev_block_idx);
+        self.ensure_cursor_visible();
+    }
+
+    /// Move the cursor to an arbitrary source byte offset, switching the active
+    /// block (and its text buffer) when the target lies in another block. Unlike
+    /// [`Self::relayout_on_block_change`] this preserves a precise mid-block
+    /// target, so it is the primitive every vim motion moves through.
+    pub fn jump_to_offset(&mut self, offset: usize) {
+        let offset = cursor::snap_to_char_boundary(&self.content, offset);
+
+        if matches!(self.view, View::Edit(..)) {
+            let target_block = self
+                .ast_nodes
+                .iter()
+                .position(|node| node.source_range().contains(&offset))
+                .or_else(|| {
+                    self.ast_nodes
+                        .iter()
+                        .position(|node| node.source_range().start >= offset)
+                })
+                .or_else(|| {
+                    self.ast_nodes
+                        .iter()
+                        .rposition(|node| node.source_range().end <= offset)
+                });
+            if let Some(block) = target_block {
+                if self.editing_block != Some(block) {
+                    self.enter_insert(block);
+                }
+                // The leading whitespace a change leaves before a block is not
+                // inside any block's range; extend the buffer back over that gap so
+                // inserts land at the cursor. Only bridge whitespace — never block
+                // markers (list bullets, quote glyphs).
+                if let Some(start) = self.text_buffer.as_ref().map(|b| b.source_range.start) {
+                    let end = self
+                        .text_buffer
+                        .as_ref()
+                        .map_or(start, |b| b.source_range.end);
+                    let gap_is_blank = self
+                        .content
+                        .get(offset..start)
+                        .is_some_and(|gap| gap.chars().all(|c| c == ' ' || c == '\t'));
+                    if offset < start && gap_is_blank {
+                        if let Some(text) = self.content.get(offset..end) {
+                            self.text_buffer = Some(TextBuffer::new(text, offset..end));
+                        }
+                    }
+                }
+            }
+        }
+
+        self.cursor.update(
+            cursor::Message::Jump(offset),
+            self.virtual_document.lines(),
+            &self.text_buffer,
+        );
+        self.update_layout();
         self.ensure_cursor_visible();
     }
 
@@ -1195,6 +1489,35 @@ mod tests {
                 .iter()
                 .any(|line| !line.is_empty() && line.trim().is_empty()),
             "spurious whitespace line: {lines:?}",
+        );
+    }
+
+    /// Reaching a list item via `jump_to_offset` (a vim motion) must not corrupt
+    /// the markers of the other items — the gap-bridging in `jump_to_offset` only
+    /// applies to whitespace, never a list bullet.
+    #[test]
+    fn test_jump_to_offset_to_list_keeps_markers() {
+        let mut state = NoteEditorState::new(
+            "# Title\n\n- alpha bravo\n- charlie delta\n",
+            "test",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.set_vim_mode(true);
+        state.resize_viewport(Size::new(40, 12));
+        state.set_view(View::Edit(EditMode::Source));
+
+        let charlie = state.content.find("charlie").unwrap();
+        state.jump_to_offset(charlie);
+
+        let lines = line_texts(&state);
+        assert!(
+            lines.iter().any(|line| line == "- charlie delta"),
+            "cursor line is raw: {lines:?}",
+        );
+        assert!(
+            lines.iter().any(|line| line == "● alpha bravo"),
+            "other item keeps its rendered bullet: {lines:?}",
         );
     }
 
