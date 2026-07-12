@@ -354,6 +354,15 @@ mod tests {
     }
 
     #[test]
+    fn test_vim_config_parses() {
+        // Same guard for the vim overrides, which `load()` merges when vim mode
+        // is on and would otherwise only fail at startup for vim users.
+        toml::from_str::<TomlConfig>(VIM_CONFIGURATION_STR)
+            .map(Config::from)
+            .expect("bundled vim.toml should parse");
+    }
+
+    #[test]
     fn test_base_config_snapshot() {
         // TODO: Does not work cross-platform as macOS has different names for the keys
         // Potentially needs two snapshots

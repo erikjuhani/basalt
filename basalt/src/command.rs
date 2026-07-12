@@ -83,6 +83,10 @@ pub(crate) enum Command {
     ExplorerScrollToTop,
     ExplorerScrollToBottom,
 
+    TabNext,
+    TabPrevious,
+    TabClose,
+
     NoteEditorExperimentalCursorWordForward,
     NoteEditorExperimentalCursorWordBackward,
     NoteEditorExperimentalToggleView,
@@ -189,6 +193,10 @@ fn str_to_command(s: &str) -> Option<Command> {
 
         "explorer_scroll_to_top" => Some(Command::ExplorerScrollToTop),
         "explorer_scroll_to_bottom" => Some(Command::ExplorerScrollToBottom),
+
+        "tab_next" => Some(Command::TabNext),
+        "tab_previous" => Some(Command::TabPrevious),
+        "tab_close" => Some(Command::TabClose),
 
         "note_editor_experimental_cursor_word_forward" => {
             Some(Command::NoteEditorExperimentalCursorWordForward)
@@ -366,6 +374,10 @@ impl From<Command> for Message<'_> {
             }
             Command::ExplorerScrollToTop => Message::Explorer(explorer::Message::ScrollToTop),
             Command::ExplorerScrollToBottom => Message::Explorer(explorer::Message::ScrollToBottom),
+
+            Command::TabNext => Message::TabNext,
+            Command::TabPrevious => Message::TabPrevious,
+            Command::TabClose => Message::CloseTab,
             Command::NoteEditorToggleExplorer => {
                 Message::NoteEditor(note_editor::Message::ToggleExplorer)
             }

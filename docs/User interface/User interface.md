@@ -1,8 +1,23 @@
-Basalt's interface is divided into panes, modals, and a status bar.
+Basalt's interface is divided into a tab bar, panes, modals, and a status bar.
 
 ![[demo.gif]]
 
 Only one pane has focus at a time. The active pane is indicated by a thicker border, and the status bar at the bottom shows which pane is active. Switch between panes with `Tab` and `Shift+Tab`.
+
+## Tabs
+
+The tab bar runs along the top and lists the notes you have open. Opening a note from the [[Explorer]] focuses its tab if it is already open, otherwise it opens a new one, so every note keeps its own cursor, scroll position and unsaved edits as you move between them.
+
+Cycling to a tab also moves the [[Explorer]] selection to that note, expanding any collapsed folder in its path so the note stays visible. Tabs are sized uniformly and shrink as more open; tabs that share a name are disambiguated by their parent directory.
+
+![[tabs.gif]]
+
+| Mapping             | Description                    |
+| ------------------- | ------------------------------ |
+| `Ctrl+n` / `Ctrl+p` | Focus the next / previous tab  |
+| `L` / `H`           | Focus the next / previous tab  |
+| `]b` / `[b`         | Focus the next / previous tab  |
+| `Ctrl+w`            | Close the active tab           |
 
 ## Panes
 
@@ -70,7 +85,7 @@ The title shows the active minimum level and the current process memory. The ove
 | `g<`                  | Toggle the overlay                              |
 | `j` / `k` / `↑` / `↓` | Scroll by one line                              |
 | `Ctrl+u` / `Ctrl+d`   | Scroll up / down half a page                    |
-| `L`                   | Cycle the minimum visible level (trace → error) |
+| `l`                   | Cycle the minimum visible level (trace → error) |
 | `c`                   | Clear the captured entries                      |
 | `Esc`                 | Close the overlay                               |
 

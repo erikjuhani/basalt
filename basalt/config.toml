@@ -8,6 +8,9 @@
 # help_modal_toggle: toggles help modal
 # spawn: <command> spawns a new process without blocking. This is for opening external applications or URLs.
 # exec: <command> runs a command in the current shell environment.
+# tab_next: focuses the next open note tab (wraps around)
+# tab_previous: focuses the previous open note tab (wraps around)
+# tab_close: closes the focused note tab
 #
 # Splash commands:
 #
@@ -125,6 +128,13 @@ key_bindings = [
  { key = "ctrl+g", command = "vault_selector_modal_toggle" },
  { key = "?", command = "help_modal_toggle" },
  { key = "g<lt>", command = "debug_log_toggle" },
+ { key = "ctrl+n", command = "tab_next" },
+ { key = "ctrl+p", command = "tab_previous" },
+ { key = "ctrl+w", command = "tab_close" },
+ { key = "L", command = "tab_next" },
+ { key = "H", command = "tab_previous" },
+ { key = "]b", command = "tab_next" },
+ { key = "[b", command = "tab_previous" },
  { key = "ctrl+alt+e", command = "exec:vi %note_path" },
  { key = "ctrl+alt+o", command = "spawn:open obsidian://open?vault=%vault&file=%note" },
 ]
@@ -259,5 +269,5 @@ key_bindings = [
  { key = "ctrl+u", command = "debug_log_scroll_up_half_page" },
  { key = "ctrl+d", command = "debug_log_scroll_down_half_page" },
  { key = "c", command = "debug_log_clear" },
- { key = "L", command = "debug_log_cycle_level" },
+ { key = "l", command = "debug_log_cycle_level" },
 ]
