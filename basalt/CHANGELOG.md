@@ -4,6 +4,27 @@
 
 ### Added
 
+- [f1b6d9f](https://github.com/erikjuhani/basalt/commit/f1b6d9f459685d0ee8e50be433f9aceeb809fbf6) Add multi-note tabs with cycling by @erikjuhani
+
+> Open several notes at once in a bufferline-style tab bar and cycle
+> through them. Selecting a note focuses its existing tab or opens a new
+> one, so each note keeps its own cursor, scroll and unsaved edits.
+>
+> Cycle with ctrl+n and ctrl+p, the bufferline-style L and H, or the
+> unimpaired ]b and [b, and close the active tab with ctrl+w. All bindings
+> are global so they work from any pane. Cycling moves the explorer
+> selection to the active note, expanding any collapsed folder in its path
+> so the note becomes visible.
+>
+> To free the global L for tab cycling, the debug log overlay's
+> level-cycle key moves from L to l.
+>
+> The bar renders one uniform-width tab per note, shrinking them from a
+> maximum toward a minimum as more open and only ever showing whole tabs.
+> Names are truncated with an ellipsis and tabs that share a name are
+> disambiguated by their parent directory. The active tab is a
+> reverse-video highlight so it contrasts on any theme.
+
 - [8f58061](https://github.com/erikjuhani/basalt/commit/8f5806145a422c2e6d3c23e2bb6fe9bd55001f58) Render callout block quotes by @erikjuhani
 
 > Render Obsidian and GitHub callouts (`> [!note]`) with a per-kind
