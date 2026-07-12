@@ -160,11 +160,11 @@ impl<'de> Deserialize<'de> for ObsidianConfig {
 ///
 /// More info: [https://help.obsidian.md/Files+and+folders/How+Obsidian+stores+data]
 pub fn obsidian_global_config_locations() -> Vec<PathBuf> {
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
-    const OBSIDIAN_CONFIG_DIR_NAME: &str = "obsidian";
-
     #[cfg(target_os = "windows")]
     const OBSIDIAN_CONFIG_DIR_NAME: &str = "Obsidian";
+
+    #[cfg(not(target_os = "windows"))]
+    const OBSIDIAN_CONFIG_DIR_NAME: &str = "obsidian";
 
     let override_path =
         env::var("OBSIDIAN_CONFIG_DIR")
@@ -176,9 +176,6 @@ pub fn obsidian_global_config_locations() -> Vec<PathBuf> {
 
     let default_config_path =
         config_dir().map(|config_path| config_path.join(OBSIDIAN_CONFIG_DIR_NAME));
-
-    #[cfg(any(target_os = "macos", target_os = "windows"))]
-    let sandboxed_paths: [Option<PathBuf>; 0] = [];
 
     // In cases where user has a sandboxes instance of Obsidian installed under either flatpak or
     // snap, we must check if the configuration exists under these locations.
@@ -198,6 +195,9 @@ pub fn obsidian_global_config_locations() -> Vec<PathBuf> {
 
         [flatpak_path, snap_path]
     };
+
+    #[cfg(not(target_os = "linux"))]
+    let sandboxed_paths: [Option<PathBuf>; 0] = [];
 
     let base_paths = [override_path, default_config_path];
 
