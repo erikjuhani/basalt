@@ -32,6 +32,17 @@ key_bindings = [
 
 This adds `Ctrl+Q` as a quit binding while keeping all other default global bindings (`?`, `Ctrl+G`, etc.) intact.
 
+## Leader key
+
+Bindings can be written against a `<leader>` prefix instead of a fixed key. The
+leader defaults to `<space>` and is set at the top level:
+
+```toml
+leader = ","
+```
+
+See [[Key mappings]] for the binding syntax.
+
 ## Vim mode
 
 Setting `vim_mode = true` enables a built-in keybinding preset modelled after vim. For each section it defines, the vim preset **replaces** the default bindings entirely rather than merging with them. Your own config is still merged on top, so individual bindings can still be overridden.
@@ -91,6 +102,8 @@ The full default configuration is shown below. The default `exec:` and `spawn:` 
 # Editor is experimental
 experimental_editor = false
 vim_mode = false
+
+leader = "<space>"
 
 [global]
 key_bindings = [

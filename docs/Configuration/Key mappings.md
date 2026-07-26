@@ -50,6 +50,30 @@ key_bindings = [
 `<` and `>` are reserved for this syntax; bind the literal keys with `<lt>` and
 `<gt>`.
 
+## Leader key
+
+`<leader>` is a placeholder for a prefix key of your choosing, so a whole set of
+bindings can be moved to a different prefix by changing one line. It defaults to
+`<space>` and is set at the top level of the configuration file:
+
+```toml
+leader = ","
+
+[global]
+key_bindings = [
+  { key = "<leader>f", command = "vault_selector_modal_toggle" },
+  { key = "<leader>?", command = "help_modal_toggle" },
+]
+```
+
+With the above, `,f` opens the vault selector. Leaving `leader` out would make
+the same bindings answer to `<space>f` and `<space>?`.
+
+The leader may be any key, including a modified one (`leader = "ctrl+w"`) or a
+sequence (`leader = "gs"`), and it may appear more than once in a binding
+(`<leader><leader>`). It cannot refer to itself: `leader = "<leader>"` is an
+error.
+
 ## Available commands
 
 ### Global commands

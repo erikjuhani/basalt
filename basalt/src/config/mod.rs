@@ -6,7 +6,7 @@ use core::fmt;
 use std::{collections::BTreeMap, fs::read_to_string};
 
 use etcetera::{choose_base_strategy, home_dir, BaseStrategy};
-use key_binding::KeyBinding;
+use key_binding::{KeyBinding, KeySpec, Leader};
 use serde::Deserialize;
 
 use crate::{app::Message, command::Command};
@@ -104,37 +104,47 @@ impl Default for Config<'_> {
     }
 }
 
+/// Resolves `<leader>` with the config's own leader. Layered sources are
+/// converted with [`Config::from_toml`] instead, so that the leader chosen by
+/// the user also applies to the bundled presets.
 impl From<TomlConfig> for Config<'_> {
     fn from(value: TomlConfig) -> Self {
-        Self {
-            symbols: value.symbols.into(),
-            experimental_editor: value.experimental_editor,
-            vim_mode: value.vim_mode,
-            global: value.global.into(),
-            splash: value.splash.into(),
-            explorer: value.explorer.into(),
-            outline: value.outline.into(),
-            input_modal: value.input_modal.into(),
-            help_modal: value.help_modal.into(),
-            note_editor: value.note_editor.into(),
-            vault_selector_modal: value.vault_selector_modal.into(),
-            debug_log_modal: value.debug_log_modal.into(),
-        }
+        let leader = value.leader.clone();
+        Config::from_toml(value, &leader)
     }
 }
 
-impl From<TomlConfigSection> for ConfigSection<'_> {
-    fn from(TomlConfigSection { key_bindings }: TomlConfigSection) -> Self {
+impl ConfigSection<'_> {
+    fn from_toml(TomlConfigSection { key_bindings }: TomlConfigSection, leader: &Leader) -> Self {
         Self {
             key_bindings: key_bindings
                 .into_iter()
-                .map(|KeyBinding { key, command }| (key.to_string(), command.into()))
+                .map(|KeyBinding { key, command }| {
+                    (key.resolve(leader).to_string(), command.into())
+                })
                 .collect(),
         }
     }
 }
 
 impl Config<'_> {
+    fn from_toml(value: TomlConfig, leader: &Leader) -> Self {
+        Self {
+            symbols: value.symbols.into(),
+            experimental_editor: value.experimental_editor,
+            vim_mode: value.vim_mode,
+            global: ConfigSection::from_toml(value.global, leader),
+            splash: ConfigSection::from_toml(value.splash, leader),
+            explorer: ConfigSection::from_toml(value.explorer, leader),
+            outline: ConfigSection::from_toml(value.outline, leader),
+            input_modal: ConfigSection::from_toml(value.input_modal, leader),
+            help_modal: ConfigSection::from_toml(value.help_modal, leader),
+            note_editor: ConfigSection::from_toml(value.note_editor, leader),
+            vault_selector_modal: ConfigSection::from_toml(value.vault_selector_modal, leader),
+            debug_log_modal: ConfigSection::from_toml(value.debug_log_modal, leader),
+        }
+    }
+
     /// Takes self and another config and merges the `key_bindings` together overwriting the
     /// existing entries with the value from another config.
     pub(crate) fn merge(&mut self, config: Self) -> Self {
@@ -227,7 +237,12 @@ impl AsRef<Vec<KeyBinding>> for KeyBindings {
 
 impl<const N: usize> From<[(Key, Command); N]> for KeyBindings {
     fn from(value: [(Key, Command); N]) -> Self {
-        Self(value.into_iter().map(KeyBinding::from).collect())
+        Self(
+            value
+                .into_iter()
+                .map(|(key, command)| KeyBinding::new(KeySpec::from(key), command))
+                .collect(),
+        )
     }
 }
 
@@ -239,6 +254,8 @@ struct TomlConfig {
     experimental_editor: bool,
     #[serde(default)]
     vim_mode: bool,
+    #[serde(default)]
+    leader: Leader,
     #[serde(default)]
     global: TomlConfigSection,
     #[serde(default)]
@@ -268,7 +285,7 @@ struct TomlConfig {
 ///
 /// It first attempts to find the config file in the home directory. If not found, it then checks
 /// the config directory.
-fn read_user_config<'a>() -> Result<Config<'a>, ConfigError> {
+fn read_user_config() -> Result<TomlConfig, ConfigError> {
     let home_dir_path = home_dir().map(|home_dir| home_dir.join(".basalt.toml"));
     let config_dir_path =
         choose_base_strategy().map(|strategy| strategy.config_dir().join("basalt/config.toml"));
@@ -282,7 +299,6 @@ fn read_user_config<'a>() -> Result<Config<'a>, ConfigError> {
         ))?;
 
     toml::from_str::<TomlConfig>(&read_to_string(config_path)?)
-        .map(Config::from)
         .map_err(|err| ConfigError::InvalidConfig(err.message().to_string()))
 }
 
@@ -300,30 +316,42 @@ const VIM_CONFIGURATION_STR: &str = include_str!(concat!(env!("CARGO_MANIFEST_DI
 ///
 /// # Configuration Precedence
 /// System overrides > User config > Base config
+///
+/// The leader key is taken from the user config alone and applied to every
+/// layer, so `<leader>` means the same key in the bundled presets as it does in
+/// the user's own bindings.
 pub fn load<'a>() -> Result<(Config<'a>, Vec<String>), ConfigError> {
-    // TODO: Use compile time toml parsing instead to check the build error during compile time
-    // Requires a custom proc-macro workspace crate
-    let mut config: Config = toml::from_str::<TomlConfig>(BASE_CONFIGURATION_STR)?.into();
-
-    if config.symbols.preset == symbol::Preset::Auto {
-        config.symbols.preset = symbol::detect_preset(env::SystemEnv)
-    }
-
     let (user_config, warnings) = match read_user_config() {
         Ok(config) => (Some(config), vec![]),
         Err(ConfigError::UserConfigNotFound(_)) => (None, vec![]),
         Err(err) => (None, vec![err.to_string()]),
     };
 
-    if user_config.as_ref().is_some_and(|c| c.vim_mode) {
-        let vim_config: Config = toml::from_str::<TomlConfig>(VIM_CONFIGURATION_STR)
-            .map_err(ConfigError::from)?
-            .into();
+    let leader = user_config
+        .as_ref()
+        .map(|user| user.leader.clone())
+        .unwrap_or_default();
+
+    // TODO: Use compile time toml parsing instead to check the build error during compile time
+    // Requires a custom proc-macro workspace crate
+    let mut config = Config::from_toml(
+        toml::from_str::<TomlConfig>(BASE_CONFIGURATION_STR)?,
+        &leader,
+    );
+
+    if config.symbols.preset == symbol::Preset::Auto {
+        config.symbols.preset = symbol::detect_preset(env::SystemEnv)
+    }
+
+    if user_config.as_ref().is_some_and(|user| user.vim_mode) {
+        let vim_config = toml::from_str::<TomlConfig>(VIM_CONFIGURATION_STR)
+            .map_err(ConfigError::from)
+            .map(|vim| Config::from_toml(vim, &leader))?;
         config.replace(vim_config);
     }
 
     if let Some(user) = user_config {
-        config.merge(user);
+        config.merge(Config::from_toml(user, &leader));
     }
 
     let system_key_binding_overrides: ConfigSection =
@@ -338,7 +366,9 @@ pub fn load<'a>() -> Result<(Config<'a>, Vec<String>), ConfigError> {
 
 #[cfg(test)]
 mod tests {
-    use ratatui::crossterm::event::KeyModifiers;
+    use std::slice;
+
+    use ratatui::crossterm::event::{KeyCode, KeyModifiers};
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -372,6 +402,51 @@ mod tests {
         //     .into();
         //
         // assert_snapshot!(format!("{:?}", config));
+    }
+
+    #[test]
+    fn test_leader_key_bindings() {
+        let dummy_toml = r#"
+        leader = ","
+
+        [global]
+        key_bindings = [
+         { key = "<leader>q", command = "quit" },
+        ]
+    "#;
+        let config = Config::from(toml::from_str::<TomlConfig>(dummy_toml).unwrap());
+        let leader = Keystroke::from(KeyCode::Char(','));
+        let q = Keystroke::from(KeyCode::Char('q'));
+
+        assert!(config.global.is_sequence_prefix(slice::from_ref(&leader)));
+        assert_eq!(
+            config.global.sequence_to_message(&[leader, q]),
+            Some(Message::Quit)
+        );
+    }
+
+    #[test]
+    fn test_leader_applies_to_every_layer() {
+        // The user's leader has to reach the bundled presets too, otherwise a
+        // `<leader>` binding shipped with basalt would answer to a different key
+        // than the user's own bindings.
+        let leader = Leader::from(Key::from(','));
+        let preset = r#"
+        [explorer]
+        key_bindings = [
+         { key = "<leader>s", command = "explorer_sort" },
+        ]
+    "#;
+        let config = Config::from_toml(toml::from_str::<TomlConfig>(preset).unwrap(), &leader);
+        let keys = [
+            Keystroke::from(KeyCode::Char(',')),
+            Keystroke::from(KeyCode::Char('s')),
+        ];
+
+        assert_eq!(
+            config.explorer.sequence_to_message(&keys),
+            Some(Message::Explorer(crate::explorer::Message::Sort))
+        );
     }
 
     #[test]
