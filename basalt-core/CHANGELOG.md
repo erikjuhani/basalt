@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.10.0](https://github.com/erikjuhani/basalt/releases/tag/basalt-core/0.10.0) (Jul, 26 2026)
+
+### Breaking
+
+- [1863417](https://github.com/erikjuhani/basalt/commit/1863417adfd88ba2f82b7879ea456054ef01d38f) Relicense: GPL-3.0 for app, Apache-2.0 for libraries; add CLA by @erikjuhani
+
+> Move off MIT to a split model that protects against proprietary forks
+> while keeping the libraries reusable.
+>
+> - basalt-tui: MIT -> GPL-3.0-or-later (copyleft and patent grant)
+> - basalt-core and basalt-widgets: MIT -> Apache-2.0 (permissive,
+>   reusable, with a patent grant)
+>
+> Add a lightweight Contributor License Agreement so future GPL
+> contributions can still be relicensed, including under a commercial
+> license, without chasing past contributors for sign-off. Contributors
+> keep their copyright and agree by opening a pull request.
+>
+> Document the split in the README and CONTRIBUTING, and add a pull
+> request template that acknowledges the CLA.
+>
+> Already-published versions remain MIT for anyone who has them; the new
+> terms apply from the next release onward.
+
+### Fixed
+
+- [7f5a34c](https://github.com/erikjuhani/basalt/commit/7f5a34c4a7efebc84af2aa69866dfb0e0e608c42) Fix build on Android targets
+
+> Rust treats `android` as a `target_os` distinct from `linux`, so the cfg
+> lists in `obsidian_global_config_locations` matched nothing on Android
+> and basalt-core failed to compile under Termux.
+>
+> Branch on the axis that matters instead of enumerating platforms: the
+> config directory name is a Windows capitalisation quirk, and the flatpak
+> and snap paths are Linux-only.
+
 ## [0.9.0](https://github.com/erikjuhani/basalt/releases/tag/basalt-core/0.9.0) (May, 14 2026)
 
 ### Breaking
