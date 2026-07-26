@@ -363,7 +363,7 @@ impl StatefulWidget for DebugLogModal {
             .padding(Padding::horizontal(1))
             .title_style(Style::default().italic().bold())
             .title(title)
-            .title(Line::from(" (g<) ").alignment(Alignment::Right));
+            .title(Line::from(" (Leader d) ").alignment(Alignment::Right));
 
         Widget::render(Clear, area, buf);
         StatefulWidget::render(

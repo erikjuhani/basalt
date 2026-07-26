@@ -37,7 +37,7 @@ VAULT SELECTION
     ‹q›,        Quit the application
     ‹Ctrl+C›
     ‹?›         Show this help
-    ‹g<›        Toggle debug log overlay
+    ‹Leader›‹d› Toggle debug log overlay
     ‹k›         Move selection up
     ‹j›         Move selection down
     ‹↩ Enter›   Select and open the highlighted vault
@@ -45,8 +45,9 @@ VAULT SELECTION
     ‹Tab›       Switch to next pane
     ‹Shift+Tab› Switch to previous pane
 
-  The vault selection can be brought up as a modal by hitting ‹Ctrl+G› after
-  the startup screen.
+  The vault selection can be brought up as a modal by hitting ‹Leader›‹v›
+  after the startup screen. ‹Leader› is ‹Space› unless it is changed with
+  `leader` in the configuration file.
 
 INTERFACE
 
@@ -86,7 +87,7 @@ INTERFACE
       ‹Tab›       Switch to next pane
       ‹Shift+Tab› Switch to previous pane
 
-      ‹Ctrl+G›    Toggle vault selector modal
+      ‹Leader›‹v› Toggle vault selector modal
       ‹Ctrl+B›    Toggle explorer panel visibility
       ‹Ctrl+U›    Scroll up half a page
       ‹Ctrl+D›    Scroll down half a page
@@ -116,7 +117,7 @@ INTERFACE
       ‹Shift+Tab› Switch to previous pane
 
       ‹Ctrl+O›    Toggle outline pane visibility
-      ‹Ctrl+G›    Toggle vault selector modal
+      ‹Leader›‹v› Toggle vault selector modal
       ‹Ctrl+B›    Toggle explorer pane visibility
 
   NOTE EDITOR PANE
@@ -144,7 +145,7 @@ INTERFACE
         ‹Tab›       Switch to next pane
         ‹Shift+Tab› Switch to previous pane
 
-        ‹Ctrl+G›    Toggle vault selector modal
+        ‹Leader›‹v› Toggle vault selector modal
         ‹Ctrl+B›    Toggle explorer panel visibility
         ‹Ctrl+U›    Scroll up half a page
         ‹Ctrl+D›    Scroll down half a page

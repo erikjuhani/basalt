@@ -61,13 +61,19 @@ leader = ","
 
 [global]
 key_bindings = [
-  { key = "<leader>f", command = "vault_selector_modal_toggle" },
-  { key = "<leader>?", command = "help_modal_toggle" },
+  { key = "<leader>f", command = "explorer_toggle" },
 ]
 ```
 
-With the above, `,f` opens the vault selector. Leaving `leader` out would make
-the same bindings answer to `<space>f` and `<space>?`.
+The leader applies to the defaults as well as to your own bindings, so the above
+turns `Space v` into `,v`, `Space d` into `,d`, and binds `,f` on top.
+
+| Default binding | Command                       |
+| --------------- | ----------------------------- |
+| `<leader>v`     | Toggle vault selector modal   |
+| `<leader>d`     | Toggle debug log overlay      |
+| `<leader>e`     | Open the note in `vi`         |
+| `<leader>o`     | Open the note in Obsidian     |
 
 The leader may be any key, including a modified one (`leader = "ctrl+w"`) or a
 sequence (`leader = "gs"`), and it may appear more than once in a binding
