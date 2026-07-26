@@ -4,6 +4,28 @@
 
 ### Added
 
+- [f28f6c0](https://github.com/erikjuhani/basalt/commit/f28f6c0ea4a5242199e4f517eebd83162ecc3b0f) Add configurable leader key for key bindings by @erikjuhani
+
+> Bindings can be written against a `<leader>` prefix instead of a fixed
+> key, so a whole set of them can be moved to another prefix by changing
+> one line. The leader is set at the top level of the configuration file
+> and defaults to `<space>`.
+>
+> A binding string now parses into a `KeySpec`, a sequence of elements that
+> are either a literal keystroke or the `<leader>` placeholder. Resolving
+> a spec against the leader yields the concrete `Key` the runtime already
+> dispatches on, so the existing chord machinery is untouched. `Key` keeps
+> its own deserializer and rejects `<leader>`, which makes a self
+> referential `leader = "<leader>"` a config error.
+>
+> Resolution happens once the layers are known rather than at parse time.
+> The leader is read from the user config alone and applied to the bundled
+> config.toml and vim.toml as well, otherwise a `<leader>` binding shipped
+> with basalt would answer to a different key than the user's own.
+>
+> The leader may be a modified key or itself a sequence, and it may appear
+> more than once in a binding.
+
 - [f1b6d9f](https://github.com/erikjuhani/basalt/commit/f1b6d9f459685d0ee8e50be433f9aceeb809fbf6) Add multi-note tabs with cycling by @erikjuhani
 
 > Open several notes at once in a bufferline-style tab bar and cycle
@@ -86,6 +108,22 @@
 > dash row that would otherwise vanish from the document.
 
 ### Breaking
+
+- [fb5e51c](https://github.com/erikjuhani/basalt/commit/fb5e51c667ed794bc11a412a2b27a8bf2e73ca91) Move four global bindings onto the leader key by @erikjuhani
+
+> The vault selector, debug log overlay, external editor and Obsidian
+> commands were on ctrl+g, g<, ctrl+alt+e and ctrl+alt+o. They are now
+> <leader>v, <leader>d, <leader>e and <leader>o, which frees the awkward
+> chords and lets all four follow a user's chosen leader. Quit, help and
+> the tab bindings are unchanged.
+>
+> The old keys stop working, so muscle memory for ctrl+g in particular
+> needs relearning. Rebinding them in the user config restores them.
+>
+> Note that <space> is now a live prefix in every non editing pane, so a
+> bare space waits for the next keystroke. If that key completes no
+> sequence it is retried on its own, and insert mode and the input modal
+> bypass sequence handling entirely, so typing is unaffected.
 
 - [1863417](https://github.com/erikjuhani/basalt/commit/1863417adfd88ba2f82b7879ea456054ef01d38f) Relicense: GPL-3.0 for app, Apache-2.0 for libraries; add CLA by @erikjuhani
 
