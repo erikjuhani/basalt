@@ -8,7 +8,7 @@ publish = false
 [dependencies]
 walkdir = "2.5"
 regex = "1.10"
-toml = "1.0.0"
+toml.workspace = true
 serde = { version = "1.0.224", features = ["derive"] }
 
 [[bin]]
