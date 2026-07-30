@@ -30,7 +30,18 @@ key_bindings = [
 ]
 ```
 
-This adds `Ctrl+Q` as a quit binding while keeping all other default global bindings (`?`, `Ctrl+G`, etc.) intact.
+This adds `Ctrl+Q` as a quit binding while keeping all other default global bindings (`?`, `<leader>v`, etc.) intact.
+
+## Leader key
+
+Bindings can be written against a `<leader>` prefix instead of a fixed key. The
+leader defaults to `<space>` and is set at the top level:
+
+```toml
+leader = ","
+```
+
+See [[Key mappings]] for the binding syntax.
 
 ## Vim mode
 
@@ -92,13 +103,23 @@ The full default configuration is shown below. The default `exec:` and `spawn:` 
 experimental_editor = false
 vim_mode = false
 
+leader = "<space>"
+
 [global]
 key_bindings = [
  { key = "q", command = "quit" },
- { key = "ctrl+g", command = "vault_selector_modal_toggle" },
  { key = "?", command = "help_modal_toggle" },
- { key = "ctrl+alt+e", command = "exec:vi %note_path" },
- { key = "ctrl+alt+o", command = "spawn:open obsidian://open?vault=%vault&file=%note" },
+ { key = "<leader>v", command = "vault_selector_modal_toggle" },
+ { key = "<leader>d", command = "debug_log_toggle" },
+ { key = "ctrl+n", command = "tab_next" },
+ { key = "ctrl+p", command = "tab_previous" },
+ { key = "ctrl+w", command = "tab_close" },
+ { key = "L", command = "tab_next" },
+ { key = "H", command = "tab_previous" },
+ { key = "]b", command = "tab_next" },
+ { key = "[b", command = "tab_previous" },
+ { key = "<leader>e", command = "exec:vi %note_path" },
+ { key = "<leader>o", command = "spawn:open obsidian://open?vault=%vault&file=%note" },
 ]
 
 [splash]

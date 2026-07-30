@@ -71,7 +71,8 @@ Enter
 Sleep 2.5s
 
 # Open the debug log overlay
-Type "g<"
+Space
+Type "d"
 Sleep 3s
 
 # Scroll up slowly to read earlier entries

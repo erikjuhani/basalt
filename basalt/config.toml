@@ -119,15 +119,20 @@
 experimental_editor = false
 vim_mode = false
 
+# The key that `<leader>` stands for in key bindings, e.g. `{ key =
+# "<leader>f", command = "vault_selector_modal_toggle" }`. Only the leader set
+# in the user config takes effect.
+leader = "<space>"
+
 [symbols]
 preset = "unicode"
 
 [global]
 key_bindings = [
  { key = "q", command = "quit" },
- { key = "ctrl+g", command = "vault_selector_modal_toggle" },
  { key = "?", command = "help_modal_toggle" },
- { key = "g<lt>", command = "debug_log_toggle" },
+ { key = "<leader>v", command = "vault_selector_modal_toggle" },
+ { key = "<leader>d", command = "debug_log_toggle" },
  { key = "ctrl+n", command = "tab_next" },
  { key = "ctrl+p", command = "tab_previous" },
  { key = "ctrl+w", command = "tab_close" },
@@ -135,8 +140,8 @@ key_bindings = [
  { key = "H", command = "tab_previous" },
  { key = "]b", command = "tab_next" },
  { key = "[b", command = "tab_previous" },
- { key = "ctrl+alt+e", command = "exec:vi %note_path" },
- { key = "ctrl+alt+o", command = "spawn:open obsidian://open?vault=%vault&file=%note" },
+ { key = "<leader>e", command = "exec:vi %note_path" },
+ { key = "<leader>o", command = "spawn:open obsidian://open?vault=%vault&file=%note" },
 ]
 
 [splash]

@@ -8,7 +8,7 @@ Runs a command in the current shell environment. Blocks until completion. Only t
 
 ```toml
 key_bindings = [
-  { key = "ctrl+alt+e", command = "exec:nvim %note_path" },
+  { key = "<leader>n", command = "exec:nvim %note_path" },
 ]
 ```
 
@@ -51,7 +51,7 @@ key_bindings = [
   { key = "ctrl+d", command = "spawn:open obsidian://daily?vault=%vault" },
 
   # Open current note in Obsidian
-  { key = "ctrl+alt+e", command = "spawn:open obsidian://open?vault=%vault&file=%note" },
+  { key = "<leader>c", command = "spawn:open obsidian://open?vault=%vault&file=%note" },
 
   # Create new note in Obsidian
   { key = "ctrl+n", command = "spawn:open obsidian://new?vault=%vault&name=New Note" },

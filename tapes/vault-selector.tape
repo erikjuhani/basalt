@@ -7,7 +7,8 @@ Show
 Sleep 1s
 
 # Open vault selector modal
-Ctrl+G
+Space
+Type "v"
 Sleep 2.5s
 
 # Navigate the vault list

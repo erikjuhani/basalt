@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, slice};
 
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
@@ -11,18 +11,12 @@ use crate::{command::Command, config::ConfigError};
 
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub(crate) struct KeyBinding {
-    pub key: Key,
+    pub key: KeySpec,
     pub command: Command,
 }
 
-impl From<(Key, Command)> for KeyBinding {
-    fn from((key, command): (Key, Command)) -> Self {
-        Self::new(key, command)
-    }
-}
-
 impl KeyBinding {
-    pub const fn new(key: Key, command: Command) -> Self {
+    pub const fn new(key: KeySpec, command: Command) -> Self {
         Self { key, command }
     }
 }
@@ -124,14 +118,86 @@ impl Key {
     }
 
     pub fn chord(iter: impl IntoIterator<Item = Keystroke>) -> Self {
-        Key::Chord(iter.into_iter().collect())
+        let mut keystrokes: Vec<Keystroke> = iter.into_iter().collect();
+        match keystrokes.len() {
+            1 => Key::Single(keystrokes.remove(0)),
+            _ => Key::Chord(keystrokes),
+        }
     }
 
-    fn into_keystrokes(self) -> Vec<Keystroke> {
+    fn keystrokes(&self) -> &[Keystroke] {
         match self {
-            Key::Single(keystroke) => vec![keystroke],
+            Key::Single(keystroke) => slice::from_ref(keystroke),
             Key::Chord(keystrokes) => keystrokes,
         }
+    }
+}
+
+/// The prefix key that `<leader>` stands for in key bindings.
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Deserialize)]
+#[serde(transparent)]
+pub struct Leader(Key);
+
+impl Default for Leader {
+    fn default() -> Self {
+        Self(Key::from(' '))
+    }
+}
+
+impl From<Key> for Leader {
+    fn from(key: Key) -> Self {
+        Self(key)
+    }
+}
+
+/// One element of a binding as written in config. `Leader` stands for however
+/// many keystrokes the configured leader holds, so an element is not
+/// necessarily a single key.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+enum Keys {
+    Keystroke(Keystroke),
+    Leader,
+}
+
+/// A binding as written in config, where `<leader>` still stands for the
+/// configured [`Leader`]. Resolving it against one yields a concrete [`Key`].
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct KeySpec(Vec<Keys>);
+
+impl KeySpec {
+    /// Expands every `<leader>` into the keystrokes of the configured leader.
+    pub fn resolve(&self, leader: &Leader) -> Key {
+        self.0
+            .iter()
+            .flat_map(|keys| match keys {
+                Keys::Keystroke(keystroke) => slice::from_ref(keystroke),
+                Keys::Leader => leader.0.keystrokes(),
+            })
+            .cloned()
+            .collect()
+    }
+
+    /// The concrete key, or `None` when the spec still contains `<leader>`.
+    fn literal(&self) -> Option<Key> {
+        self.0
+            .iter()
+            .map(|keys| match keys {
+                Keys::Keystroke(keystroke) => Some(keystroke.clone()),
+                Keys::Leader => None,
+            })
+            .collect()
+    }
+}
+
+impl From<Key> for KeySpec {
+    fn from(key: Key) -> Self {
+        Self(
+            key.keystrokes()
+                .iter()
+                .cloned()
+                .map(Keys::Keystroke)
+                .collect(),
+        )
     }
 }
 
@@ -183,42 +249,51 @@ impl From<Vec<Keystroke>> for Key {
     }
 }
 
+impl<'de> Deserialize<'de> for KeySpec {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_str(KeySpecVisitor)
+    }
+}
+
+/// Only a literal key is accepted — `<leader>` is what a [`Leader`] defines,
+/// so it cannot stand for itself.
 impl<'de> Deserialize<'de> for Key {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        deserializer.deserialize_str(KeyVisitor)
+        KeySpec::deserialize(deserializer)?
+            .literal()
+            .ok_or_else(|| de::Error::custom("`<leader>` is not allowed here"))
     }
 }
 
-struct KeyVisitor;
+struct KeySpecVisitor;
 
-impl Visitor<'_> for KeyVisitor {
-    type Value = Key;
+impl Visitor<'_> for KeySpecVisitor {
+    type Value = KeySpec;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a single key (\"a\"), named key (\"esc\"), modified key (\"ctrl+x\"), or key sequence (\"gg\", \"<space>f\")")
+        formatter.write_str("a single key (\"a\"), named key (\"esc\"), modified key (\"ctrl+x\"), or key sequence (\"gg\", \"<leader>f\")")
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
     where
         E: de::Error,
     {
-        let mut keystrokes = parse_keystrokes(value).map_err(de::Error::custom)?;
-        Ok(match keystrokes.len() {
-            1 => Key::Single(keystrokes.remove(0)),
-            _ => Key::Chord(keystrokes),
-        })
+        parse_keys(value).map(KeySpec).map_err(de::Error::custom)
     }
 }
 
-/// Tokenizes a binding string into its keystrokes, treating `<...>` as a
-/// grouping delimiter. The inside of a group is parsed exactly like a bare
-/// standalone key, so `<space>f` isolates `space` as a named key instead of
-/// splitting `spacef` into per-character keystrokes.
-fn parse_keystrokes(input: &str) -> Result<Vec<Keystroke>, ConfigError> {
-    let mut keystrokes = Vec::new();
+/// Tokenizes a binding string into its elements, treating `<...>` as a grouping
+/// delimiter. The inside of a group is parsed exactly like a bare standalone
+/// key, so `<space>f` isolates `space` as a named key instead of splitting
+/// `spacef` into per-character keystrokes.
+fn parse_keys(input: &str) -> Result<Vec<Keys>, ConfigError> {
+    let mut keys = Vec::new();
     let mut rest = input;
 
     while !rest.is_empty() {
@@ -228,25 +303,28 @@ fn parse_keystrokes(input: &str) -> Result<Vec<Keystroke>, ConfigError> {
                 let (name, tail) = after.split_once('>').ok_or_else(|| {
                     ConfigError::InvalidKeybinding(format!("unterminated `<` in {input:?}"))
                 })?;
-                match parse_segment(name)?.as_slice() {
-                    [single] if !name.is_empty() => keystrokes.push(single.clone()),
-                    _ => {
-                        return Err(ConfigError::InvalidKeybinding(format!(
-                            "`<{name}>` is not a single key"
-                        )))
-                    }
+                match name {
+                    "leader" => keys.push(Keys::Leader),
+                    _ => match parse_segment(name)?.as_slice() {
+                        [single] if !name.is_empty() => keys.push(Keys::Keystroke(single.clone())),
+                        _ => {
+                            return Err(ConfigError::InvalidKeybinding(format!(
+                                "`<{name}>` is not a single key"
+                            )))
+                        }
+                    },
                 }
                 rest = tail;
             }
             None => {
                 let bare = rest.split('<').next().unwrap_or(rest);
-                keystrokes.extend(parse_segment(bare)?);
+                keys.extend(parse_segment(bare)?.into_iter().map(Keys::Keystroke));
                 rest = &rest[bare.len()..];
             }
         }
     }
 
-    Ok(keystrokes)
+    Ok(keys)
 }
 
 /// Parses one segment — a bare run or the contents of a `<...>` group — into
@@ -261,7 +339,7 @@ fn parse_segment(segment: &str) -> Result<Vec<Keystroke>, ConfigError> {
         parse_modifiers(&part.to_lowercase()).map(|parsed| modifiers | parsed)
     })?;
 
-    Ok(parse_key(code, modifiers)?.into_keystrokes())
+    Ok(parse_key(code, modifiers)?.keystrokes().to_vec())
 }
 
 fn parse_key(code: &str, modifiers: KeyModifiers) -> Result<Key, ConfigError> {
@@ -345,6 +423,10 @@ mod tests {
 
     fn key_from_str(s: &str) -> Result<Key, ConfigError> {
         Key::deserialize(s.into_deserializer())
+    }
+
+    fn spec_from_str(s: &str) -> Result<KeySpec, ConfigError> {
+        KeySpec::deserialize(s.into_deserializer())
     }
 
     #[test]
@@ -562,6 +644,53 @@ mod tests {
         ];
 
         assert_eq!(Key::chord(keys).to_string(), "gG");
+    }
+
+    #[test]
+    fn test_leader_expands_to_the_configured_key() {
+        let leader = Leader::from(Key::from(','));
+        let cases = [
+            ("<leader>", ","),
+            ("<leader>f", ",f"),
+            ("<leader><leader>", ",,"),
+            ("g<leader>", "g,"),
+            ("<leader><space>", ",<space>"),
+        ];
+
+        cases.into_iter().for_each(|(input, expected)| {
+            assert_eq!(
+                spec_from_str(input).unwrap().resolve(&leader),
+                key_from_str(expected).unwrap(),
+                "input: {input:?}"
+            );
+        });
+    }
+
+    #[test]
+    fn test_leader_defaults_to_space() {
+        assert_eq!(
+            spec_from_str("<leader>f")
+                .unwrap()
+                .resolve(&Leader::default()),
+            key_from_str("<space>f").unwrap()
+        );
+    }
+
+    #[test]
+    fn test_leader_can_be_a_sequence() {
+        let leader = Leader::from(key_from_str("gs").unwrap());
+
+        assert_eq!(
+            spec_from_str("<leader>f").unwrap().resolve(&leader),
+            key_from_str("gsf").unwrap()
+        );
+    }
+
+    #[test]
+    fn test_leader_is_not_a_literal_key() {
+        // The leader definition itself cannot refer to `<leader>`
+        assert!(key_from_str("<leader>").is_err());
+        assert!(key_from_str("<leader>f").is_err());
     }
 
     #[test]

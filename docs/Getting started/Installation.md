@@ -46,7 +46,7 @@ In the [[Explorer]], use `j`/`k` or arrow keys to move through the file list. Pr
 
 ## Switching vaults
 
-Press `Ctrl+g` to open the vault selector and switch to a different vault.
+Press `Space` then `v` to open the vault selector and switch to a different vault.
 
 ## Getting help
 
