@@ -47,6 +47,21 @@
 > disambiguated by their parent directory. The active tab is a
 > reverse-video highlight so it contrasts on any theme.
 
+- [6692ba1](https://github.com/erikjuhani/basalt/commit/6692ba1aa8c3f814187b3f3207d46ef2cff0d422) Add vim motions, operators and text objects to the note editor by @erikjuhani
+
+> Normal mode in the experimental editor gains a full vim editing
+> grammar. Motions run over the whole document -- `0 ^ $`, `w W b B e E`,
+> `{ } %`, `gg G`, and `f F t T` with `;` and `,` -- and any of them takes
+> a count (`3w`, `10G`).
+>
+> Operators compose with those motions: `d c y` plus a motion, `dd cc
+> yy`, `x D C s`, and `p` / `P` through an unnamed register. Text objects
+> (`ci"`, `da(`, `ciw` ...), `r` to replace a character, and `u` /
+> `ctrl+r` undo round it out; visual-mode `d`/`c`/`y` reuse the same path.
+>
+> Keys stay rebindable in `vim.toml`; only count digits and the character
+> after `f`/`t`/`r` or a text object take a built-in path.
+
 - [8f58061](https://github.com/erikjuhani/basalt/commit/8f5806145a422c2e6d3c23e2bb6fe9bd55001f58) Render callout block quotes by @erikjuhani
 
 > Render Obsidian and GitHub callouts (`> [!note]`) with a per-kind
