@@ -200,6 +200,40 @@ impl ExplorerState {
         }
     }
 
+    pub fn reveal_path(&mut self, path: &Path) {
+        if self.select_path(path) {
+            return;
+        }
+
+        let items: Vec<Item> = path
+            .ancestors()
+            .skip(1)
+            .fold(self.items.clone(), |items, dir| {
+                items
+                    .iter()
+                    .map(|item| Self::toggle_item_in_tree(item, dir, true))
+                    .collect()
+            });
+
+        self.flatten_with_items(&items);
+        self.select_path(path);
+    }
+
+    fn select_path(&mut self, path: &Path) -> bool {
+        if let Some(index) = self
+            .flat_items
+            .iter()
+            .position(|(item, _)| item.path() == path)
+        {
+            self.list_state.select(Some(index));
+            self.selected_item_index.replace(index);
+            self.selected_item_path.replace(path.to_path_buf());
+            true
+        } else {
+            false
+        }
+    }
+
     pub fn hide_pane(&mut self) {
         match self.visibility {
             Visibility::FullWidth => self.visibility = Visibility::Visible,
@@ -413,5 +447,57 @@ mod tests {
         };
         assert_eq!(*depth, 0);
         assert_eq!(items[0].depth(), 1, "nested file should keep its depth");
+    }
+
+    #[test]
+    fn reveal_path_moves_selection_to_matching_note() {
+        let mut state = ExplorerState::default();
+        let entries = vec![
+            VaultEntry::File(Note::new_unchecked("first", &PathBuf::from("first.md"))),
+            VaultEntry::File(Note::new_unchecked("second", &PathBuf::from("second.md"))),
+        ];
+        state.with_entries(entries, None);
+
+        state.reveal_path(Path::new("second.md"));
+        assert_eq!(state.list_state.selected(), Some(1));
+        assert_eq!(
+            state.selected_path().as_deref(),
+            Some(Path::new("second.md"))
+        );
+
+        // An unknown path leaves the selection where it was.
+        state.reveal_path(Path::new("missing.md"));
+        assert_eq!(state.list_state.selected(), Some(1));
+    }
+
+    #[test]
+    fn reveal_path_expands_collapsed_ancestor_folder() {
+        let mut state = ExplorerState::default();
+        let entries = vec![VaultEntry::Directory {
+            name: "dir".into(),
+            path: PathBuf::from("dir"),
+            entries: vec![VaultEntry::File(Note::new_unchecked(
+                "nested",
+                &PathBuf::from("dir/nested.md"),
+            ))],
+        }];
+        state.with_entries(entries, None);
+
+        // The folder starts collapsed, so the note is not in the flattened view.
+        assert!(!state
+            .flat_items
+            .iter()
+            .any(|(item, _)| item.path() == Path::new("dir/nested.md")));
+
+        // Revealing expands the folder and selects the note.
+        state.reveal_path(Path::new("dir/nested.md"));
+        assert_eq!(
+            state.selected_path().as_deref(),
+            Some(Path::new("dir/nested.md"))
+        );
+        assert!(state
+            .flat_items
+            .iter()
+            .any(|(item, _)| item.path() == Path::new("dir/nested.md")));
     }
 }

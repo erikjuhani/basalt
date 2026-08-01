@@ -4,6 +4,64 @@
 
 ### Added
 
+- [f28f6c0](https://github.com/erikjuhani/basalt/commit/f28f6c0ea4a5242199e4f517eebd83162ecc3b0f) Add configurable leader key for key bindings by @erikjuhani
+
+> Bindings can be written against a `<leader>` prefix instead of a fixed
+> key, so a whole set of them can be moved to another prefix by changing
+> one line. The leader is set at the top level of the configuration file
+> and defaults to `<space>`.
+>
+> A binding string now parses into a `KeySpec`, a sequence of elements that
+> are either a literal keystroke or the `<leader>` placeholder. Resolving
+> a spec against the leader yields the concrete `Key` the runtime already
+> dispatches on, so the existing chord machinery is untouched. `Key` keeps
+> its own deserializer and rejects `<leader>`, which makes a self
+> referential `leader = "<leader>"` a config error.
+>
+> Resolution happens once the layers are known rather than at parse time.
+> The leader is read from the user config alone and applied to the bundled
+> config.toml and vim.toml as well, otherwise a `<leader>` binding shipped
+> with basalt would answer to a different key than the user's own.
+>
+> The leader may be a modified key or itself a sequence, and it may appear
+> more than once in a binding.
+
+- [f1b6d9f](https://github.com/erikjuhani/basalt/commit/f1b6d9f459685d0ee8e50be433f9aceeb809fbf6) Add multi-note tabs with cycling by @erikjuhani
+
+> Open several notes at once in a bufferline-style tab bar and cycle
+> through them. Selecting a note focuses its existing tab or opens a new
+> one, so each note keeps its own cursor, scroll and unsaved edits.
+>
+> Cycle with ctrl+n and ctrl+p, the bufferline-style L and H, or the
+> unimpaired ]b and [b, and close the active tab with ctrl+w. All bindings
+> are global so they work from any pane. Cycling moves the explorer
+> selection to the active note, expanding any collapsed folder in its path
+> so the note becomes visible.
+>
+> To free the global L for tab cycling, the debug log overlay's
+> level-cycle key moves from L to l.
+>
+> The bar renders one uniform-width tab per note, shrinking them from a
+> maximum toward a minimum as more open and only ever showing whole tabs.
+> Names are truncated with an ellipsis and tabs that share a name are
+> disambiguated by their parent directory. The active tab is a
+> reverse-video highlight so it contrasts on any theme.
+
+- [6692ba1](https://github.com/erikjuhani/basalt/commit/6692ba1aa8c3f814187b3f3207d46ef2cff0d422) Add vim motions, operators and text objects to the note editor by @erikjuhani
+
+> Normal mode in the experimental editor gains a full vim editing
+> grammar. Motions run over the whole document -- `0 ^ $`, `w W b B e E`,
+> `{ } %`, `gg G`, and `f F t T` with `;` and `,` -- and any of them takes
+> a count (`3w`, `10G`).
+>
+> Operators compose with those motions: `d c y` plus a motion, `dd cc
+> yy`, `x D C s`, and `p` / `P` through an unnamed register. Text objects
+> (`ci"`, `da(`, `ciw` ...), `r` to replace a character, and `u` /
+> `ctrl+r` undo round it out; visual-mode `d`/`c`/`y` reuse the same path.
+>
+> Keys stay rebindable in `vim.toml`; only count digits and the character
+> after `f`/`t`/`r` or a text object take a built-in path.
+
 - [8f58061](https://github.com/erikjuhani/basalt/commit/8f5806145a422c2e6d3c23e2bb6fe9bd55001f58) Render callout block quotes by @erikjuhani
 
 > Render Obsidian and GitHub callouts (`> [!note]`) with a per-kind
@@ -65,6 +123,22 @@
 > dash row that would otherwise vanish from the document.
 
 ### Breaking
+
+- [fb5e51c](https://github.com/erikjuhani/basalt/commit/fb5e51c667ed794bc11a412a2b27a8bf2e73ca91) Move four global bindings onto the leader key by @erikjuhani
+
+> The vault selector, debug log overlay, external editor and Obsidian
+> commands were on ctrl+g, g<, ctrl+alt+e and ctrl+alt+o. They are now
+> <leader>v, <leader>d, <leader>e and <leader>o, which frees the awkward
+> chords and lets all four follow a user's chosen leader. Quit, help and
+> the tab bindings are unchanged.
+>
+> The old keys stop working, so muscle memory for ctrl+g in particular
+> needs relearning. Rebinding them in the user config restores them.
+>
+> Note that <space> is now a live prefix in every non editing pane, so a
+> bare space waits for the next keystroke. If that key completes no
+> sequence it is retried on its own, and insert mode and the input modal
+> bypass sequence handling entirely, so typing is unaffected.
 
 - [1863417](https://github.com/erikjuhani/basalt/commit/1863417adfd88ba2f82b7879ea456054ef01d38f) Relicense: GPL-3.0 for app, Apache-2.0 for libraries; add CLA by @erikjuhani
 

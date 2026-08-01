@@ -37,7 +37,7 @@ VAULT SELECTION
     ‹q›,        Quit the application
     ‹Ctrl+C›
     ‹?›         Show this help
-    ‹g<›        Toggle debug log overlay
+    ‹Leader›‹d› Toggle debug log overlay
     ‹k›         Move selection up
     ‹j›         Move selection down
     ‹↩ Enter›   Select and open the highlighted vault
@@ -45,8 +45,9 @@ VAULT SELECTION
     ‹Tab›       Switch to next pane
     ‹Shift+Tab› Switch to previous pane
 
-  The vault selection can be brought up as a modal by hitting ‹Ctrl+G› after
-  the startup screen.
+  The vault selection can be brought up as a modal by hitting ‹Leader›‹v›
+  after the startup screen. ‹Leader› is ‹Space› unless it is changed with
+  `leader` in the configuration file.
 
 INTERFACE
 
@@ -86,7 +87,7 @@ INTERFACE
       ‹Tab›       Switch to next pane
       ‹Shift+Tab› Switch to previous pane
 
-      ‹Ctrl+G›    Toggle vault selector modal
+      ‹Leader›‹v› Toggle vault selector modal
       ‹Ctrl+B›    Toggle explorer panel visibility
       ‹Ctrl+U›    Scroll up half a page
       ‹Ctrl+D›    Scroll down half a page
@@ -116,7 +117,7 @@ INTERFACE
       ‹Shift+Tab› Switch to previous pane
 
       ‹Ctrl+O›    Toggle outline pane visibility
-      ‹Ctrl+G›    Toggle vault selector modal
+      ‹Leader›‹v› Toggle vault selector modal
       ‹Ctrl+B›    Toggle explorer pane visibility
 
   NOTE EDITOR PANE
@@ -144,7 +145,7 @@ INTERFACE
         ‹Tab›       Switch to next pane
         ‹Shift+Tab› Switch to previous pane
 
-        ‹Ctrl+G›    Toggle vault selector modal
+        ‹Leader›‹v› Toggle vault selector modal
         ‹Ctrl+B›    Toggle explorer panel visibility
         ‹Ctrl+U›    Scroll up half a page
         ‹Ctrl+D›    Scroll down half a page
@@ -185,13 +186,24 @@ INTERFACE
         ‹Alt+→›                  Move forward by word
         ‹Alt+←›                  Move backward by word
 
+      VIM NORMAL MODE (when vim_mode is enabled)
+
+        Motions      ‹h j k l›  ‹0 ^ $›  ‹w b e›  ‹W B E›  ‹{ }›  ‹%›
+                     ‹gg› top   ‹G› bottom   ‹f F t T›{char}   ‹; ,›
+                     counts, e.g. ‹3w›, ‹5j›, ‹10G›
+        Operators    ‹d› ‹c› ‹y› + a motion (‹dw›, ‹de›, ‹y$›, ‹ct.›)
+                     ‹dd› ‹cc› ‹yy› whole line   ‹x›   ‹D›   ‹C›   ‹s›
+        Text objects ‹i›/‹a› + object after an operator: ‹ciw› ‹ci"› ‹di(›
+                     ‹ca{› … (quotes ‹" ' `›, brackets ‹( [ { <›, word ‹w W›)
+        Insert       ‹i› insert   ‹a› append after cursor
+        Registers    ‹p› paste after   ‹P› paste before   (‹y› also copies
+                     to the system clipboard)
+        History      ‹u› undo   ‹Ctrl+R› redo
+        Visual       ‹v› / ‹V›, extend with a motion, then ‹d› / ‹c› / ‹y›
+
       LIMITATIONS:
-        • No undo/redo support
-        • No paste or cut (yank to clipboard is supported in vim mode)
-        • Text selection only via vim visual mode (‹v› / ‹V›, then ‹y›)
-        • No multi-line deletion
-        • No line/word deletion commands
-        • No jumping to start/end of line or document
+        • Undo/redo, paste and word/line deletion require vim mode
+        • Text selection only via vim visual mode (‹v› / ‹V›)
 
   INPUT MODAL
 

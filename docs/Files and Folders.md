@@ -14,7 +14,7 @@ You can override the configuration directory by setting the `OBSIDIAN_CONFIG_DIR
 
 ## Switching vaults
 
-Press `Ctrl+g` to open the vault selector and switch between vaults.
+Press `Space` then `v` to open the vault selector and switch between vaults.
 
 ## File types
 

@@ -145,7 +145,7 @@ Configure an external editor command in your [[Configuration]]:
 ```toml
 [global]
 key_bindings = [
-  { key = "ctrl+alt+e", command = "exec:vi %note_path" },
+  { key = "<leader>e", command = "exec:vi %note_path" },
 ]
 ```
 

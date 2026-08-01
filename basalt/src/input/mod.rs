@@ -331,7 +331,7 @@ impl StatefulWidget for Input {
 
         Clear.render(area, buf);
 
-        let row = y as u16;
+        let row = area.top();
         let col = state.cursor_col as u16 + area.left();
 
         if state.cursor_col > state.scroll + width as usize {

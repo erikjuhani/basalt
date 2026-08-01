@@ -50,6 +50,36 @@ key_bindings = [
 `<` and `>` are reserved for this syntax; bind the literal keys with `<lt>` and
 `<gt>`.
 
+## Leader key
+
+`<leader>` is a placeholder for a prefix key of your choosing, so a whole set of
+bindings can be moved to a different prefix by changing one line. It defaults to
+`<space>` and is set at the top level of the configuration file:
+
+```toml
+leader = ","
+
+[global]
+key_bindings = [
+  { key = "<leader>f", command = "explorer_toggle" },
+]
+```
+
+The leader applies to the defaults as well as to your own bindings, so the above
+turns `Space v` into `,v`, `Space d` into `,d`, and binds `,f` on top.
+
+| Default binding | Command                       |
+| --------------- | ----------------------------- |
+| `<leader>v`     | Toggle vault selector modal   |
+| `<leader>d`     | Toggle debug log overlay      |
+| `<leader>e`     | Open the note in `vi`         |
+| `<leader>o`     | Open the note in Obsidian     |
+
+The leader may be any key, including a modified one (`leader = "ctrl+w"`) or a
+sequence (`leader = "gs"`), and it may appear more than once in a binding
+(`<leader><leader>`). It cannot refer to itself: `leader = "<leader>"` is an
+error.
+
 ## Available commands
 
 ### Global commands
@@ -59,6 +89,9 @@ key_bindings = [
 | `quit`                        | Exit the application                 |
 | `vault_selector_modal_toggle` | Toggle vault selector modal          |
 | `help_modal_toggle`           | Toggle help modal                    |
+| `tab_next`                    | Focus the next open note tab         |
+| `tab_previous`                | Focus the previous open note tab     |
+| `tab_close`                   | Close the active note tab            |
 
 ### Splash commands
 
