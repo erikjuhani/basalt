@@ -4,33 +4,6 @@
 
 ### Added
 
-- [8f58061](https://github.com/erikjuhani/basalt/commit/8f5806145a422c2e6d3c23e2bb6fe9bd55001f58) Render callout block quotes by @erikjuhani
-
-> Render Obsidian and GitHub callouts (`> [!note]`) with a per-kind
-> coloured bar and an icon + title header above the body, keeping the
-> accent colour while editing.
->
-> Support the full Obsidian type set (note, abstract, info, todo, tip,
-> success, question, warning, failure, danger, bug, example, quote) and
-> their aliases, plus custom titles and fold markers (`[!note]- Title`),
-> which pulldown-cmark does not recognise. Type names are case-insensitive
-> and unknown types fall back to note, as in Obsidian.
->
-> Each type has a configurable symbol across the ascii, unicode and nerd
-> font presets.
-
-- [00430a8](https://github.com/erikjuhani/basalt/commit/00430a85d15c49a0b6d5ea81038608ab15abe57d) Add vim visual selection with clipboard yank by @erikjuhani
-
-> Visual selection comes to the vim-mode note editor. `v` starts a
-> charwise selection and `V` a linewise one, motions extend it, `y` yanks
-> the selection to the system clipboard and `esc` cancels. A brief flash
-> marks the yanked range, and the highlight is painted per character and
-> clipped to the editor viewport.
->
-> Clipboard writes use the platform utility (pbcopy, wl-copy, xclip, xsel
-> or clip) with an OSC 52 fallback for SSH and tmux, so no new dependency
-> is added.
-
 - [1b66afd](https://github.com/erikjuhani/basalt/commit/1b66afdca6c036072981332877fa04b9a6610035) Pan viewport horizontally to follow the cursor in edit mode by @erikjuhani
 
 > Long source lines are shown raw (unwrapped) while editing, so the cursor
@@ -44,7 +17,7 @@
 > `width + offset`, covering every visible block, not just the one being
 > edited.
 
-- [51d9f92](https://github.com/erikjuhani/basalt/commit/51d9f92a834f1e30c84edaee380d6f7e9d168052) Add markdown table rendering to the note editor
+- [51d9f92](https://github.com/erikjuhani/basalt/commit/51d9f92a834f1e30c84edaee380d6f7e9d168052) Add markdown table rendering to the note editor by @erikjuhani
 
 > Tables were parsed away as paragraphs and never drawn. The note editor
 > now renders GFM tables as bordered boxes in reading view. Columns size
@@ -63,6 +36,33 @@
 > A thematic break is now kept as a plain paragraph instead of being
 > dropped, because a table whose pipes are deleted degrades into a bare
 > dash row that would otherwise vanish from the document.
+
+- [00430a8](https://github.com/erikjuhani/basalt/commit/00430a85d15c49a0b6d5ea81038608ab15abe57d) Add vim visual selection with clipboard yank by @erikjuhani
+
+> Add vim-style visual selection to the note editor: v (charwise) and V
+> (linewise) select text, y yanks the selection to the clipboard and esc
+> cancels. A brief flash highlights the yanked range to acknowledge the
+> copy.
+>
+> The selection is highlighted per character and clipped to the editor
+> viewport. Clipboard writes go through a native utility (pbcopy, wl-copy,
+> xclip, xsel or clip) with an OSC 52 fallback for SSH and tmux, adding no
+> new dependencies.
+
+- [8f58061](https://github.com/erikjuhani/basalt/commit/8f5806145a422c2e6d3c23e2bb6fe9bd55001f58) Render callout block quotes by @erikjuhani
+
+> Render Obsidian and GitHub callouts (`> [!note]`) with a per-kind
+> coloured bar and an icon + title header above the body, keeping the
+> accent colour while editing.
+>
+> Support the full Obsidian type set (note, abstract, info, todo, tip,
+> success, question, warning, failure, danger, bug, example, quote) and
+> their aliases, plus custom titles and fold markers (`[!note]- Title`),
+> which pulldown-cmark does not recognise. Type names are case-insensitive
+> and unknown types fall back to note, as in Obsidian.
+>
+> Each type has a configurable symbol across the ascii, unicode and nerd
+> font presets.
 
 ### Breaking
 
@@ -84,7 +84,34 @@
 > request template that acknowledges the CLA.
 >
 > Already-published versions remain MIT for anyone who has them; the new
-> terms take effect with this release (0.12.7).
+> terms apply from the next release onward.
+
+### Fixed
+
+- [1aa72d0](https://github.com/erikjuhani/basalt/commit/1aa72d00abe7e0bdb00aa883921422aae12dbb1d) Highlight prettified list markers in visual selection by @erikjuhani
+
+> Rendered list markers (and other leading synthetic glyphs like quote and
+> heading prefixes) carry no source range, so the selection highlight
+> skipped them and a selected line's marker was left blank. Highlight a
+> synthetic span when the content it precedes is selected, so the marker is
+> part of the selection.
+
+- [8e90558](https://github.com/erikjuhani/basalt/commit/8e90558b3041b90f5cd95b51aca0d1060d26bf05) Preserve explorer cursor and selection across background vault rescans
+
+> A background RescanVault fires whenever the debounced filesystem watcher
+> sees a relevant change, including the app's own autosave write to the
+> open note. Because a Note carries only a name and path, a content-only
+> write produces a structurally identical tree, yet the handler still
+> rebuilt the explorer and re-selected the open note's path. That snapped
+> the cursor back onto the open note whenever a watcher event landed while
+> the user had navigated away.
+>
+> Add ExplorerState::rescan, which no-ops when the flattened tree is
+> unchanged so a content-only write never touches the explorer. When the
+> structure does change it re-resolves the cursor and the open-note marker
+> independently by path, so neither snaps to the other.
+>
+> Fixes #589
 
 ## [0.12.6](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.6) (Jun, 21 2026)
 
