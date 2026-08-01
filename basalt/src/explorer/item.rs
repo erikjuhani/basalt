@@ -34,6 +34,13 @@ impl Item {
     pub(crate) fn is_dir(&self) -> bool {
         matches!(self, Self::Directory { .. })
     }
+
+    pub(crate) fn path(&self) -> PathBuf {
+        match self {
+            Self::Directory { path, .. } => path.clone(),
+            Self::File { note, .. } => note.path().to_path_buf(),
+        }
+    }
 }
 
 impl From<VaultEntry> for Item {

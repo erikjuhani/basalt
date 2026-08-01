@@ -498,8 +498,7 @@ impl<'a> App<'a> {
                 return Some(Message::SetActivePane(ActivePane::Explorer));
             }
             Message::RescanVault => {
-                let select = state.selected_note.as_ref().map(|note| note.path.clone());
-                state.explorer.with_entries(state.vault.entries(), select);
+                state.explorer.rescan(state.vault.entries());
                 debug!("rescanned vault after watcher change");
             }
             Message::CreateUntitledNote => {

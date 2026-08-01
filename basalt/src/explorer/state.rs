@@ -189,15 +189,50 @@ impl ExplorerState {
         self.flatten_with_items(&items);
 
         if let Some(path) = select {
-            if let Some(index) = self.flat_items.iter().position(|(item, _)| match item {
-                Item::File { note, .. } => note.path() == path,
-                Item::Directory { path: dir_path, .. } => dir_path == &path,
-            }) {
+            if let Some(index) = self.index_of(&path) {
                 self.list_state.select(Some(index));
                 self.selected_item_index = Some(index);
                 self.selected_item_path = Some(path);
             }
         }
+    }
+
+    /// Refreshes entries from a background vault rescan while preserving what the user is
+    /// looking at. No-ops when the flattened tree is structurally unchanged: a content-only
+    /// write (the app's own autosave included) leaves the tree identical, so it must not
+    /// touch the explorer. When the structure genuinely changes, the cursor and the open-note
+    /// marker are re-resolved independently by path so neither snaps to the other.
+    pub fn rescan(&mut self, entries: Vec<VaultEntry>) {
+        let mut items: Vec<Item> = entries
+            .into_iter()
+            .map(|entry| self.map_to_item(0, entry))
+            .collect();
+        items.sort_by(sort_items_by(self.sort));
+        let flat_items: Vec<(Item, usize)> = items.iter().flat_map(flatten(self.sort, 0)).collect();
+
+        if flat_items == self.flat_items {
+            return;
+        }
+
+        let cursor_path = self.current_item().map(Item::path);
+        self.items = items;
+        self.flat_items = flat_items;
+
+        self.selected_item_index = self
+            .selected_item_path
+            .clone()
+            .and_then(|path| self.index_of(&path));
+
+        if let Some(index) = cursor_path.and_then(|path| self.index_of(&path)) {
+            self.list_state.select(Some(index));
+        }
+    }
+
+    fn index_of(&self, path: &Path) -> Option<usize> {
+        self.flat_items.iter().position(|(item, _)| match item {
+            Item::File { note, .. } => note.path() == path,
+            Item::Directory { path: dir_path, .. } => dir_path == path,
+        })
     }
 
     pub fn hide_pane(&mut self) {
@@ -413,5 +448,58 @@ mod tests {
         };
         assert_eq!(*depth, 0);
         assert_eq!(items[0].depth(), 1, "nested file should keep its depth");
+    }
+
+    fn note(name: &str) -> VaultEntry {
+        VaultEntry::File(Note::new_unchecked(
+            name,
+            &PathBuf::from(format!("{name}.md")),
+        ))
+    }
+
+    #[test]
+    fn rescan_does_not_move_cursor_when_structure_unchanged() {
+        let mut state = ExplorerState::default();
+        let entries = vec![note("a"), note("b"), note("c")];
+        // Open note `a`, then navigate the cursor away to `b`.
+        state.with_entries(entries.clone(), Some(PathBuf::from("a.md")));
+        state.list_state.select(Some(1));
+
+        // A content-only autosave produces an identical tree: nothing should move.
+        state.rescan(entries);
+
+        assert_eq!(state.list_state.selected(), Some(1), "cursor stays on `b`");
+        assert_eq!(
+            state.selected_item_path,
+            Some(PathBuf::from("a.md")),
+            "open-note marker stays on `a`"
+        );
+    }
+
+    #[test]
+    fn rescan_preserves_cursor_and_marker_by_identity_across_structural_change() {
+        let mut state = ExplorerState::default();
+        // Open note `b`, then navigate the cursor away to `c`.
+        state.with_entries(vec![note("b"), note("c")], Some(PathBuf::from("b.md")));
+        state.list_state.select(Some(1));
+
+        // Another process adds `a.md`, which sorts to the front and shifts every index.
+        state.rescan(vec![note("a"), note("b"), note("c")]);
+
+        assert_eq!(
+            state.list_state.selected(),
+            Some(2),
+            "cursor follows `c` to its new index instead of snapping to the open note"
+        );
+        assert_eq!(
+            state.selected_item_path,
+            Some(PathBuf::from("b.md")),
+            "open-note marker stays on `b` instead of jumping to the cursor"
+        );
+        assert_eq!(
+            state.selected_item_index,
+            Some(1),
+            "open-note index is re-resolved to `b`'s shifted position"
+        );
     }
 }
