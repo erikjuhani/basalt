@@ -277,6 +277,8 @@ fn operate_lines<'a>(
 }
 
 fn motion_to<'a>(state: &mut NoteEditorState, offset: usize) -> Option<AppMessage<'a>> {
+    let offset = motion::clamp_cursor(&state.content, offset);
+    let offset = state.snap_out_of_gap(offset);
     state.jump_to_offset(offset);
     select_at_cursor(state)
 }
@@ -780,6 +782,36 @@ mod tests {
 
         update(Message::CursorWordBackward, size, &mut state);
         assert_eq!(state.cursor.source_offset(), 4, "b lands on start of 'bar'");
+    }
+
+    #[test]
+    fn test_word_forward_across_block_gap_stays_consistent() {
+        let mut state = vim_edit_state("first para\n\nsecond para\n");
+        let size = Size::new(40, 10);
+
+        update(Message::CursorLineEnd, size, &mut state);
+        update(Message::CursorWordForward, size, &mut state);
+
+        assert_eq!(state.cursor.source_offset(), 12, "w lands on 'second'");
+        assert_eq!(
+            state.editing_block(),
+            Some(state.current_block_idx()),
+            "the raw block matches the block the cursor sits in"
+        );
+    }
+
+    #[test]
+    fn test_word_forward_clamps_at_line_end() {
+        let mut state = vim_edit_state("foo bar baz\n");
+        let size = Size::new(40, 10);
+
+        update(Message::CursorLineEnd, size, &mut state);
+        update(Message::CursorWordForward, size, &mut state);
+        assert_eq!(
+            state.cursor.source_offset(),
+            10,
+            "w on the last word stays on 'z', not past the row"
+        );
     }
 
     #[test]
