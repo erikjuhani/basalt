@@ -281,6 +281,10 @@ impl<'a> NoteEditorState<'a> {
         self.text_buffer.as_ref()
     }
 
+    pub fn editing_block(&self) -> Option<usize> {
+        self.editing_block
+    }
+
     fn block_source_range(&self, block_idx: usize) -> Option<Range<usize>> {
         let node = self.ast_nodes.get(block_idx)?;
         let start = if block_idx == 0 {

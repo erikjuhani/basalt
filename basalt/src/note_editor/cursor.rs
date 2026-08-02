@@ -429,7 +429,7 @@ mod tests {
             .iter()
             .map(|span| match span {
                 VirtualSpan::Content(s, _)
-                | VirtualSpan::Synthetic(s)
+                | VirtualSpan::Synthetic(s, _)
                 | VirtualSpan::WrapMarker(s) => s.content.to_string(),
             })
             .collect();
