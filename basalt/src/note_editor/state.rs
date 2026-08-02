@@ -219,6 +219,10 @@ impl<'a> NoteEditorState<'a> {
         self.text_buffer.as_ref()
     }
 
+    pub fn editing_block(&self) -> Option<usize> {
+        self.editing_block
+    }
+
     pub fn enter_insert(&mut self, block_idx: usize) {
         // Commit any pending edits from the previous block before switching.
         self.commit_text_buffer();
@@ -853,19 +857,31 @@ impl<'a> NoteEditorState<'a> {
         let offset = cursor::snap_to_char_boundary(&self.content, offset);
 
         if matches!(self.view, View::Edit(..)) {
+            let preceding = || {
+                self.ast_nodes
+                    .iter()
+                    .rposition(|node| node.source_range().end <= offset)
+            };
+            let following = || {
+                self.ast_nodes
+                    .iter()
+                    .position(|node| node.source_range().start >= offset)
+            };
             let target_block = self
                 .ast_nodes
                 .iter()
                 .position(|node| node.source_range().contains(&offset))
                 .or_else(|| {
-                    self.ast_nodes
-                        .iter()
-                        .position(|node| node.source_range().start >= offset)
-                })
-                .or_else(|| {
-                    self.ast_nodes
-                        .iter()
-                        .rposition(|node| node.source_range().end <= offset)
+                    // Outside every block: a blank separator line belongs to the
+                    // preceding block, while leading whitespace belongs to the
+                    // block it indents. Prefer accordingly, fall back the other way.
+                    let on_blank_line =
+                        offset == self.content.len() || self.content[offset..].starts_with('\n');
+                    if on_blank_line {
+                        preceding().or_else(following)
+                    } else {
+                        following().or_else(preceding)
+                    }
                 });
             if let Some(block) = target_block {
                 if self.editing_block != Some(block) {

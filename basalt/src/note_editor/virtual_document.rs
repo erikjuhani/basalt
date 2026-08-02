@@ -29,7 +29,7 @@ macro_rules! content_span {
 
 macro_rules! synthetic_span {
     ($span:expr) => {{
-        VirtualSpan::Synthetic($span.clone().into())
+        VirtualSpan::Synthetic($span.clone().into(), None)
     }};
 }
 
@@ -52,16 +52,14 @@ pub(crate) use virtual_line;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum VirtualSpan<'a> {
-    Synthetic(Span<'a>),
+    Synthetic(Span<'a>, Option<SourceRange<usize>>),
     Content(Span<'a>, SourceRange<usize>),
 }
 
 impl VirtualSpan<'_> {
     pub fn contains_offset(&self, offset: usize) -> bool {
-        match self {
-            VirtualSpan::Content(_, source_range) => source_range.contains(&offset),
-            _ => false,
-        }
+        self.source_range()
+            .is_some_and(|range| range.contains(&offset))
     }
 
     pub fn chars(&self) -> Chars<'_> {
@@ -81,13 +79,13 @@ impl VirtualSpan<'_> {
     pub fn source_range(&self) -> Option<&SourceRange<usize>> {
         match self {
             Self::Content(.., source_range) => Some(source_range),
-            Self::Synthetic(..) => None,
+            Self::Synthetic(.., source_range) => source_range.as_ref(),
         }
     }
 
     pub fn width(&self) -> usize {
         let span = match self {
-            VirtualSpan::Content(span, ..) | VirtualSpan::Synthetic(span) => span,
+            VirtualSpan::Content(span, ..) | VirtualSpan::Synthetic(span, ..) => span,
         };
         // A tab is one byte but rendered as two columns (expanded at draw time).
         span.content
@@ -104,7 +102,7 @@ impl VirtualSpan<'_> {
 impl<'a> From<VirtualSpan<'a>> for Span<'a> {
     fn from(value: VirtualSpan<'a>) -> Self {
         let span = match value {
-            VirtualSpan::Synthetic(span) | VirtualSpan::Content(span, _) => span,
+            VirtualSpan::Synthetic(span, _) | VirtualSpan::Content(span, _) => span,
         };
         // Expand tabs so the terminal doesn't break the layout; the cursor maps
         // by byte offset against the un-expanded content (tabs counted as two).
@@ -350,8 +348,9 @@ impl<'a> VirtualDocument<'a> {
                     // Append empty rows so on-screen spacing mirrors the source:
                     // blanks already inside the block, plus blanks in the gap to
                     // the next block. The last block gets one trailing row.
-                    let trailing = match ast_nodes.get(idx + 1) {
-                        None => 1,
+                    match ast_nodes.get(idx + 1) {
+                        // Padding past the final block; it maps to no source line.
+                        None => block.lines.push(empty_virtual_line!()),
                         Some(next) => {
                             let absorbed = if is_active {
                                 0
@@ -365,13 +364,25 @@ impl<'a> VirtualDocument<'a> {
                             // The first newline only terminates the block's last
                             // line unless that line already ended with one.
                             let terminator = !slice.ends_with('\n') as usize;
-                            absorbed + gap_blanks.saturating_sub(terminator)
-                        }
-                    };
 
-                    block
-                        .lines
-                        .extend((0..trailing).map(|_| empty_virtual_line!()));
+                            // Blanks absorbed from inside the block carry no gap
+                            // position; the blank lines in the gap to the next block
+                            // are real, navigable empty lines at their own offset.
+                            block
+                                .lines
+                                .extend((0..absorbed).map(|_| empty_virtual_line!()));
+                            let first = end + terminator;
+                            block
+                                .lines
+                                .extend((0..gap_blanks.saturating_sub(terminator)).map(|i| {
+                                    let at = first + i;
+                                    virtual_line!([VirtualSpan::Synthetic(
+                                        Span::default(),
+                                        Some(at..at + 1),
+                                    )])
+                                }));
+                        }
+                    }
                 }
 
                 let block_lines = block.lines.clone();
