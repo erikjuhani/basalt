@@ -4,27 +4,65 @@
 
 ### Added
 
-- [f28f6c0](https://github.com/erikjuhani/basalt/commit/f28f6c0ea4a5242199e4f517eebd83162ecc3b0f) Add configurable leader key for key bindings by @erikjuhani
+- [1b66afd](https://github.com/erikjuhani/basalt/commit/1b66afdca6c036072981332877fa04b9a6610035) Pan viewport horizontally to follow the cursor in edit mode by @erikjuhani
 
-> Bindings can be written against a `<leader>` prefix instead of a fixed
-> key, so a whole set of them can be moved to another prefix by changing
-> one line. The leader is set at the top level of the configuration file
-> and defaults to `<space>`.
+> Long source lines are shown raw (unwrapped) while editing, so the cursor
+> could move past the right edge and disappear. Track a horizontal scroll
+> offset and pan the document so the cursor stays visible, mirroring the
+> existing vertical follow logic.
 >
-> A binding string now parses into a `KeySpec`, a sequence of elements that
-> are either a literal keystroke or the `<leader>` placeholder. Resolving
-> a spec against the leader yields the concrete `Key` the runtime already
-> dispatches on, so the existing chord machinery is untouched. `Key` keeps
-> its own deserializer and rejects `<leader>`, which makes a self
-> referential `leader = "<leader>"` a config error.
+> When the document pans, full-width fills must extend with it or they stop
+> short of the right edge. Thread the scroll offset through the render path
+> so code-block backgrounds, heading underlines, and the title rule span
+> `width + offset`, covering every visible block, not just the one being
+> edited.
+
+- [51d9f92](https://github.com/erikjuhani/basalt/commit/51d9f92a834f1e30c84edaee380d6f7e9d168052) Add markdown table rendering to the note editor by @erikjuhani
+
+> Tables were parsed away as paragraphs and never drawn. The note editor
+> now renders GFM tables as bordered boxes in reading view. Columns size
+> to their content and, when the table is too wide to fit, share the spare
+> width in proportion to each column's demand the way browsers lay out
+> tables, so a long column takes the most slack without starving the
+> others, and cell text wraps to fit.
 >
-> Resolution happens once the layers are known rather than at parse time.
-> The leader is read from the user config alone and applied to the bundled
-> config.toml and vim.toml as well, otherwise a `<leader>` binding shipped
-> with basalt would answer to a different key than the user's own.
+> While editing, a table renders as the same box but reveals the row under
+> the cursor as raw markdown so its pipes stay editable, and every row
+> including the delimiter is reachable. The box is only drawn while the
+> buffer still parses as a table, so the moment the syntax breaks the block
+> falls back to raw line by line editing and a half broken table never
+> hides itself.
 >
-> The leader may be a modified key or itself a sequence, and it may appear
-> more than once in a binding.
+> A thematic break is now kept as a plain paragraph instead of being
+> dropped, because a table whose pipes are deleted degrades into a bare
+> dash row that would otherwise vanish from the document.
+
+- [00430a8](https://github.com/erikjuhani/basalt/commit/00430a85d15c49a0b6d5ea81038608ab15abe57d) Add vim visual selection with clipboard yank by @erikjuhani
+
+> Add vim-style visual selection to the note editor: v (charwise) and V
+> (linewise) select text, y yanks the selection to the clipboard and esc
+> cancels. A brief flash highlights the yanked range to acknowledge the
+> copy.
+>
+> The selection is highlighted per character and clipped to the editor
+> viewport. Clipboard writes go through a native utility (pbcopy, wl-copy,
+> xclip, xsel or clip) with an OSC 52 fallback for SSH and tmux, adding no
+> new dependencies.
+
+- [8f58061](https://github.com/erikjuhani/basalt/commit/8f5806145a422c2e6d3c23e2bb6fe9bd55001f58) Render callout block quotes by @erikjuhani
+
+> Render Obsidian and GitHub callouts (`> [!note]`) with a per-kind
+> coloured bar and an icon + title header above the body, keeping the
+> accent colour while editing.
+>
+> Support the full Obsidian type set (note, abstract, info, todo, tip,
+> success, question, warning, failure, danger, bug, example, quote) and
+> their aliases, plus custom titles and fold markers (`[!note]- Title`),
+> which pulldown-cmark does not recognise. Type names are case-insensitive
+> and unknown types fall back to note, as in Obsidian.
+>
+> Each type has a configurable symbol across the ascii, unicode and nerd
+> font presets.
 
 - [f1b6d9f](https://github.com/erikjuhani/basalt/commit/f1b6d9f459685d0ee8e50be433f9aceeb809fbf6) Add multi-note tabs with cycling by @erikjuhani
 
@@ -47,98 +85,49 @@
 > disambiguated by their parent directory. The active tab is a
 > reverse-video highlight so it contrasts on any theme.
 
+- [f28f6c0](https://github.com/erikjuhani/basalt/commit/f28f6c0ea4a5242199e4f517eebd83162ecc3b0f) Add configurable leader key for key bindings by @erikjuhani
+
+> Bindings can be written against a `<leader>` prefix instead of a fixed
+> key, so a whole set of them can be moved to another prefix by changing
+> one line. The leader is set at the top level of the configuration file
+> and defaults to `<space>`.
+>
+> A binding string now parses into a `KeySpec`, a sequence of elements that
+> are either a literal keystroke or the `<leader>` placeholder. Resolving
+> a spec against the leader yields the concrete `Key` the runtime already
+> dispatches on, so the existing chord machinery is untouched. `Key` keeps
+> its own deserializer and rejects `<leader>`, which makes a self
+> referential `leader = "<leader>"` a config error.
+>
+> Resolution happens once the layers are known rather than at parse time.
+> The leader is read from the user config alone and applied to the bundled
+> config.toml and vim.toml as well, otherwise a `<leader>` binding shipped
+> with basalt would answer to a different key than the user's own.
+>
+> The leader may be a modified key or itself a sequence, and it may appear
+> more than once in a binding.
+
 - [6692ba1](https://github.com/erikjuhani/basalt/commit/6692ba1aa8c3f814187b3f3207d46ef2cff0d422) Add vim motions, operators and text objects to the note editor by @erikjuhani
 
-> Normal mode in the experimental editor gains a full vim editing
-> grammar. Motions run over the whole document -- `0 ^ $`, `w W b B e E`,
-> `{ } %`, `gg G`, and `f F t T` with `;` and `,` -- and any of them takes
-> a count (`3w`, `10G`).
+> Grow the experimental editor's Normal mode from a few cursor moves into a
+> full vim editing grammar.
 >
-> Operators compose with those motions: `d c y` plus a motion, `dd cc
-> yy`, `x D C s`, and `p` / `P` through an unnamed register. Text objects
-> (`ci"`, `da(`, `ciw` ...), `r` to replace a character, and `u` /
-> `ctrl+r` undo round it out; visual-mode `d`/`c`/`y` reuse the same path.
+> Motions run over the whole document through a pure motion engine
+> (motion.rs) and a jump_to_offset primitive that crosses blocks: 0 ^ $,
+> w W b B e E, { } %, gg G, and f F t T with ; , to repeat. A count
+> prefixes any motion (3w, 5j, 10G).
 >
-> Keys stay rebindable in `vim.toml`; only count digits and the character
-> after `f`/`t`/`r` or a text object take a built-in path.
-
-- [8f58061](https://github.com/erikjuhani/basalt/commit/8f5806145a422c2e6d3c23e2bb6fe9bd55001f58) Render callout block quotes by @erikjuhani
-
-> Render Obsidian and GitHub callouts (`> [!note]`) with a per-kind
-> coloured bar and an icon + title header above the body, keeping the
-> accent colour while editing.
+> Operators compose with motions via an operator-pending state machine:
+> d c y over any motion, dd cc yy, x D C s, and p/P through an unnamed
+> register. Text objects (ci", da(, ciw ...), r to replace a character,
+> and u / ctrl+r undo built on content snapshots round it out; visual-mode
+> d/c/y reuse the same path.
 >
-> Support the full Obsidian type set (note, abstract, info, todo, tip,
-> success, question, warning, failure, danger, bug, example, quote) and
-> their aliases, plus custom titles and fold markers (`[!note]- Title`),
-> which pulldown-cmark does not recognise. Type names are case-insensitive
-> and unknown types fall back to note, as in Obsidian.
->
-> Each type has a configurable symbol across the ascii, unicode and nerd
-> font presets.
-
-- [00430a8](https://github.com/erikjuhani/basalt/commit/00430a85d15c49a0b6d5ea81038608ab15abe57d) Add vim visual selection with clipboard yank by @erikjuhani
-
-> Visual selection comes to the vim-mode note editor. `v` starts a
-> charwise selection and `V` a linewise one, motions extend it, `y` yanks
-> the selection to the system clipboard and `esc` cancels. A brief flash
-> marks the yanked range, and the highlight is painted per character and
-> clipped to the editor viewport.
->
-> Clipboard writes use the platform utility (pbcopy, wl-copy, xclip, xsel
-> or clip) with an OSC 52 fallback for SSH and tmux, so no new dependency
-> is added.
-
-- [1b66afd](https://github.com/erikjuhani/basalt/commit/1b66afdca6c036072981332877fa04b9a6610035) Pan viewport horizontally to follow the cursor in edit mode by @erikjuhani
-
-> Long source lines are shown raw (unwrapped) while editing, so the cursor
-> could move past the right edge and disappear. Track a horizontal scroll
-> offset and pan the document so the cursor stays visible, mirroring the
-> existing vertical follow logic.
->
-> When the document pans, full-width fills must extend with it or they stop
-> short of the right edge. Thread the scroll offset through the render path
-> so code-block backgrounds, heading underlines, and the title rule span
-> `width + offset`, covering every visible block, not just the one being
-> edited.
-
-- [51d9f92](https://github.com/erikjuhani/basalt/commit/51d9f92a834f1e30c84edaee380d6f7e9d168052) Add markdown table rendering to the note editor
-
-> Tables were parsed away as paragraphs and never drawn. The note editor
-> now renders GFM tables as bordered boxes in reading view. Columns size
-> to their content and, when the table is too wide to fit, share the spare
-> width in proportion to each column's demand the way browsers lay out
-> tables, so a long column takes the most slack without starving the
-> others, and cell text wraps to fit.
->
-> While editing, a table renders as the same box but reveals the row under
-> the cursor as raw markdown so its pipes stay editable, and every row
-> including the delimiter is reachable. The box is only drawn while the
-> buffer still parses as a table, so the moment the syntax breaks the block
-> falls back to raw line by line editing and a half broken table never
-> hides itself.
->
-> A thematic break is now kept as a plain paragraph instead of being
-> dropped, because a table whose pipes are deleted degrades into a bare
-> dash row that would otherwise vanish from the document.
+> Semantic keys stay rebindable in vim.toml. Only the inputs no static
+> binding can express -- count digits and the character after f/t/r or a
+> text object -- take a raw-key path, mirroring insert mode.
 
 ### Breaking
-
-- [fb5e51c](https://github.com/erikjuhani/basalt/commit/fb5e51c667ed794bc11a412a2b27a8bf2e73ca91) Move four global bindings onto the leader key by @erikjuhani
-
-> The vault selector, debug log overlay, external editor and Obsidian
-> commands were on ctrl+g, g<, ctrl+alt+e and ctrl+alt+o. They are now
-> <leader>v, <leader>d, <leader>e and <leader>o, which frees the awkward
-> chords and lets all four follow a user's chosen leader. Quit, help and
-> the tab bindings are unchanged.
->
-> The old keys stop working, so muscle memory for ctrl+g in particular
-> needs relearning. Rebinding them in the user config restores them.
->
-> Note that <space> is now a live prefix in every non editing pane, so a
-> bare space waits for the next keystroke. If that key completes no
-> sequence it is retried on its own, and insert mode and the input modal
-> bypass sequence handling entirely, so typing is unaffected.
 
 - [1863417](https://github.com/erikjuhani/basalt/commit/1863417adfd88ba2f82b7879ea456054ef01d38f) Relicense: GPL-3.0 for app, Apache-2.0 for libraries; add CLA by @erikjuhani
 
@@ -158,7 +147,49 @@
 > request template that acknowledges the CLA.
 >
 > Already-published versions remain MIT for anyone who has them; the new
-> terms take effect with this release (0.12.7).
+> terms apply from the next release onward.
+
+- [fb5e51c](https://github.com/erikjuhani/basalt/commit/fb5e51c667ed794bc11a412a2b27a8bf2e73ca91) Move four global bindings onto the leader key by @erikjuhani
+
+> The vault selector, debug log overlay, external editor and Obsidian
+> commands were on ctrl+g, g<, ctrl+alt+e and ctrl+alt+o. They are now
+> <leader>v, <leader>d, <leader>e and <leader>o, which frees the awkward
+> chords and lets all four follow a user's chosen leader. Quit, help and
+> the tab bindings are unchanged.
+>
+> The old keys stop working, so muscle memory for ctrl+g in particular
+> needs relearning. Rebinding them in the user config restores them.
+>
+> Note that <space> is now a live prefix in every non editing pane, so a
+> bare space waits for the next keystroke. If that key completes no
+> sequence it is retried on its own, and insert mode and the input modal
+> bypass sequence handling entirely, so typing is unaffected.
+>
+> The debug log overlay carried the old key in its own title, so the hint
+> in the top right now reads Leader d.
+>
+> The vault-selector and debug-log tapes send the new keys and both gifs
+> are regenerated in each theme.
+
+### Fixed
+
+- [1aa72d0](https://github.com/erikjuhani/basalt/commit/1aa72d00abe7e0bdb00aa883921422aae12dbb1d) Highlight prettified list markers in visual selection by @erikjuhani
+
+> Rendered list markers (and other leading synthetic glyphs like quote and
+> heading prefixes) carry no source range, so the selection highlight
+> skipped them and a selected line's marker was left blank. Highlight a
+> synthetic span when the content it precedes is selected, so the marker is
+> part of the selection.
+
+- [8a44f14](https://github.com/erikjuhani/basalt/commit/8a44f14e9a8fe3a64164ee732d2a2694d9aefbd3) Scroll an outline-jumped heading to the top of the viewport
+
+> Selecting a heading in the outline jumped the cursor to it but scrolled
+> the minimum amount needed to make it visible, so a heading below the
+> viewport landed on the last line with none of its content shown.
+>
+> It now scrolls the target line to the top of the viewport, clamped so the
+> last line never rises above the bottom, keeping as much content below the
+> heading visible as possible.
 
 ## [0.12.6](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.6) (Jun, 21 2026)
 

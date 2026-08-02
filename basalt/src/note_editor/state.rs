@@ -430,12 +430,16 @@ impl<'a> NoteEditorState<'a> {
         }
     }
 
+    /// Cursor row in viewport coordinates: its virtual row offset past the meta lines.
+    fn cursor_screen_row(&self) -> i32 {
+        (self.cursor.virtual_row() + self.virtual_document.meta().len()) as i32
+    }
+
     /// Ensures the cursor is visible within the viewport by scrolling if necessary.
     /// This method should be called after any operation that might cause the cursor
     /// to move outside the visible area (e.g., resize, cursor movement).
     fn ensure_cursor_visible(&mut self) {
-        let meta_len = self.virtual_document.meta().len() as i32;
-        let cursor_row = self.cursor.virtual_row() as i32 + meta_len;
+        let cursor_row = self.cursor_screen_row();
         let cursor_column = self.cursor.virtual_column() as i32;
 
         let vertical = if cursor_row < self.viewport.top() as i32 {
@@ -453,6 +457,22 @@ impl<'a> NoteEditorState<'a> {
         } else {
             0
         };
+
+        if (vertical, horizontal) != (0, 0) {
+            self.viewport.scroll_by((vertical, horizontal));
+        }
+    }
+
+    /// Clamped so the last line never rises above the viewport bottom, leaving no
+    /// blank tail when the cursor is near the end of the document.
+    fn scroll_cursor_to_top(&mut self) {
+        let cursor_row = self.cursor_screen_row();
+        let total_rows =
+            (self.virtual_document.meta().len() + self.virtual_document.lines().len()) as i32;
+
+        let max_top = (total_rows - self.viewport.height as i32).max(0);
+        let vertical = cursor_row.min(max_top) - self.viewport.top() as i32;
+        let horizontal = -(self.viewport.left() as i32);
 
         if (vertical, horizontal) != (0, 0) {
             self.viewport.scroll_by((vertical, horizontal));
@@ -822,7 +842,7 @@ impl<'a> NoteEditorState<'a> {
         }
 
         self.relayout_on_block_change(prev_block_idx);
-        self.ensure_cursor_visible();
+        self.scroll_cursor_to_top();
     }
 
     /// Move the cursor to an arbitrary source byte offset, switching the active
@@ -1076,8 +1096,7 @@ mod tests {
     use std::path::Path;
 
     fn assert_cursor_visible(state: &NoteEditorState, context: &str) {
-        let meta_len = state.virtual_document.meta().len() as i32;
-        let cursor_screen_row = state.cursor.virtual_row() as i32 + meta_len;
+        let cursor_screen_row = state.cursor_screen_row();
         let top = state.viewport().top() as i32;
         let bottom = state.viewport().bottom() as i32;
         assert!(
@@ -1661,6 +1680,34 @@ mod tests {
 
         state.cursor_up(5);
         assert_cursor_visible(&state, "after cursor_up");
+    }
+
+    #[test]
+    fn test_jump_to_heading_scrolls_it_to_top() {
+        // A heading below the viewport, jumped to from the outline, should land
+        // on the first visible line so its content stays visible. Ref: issue #615.
+        let filler = "\nparagraph\n".repeat(10);
+        let content = format!("# Intro\n{filler}# Target\n{filler}");
+
+        let mut state =
+            NoteEditorState::new(&content, "test", Path::new("test.md"), &Symbols::unicode());
+        state.resize_viewport(Size::new(40, 6));
+
+        let target_offset = content.find("# Target").unwrap();
+        let target_block = state
+            .virtual_document
+            .blocks()
+            .iter()
+            .position(|block| block.source_range().contains(&target_offset))
+            .unwrap();
+
+        state.cursor_jump(target_block);
+
+        assert_eq!(
+            state.cursor_screen_row(),
+            state.viewport().top() as i32,
+            "heading should sit at the top of the viewport",
+        );
     }
 
     #[test]
