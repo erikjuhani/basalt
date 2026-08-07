@@ -15,7 +15,7 @@ use crate::{
     note_editor::{
         ast::{self},
         cursor::{self, Cursor},
-        motion::{Direction, TextObjectKind},
+        motion::{self, Direction, TextObjectKind},
         parser,
         rich_text::RichText,
         text_buffer::TextBuffer,
@@ -217,6 +217,10 @@ impl<'a> NoteEditorState<'a> {
 
     pub fn text_buffer(&self) -> Option<&TextBuffer> {
         self.text_buffer.as_ref()
+    }
+
+    pub fn editing_block(&self) -> Option<usize> {
+        self.editing_block
     }
 
     pub fn enter_insert(&mut self, block_idx: usize) {
@@ -843,6 +847,23 @@ impl<'a> NoteEditorState<'a> {
 
         self.relayout_on_block_change(prev_block_idx);
         self.scroll_cursor_to_top();
+    }
+
+    pub fn snap_out_of_gap(&self, offset: usize) -> usize {
+        let lines = self.virtual_document.lines();
+        if cursor::source_offset_to_virtual_line(offset, lines).is_some() {
+            return offset;
+        }
+        let ranges = || lines.iter().filter_map(|line| line.source_range());
+        ranges()
+            .find(|range| range.start >= offset)
+            .map(|range| range.start)
+            .or_else(|| {
+                ranges()
+                    .rfind(|range| range.end <= offset)
+                    .map(|range| motion::clamp_cursor(&self.content, range.end))
+            })
+            .unwrap_or(offset)
     }
 
     /// Move the cursor to an arbitrary source byte offset, switching the active
