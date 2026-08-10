@@ -61,6 +61,8 @@
 # note_editor_toggle_outline: toggles outline pane
 # note_editor_switch_pane_next: switches focus to next pane
 # note_editor_switch_pane_previous: switches focus to previous pane
+# note_editor_follow_link: follows the link under the cursor: travels to a
+#   wikilink's note (creating it if missing) or opens a URL in the browser
 
 # Experimental note editor commands:
 # note_editor_experimental_set_edit_view: changes to edit view
@@ -211,6 +213,8 @@ key_bindings = [
  { key = "ctrl+o", command = "note_editor_toggle_outline" },
  { key = "ctrl+shift+up", command = "note_editor_scroll_to_top" },
  { key = "ctrl+shift+down", command = "note_editor_scroll_to_bottom" },
+ { key = "enter", command = "note_editor_follow_link" },
+ { key = "gd", command = "note_editor_follow_link" },
 
  # Experimental editor 
  { key = "i", command = "note_editor_experimental_set_edit_view" },

@@ -6,7 +6,7 @@ use ratatui::{
     DefaultTerminal,
 };
 use serde::{Deserialize, Deserializer};
-use std::{io::stdout, process};
+use std::{io::stdout, process, time::Duration};
 use tracing::error;
 
 use crate::{
@@ -14,7 +14,7 @@ use crate::{
     debug_log, explorer, help_modal, input, note_editor,
     note_editor::state::Operator,
     note_editor::Direction,
-    outline, splash_modal, vault_selector_modal,
+    outline, splash_modal, toast, vault_selector_modal,
 };
 
 trait ReplaceVar {
@@ -113,6 +113,7 @@ pub(crate) enum Command {
     NoteEditorParagraphForward,
     NoteEditorParagraphBackward,
     NoteEditorMatchingPair,
+    NoteEditorFollowLink,
     NoteEditorCursorDocStart,
     NoteEditorCursorDocEnd,
     NoteEditorFindForward,
@@ -273,6 +274,7 @@ fn str_to_command(s: &str) -> Option<Command> {
         "note_editor_paragraph_forward" => Some(Command::NoteEditorParagraphForward),
         "note_editor_paragraph_backward" => Some(Command::NoteEditorParagraphBackward),
         "note_editor_matching_pair" => Some(Command::NoteEditorMatchingPair),
+        "note_editor_follow_link" => Some(Command::NoteEditorFollowLink),
         "note_editor_cursor_doc_start" => Some(Command::NoteEditorCursorDocStart),
         "note_editor_cursor_doc_end" => Some(Command::NoteEditorCursorDocEnd),
         "note_editor_find_forward" => Some(Command::NoteEditorFindForward),
@@ -537,6 +539,7 @@ impl From<Command> for Message<'_> {
             Command::NoteEditorMatchingPair => {
                 Message::NoteEditor(note_editor::Message::MatchingPair)
             }
+            Command::NoteEditorFollowLink => Message::NoteEditor(note_editor::Message::FollowLink),
             Command::NoteEditorCursorDocStart => {
                 Message::NoteEditor(note_editor::Message::CursorDocStart)
             }
@@ -680,4 +683,26 @@ pub fn spawn_command<'a>(
             None
         },
     )
+}
+
+/// Opens a URL with the platform's default handler. Returns an error toast when
+/// the opener cannot be launched.
+pub fn open_url<'a>(url: &str) -> Option<Message<'a>> {
+    #[cfg(target_os = "macos")]
+    let (opener, args): (&str, &[&str]) = ("open", &[]);
+    #[cfg(target_os = "linux")]
+    let (opener, args): (&str, &[&str]) = ("xdg-open", &[]);
+    #[cfg(target_os = "windows")]
+    let (opener, args): (&str, &[&str]) = ("cmd", &["/C", "start", ""]);
+
+    match process::Command::new(opener).args(args).arg(url).spawn() {
+        Ok(_) => None,
+        Err(error) => {
+            error!(?error, url, "failed to open url");
+            Some(Message::Toast(toast::Message::Create(toast::Toast::error(
+                "Failed to open link",
+                Duration::from_secs(2),
+            ))))
+        }
+    }
 }

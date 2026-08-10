@@ -40,6 +40,7 @@ key_bindings = [
   { key = "{", command = "note_editor_paragraph_backward" },
   { key = "}", command = "note_editor_paragraph_forward" },
   { key = "%", command = "note_editor_matching_pair" },
+  { key = "gx", command = "note_editor_follow_link" },
   { key = "f", command = "note_editor_find_forward" },
   { key = "F", command = "note_editor_find_backward" },
   { key = "t", command = "note_editor_till_forward" },
