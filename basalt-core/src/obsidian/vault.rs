@@ -121,19 +121,9 @@ pub fn update_wiki_links(
         }
     }
 
-    fn entry_to_note(entry: VaultEntry) -> Vec<Note> {
-        match entry {
-            VaultEntry::File(note) => vec![note],
-            VaultEntry::Directory { entries, .. } => {
-                entries.into_iter().flat_map(entry_to_note).collect()
-            }
-        }
-    }
-
     vault
-        .entries()
+        .notes()
         .into_iter()
-        .flat_map(entry_to_note)
         .try_for_each(replace_wiki_link(&replacements))?;
 
     Ok(())
@@ -606,6 +596,46 @@ impl Vault {
                 .collect(),
             _ => vec![],
         }
+    }
+
+    /// Returns every note in the vault, recursively flattened from [`Vault::entries`].
+    pub fn notes(&self) -> Vec<Note> {
+        fn flatten(entry: VaultEntry) -> Vec<Note> {
+            match entry {
+                VaultEntry::File(note) => vec![note],
+                VaultEntry::Directory { entries, .. } => {
+                    entries.into_iter().flat_map(flatten).collect()
+                }
+            }
+        }
+        self.entries().into_iter().flat_map(flatten).collect()
+    }
+
+    /// Resolves a wiki link target (`[[name]]`) to a note by base name, matched
+    /// case-insensitively. A target carrying a subpath (`folder/name`) matches on
+    /// its final component.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tempfile::tempdir;
+    /// use basalt_core::obsidian::{self, Vault, Error};
+    ///
+    /// let tmp_dir = tempdir()?;
+    /// let vault = Vault { path: tmp_dir.path().to_path_buf(), ..Default::default() };
+    /// let note = obsidian::vault::create_note(&vault.path, "Meeting Notes")?;
+    ///
+    /// assert_eq!(vault.find_note("Meeting Notes").as_ref(), Some(&note));
+    /// assert_eq!(vault.find_note("meeting notes").as_ref(), Some(&note));
+    /// assert_eq!(vault.find_note("notes/Meeting Notes").as_ref(), Some(&note));
+    /// assert_eq!(vault.find_note("Missing"), None);
+    /// # Ok::<(), Error>(())
+    /// ```
+    pub fn find_note(&self, name: &str) -> Option<Note> {
+        let name = name.rsplit('/').next().unwrap_or(name).to_lowercase();
+        self.notes()
+            .into_iter()
+            .find(|note| note.name().to_lowercase() == name)
     }
 }
 

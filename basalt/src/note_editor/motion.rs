@@ -492,6 +492,76 @@ pub fn goto_line(content: &str, line: usize) -> usize {
     first_nonblank(content, start)
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum LinkTarget {
+    /// `[[note]]`, `[[note#heading]]` or `[[note|alias]]`, resolved to the note name.
+    Wikilink(String),
+    /// A bare URL or the target of a markdown link.
+    Url(String),
+}
+
+pub fn link_at(content: &str, offset: usize) -> Option<LinkTarget> {
+    let offset = offset.min(content.len());
+    if let Some(name) = wikilink_at(content, offset) {
+        return Some(LinkTarget::Wikilink(name.to_string()));
+    }
+    let url = markdown_link_at(content, offset).or_else(|| bare_url_at(content, offset))?;
+    Some(LinkTarget::Url(url.to_string()))
+}
+
+fn wikilink_at(content: &str, offset: usize) -> Option<&str> {
+    let open = last_match(content, "[[", offset)?;
+    let close = content[open + 2..].find("]]")? + open + 2;
+    if !(open..close + 2).contains(&offset) {
+        return None;
+    }
+
+    content[open + 2..close]
+        .split(['#', '|'])
+        .next()
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+}
+
+fn markdown_link_at(content: &str, offset: usize) -> Option<&str> {
+    content.match_indices("](").find_map(|(bracket, _)| {
+        let open = content[..bracket].rfind('[')?;
+        let url = bracket + 2;
+        let close = content[url..].find(')')? + url;
+        (open..=close)
+            .contains(&offset)
+            .then_some(&content[url..close])
+    })
+}
+
+fn bare_url_at(content: &str, offset: usize) -> Option<&str> {
+    let start = content[..offset]
+        .rfind(char::is_whitespace)
+        .map_or(0, |index| index + 1);
+    let end = content[offset..]
+        .find(char::is_whitespace)
+        .map_or(content.len(), |index| offset + index);
+
+    let url = content[start..end]
+        .trim_start_matches(['(', '[', '<'])
+        .trim_end_matches([')', ']', '>', '.', ',', ';', '!', '?']);
+
+    let (scheme, rest) = url.split_once("://")?;
+    let valid_scheme = !scheme.is_empty()
+        && scheme
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "+-.".contains(c));
+    (valid_scheme && !rest.is_empty()).then_some(url)
+}
+
+fn last_match(content: &str, needle: &str, offset: usize) -> Option<usize> {
+    content
+        .match_indices(needle)
+        .map(|(index, _)| index)
+        .take_while(|&index| index <= offset)
+        .last()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -683,5 +753,64 @@ mod tests {
         assert_eq!(line_down(text, 0, 9), 8); // clamps at the last line
         assert_eq!(line_up(text, 8, 1), 4); // back to 'two'
         assert_eq!(line_up(text, 8, 9), 0); // clamps at the first line
+    }
+
+    fn wikilink(text: &str, needle: &str) -> Option<LinkTarget> {
+        link_at(text, text.find(needle).unwrap())
+    }
+
+    #[test]
+    fn link_at_wikilink_strips_alias_and_heading() {
+        assert_eq!(
+            wikilink("see [[Note A]] now", "Note"),
+            Some(LinkTarget::Wikilink("Note A".into()))
+        );
+        assert_eq!(
+            wikilink("[[Note A|alias]]", "alias"),
+            Some(LinkTarget::Wikilink("Note A".into()))
+        );
+        assert_eq!(
+            wikilink("[[Note A#Heading]]", "Heading"),
+            Some(LinkTarget::Wikilink("Note A".into()))
+        );
+    }
+
+    #[test]
+    fn link_at_wikilink_edges_and_outside() {
+        let text = "x [[Note A]] y";
+        assert_eq!(link_at(text, 2), wikilink(text, "Note")); // on first '['
+        assert_eq!(link_at(text, 10), wikilink(text, "Note")); // on closing ']'
+        assert_eq!(link_at(text, 0), None); // before the link
+        assert_eq!(link_at(text, 13), None); // after the link
+    }
+
+    #[test]
+    fn link_at_urls() {
+        assert_eq!(
+            wikilink("visit https://example.com today", "https"),
+            Some(LinkTarget::Url("https://example.com".into()))
+        );
+        assert_eq!(
+            wikilink("wrapped (https://example.com).", "https"),
+            Some(LinkTarget::Url("https://example.com".into()))
+        );
+    }
+
+    #[test]
+    fn link_at_markdown_link_from_label_or_url() {
+        let text = "a [my label](https://x.com) b";
+        assert_eq!(
+            link_at(text, text.find("label").unwrap()),
+            Some(LinkTarget::Url("https://x.com".into()))
+        );
+        assert_eq!(
+            link_at(text, text.find("x.com").unwrap()),
+            Some(LinkTarget::Url("https://x.com".into()))
+        );
+    }
+
+    #[test]
+    fn link_at_plain_text_is_none() {
+        assert_eq!(link_at("just some text", 5), None);
     }
 }
