@@ -11,6 +11,11 @@ Basalt is a cross-platform TUI (Terminal User Interface) for managing Obsidian v
 
 ## Installation
 
+- Using [Homebrew](https://brew.sh):
+  ```sh
+  brew install erikjuhani/tap/basalt
+  ```
+
 - Using [Cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html):
   ```sh
   cargo install basalt-tui

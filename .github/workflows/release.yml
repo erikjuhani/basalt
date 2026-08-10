@@ -50,3 +50,52 @@ jobs:
         run: |
           gh release upload "${REF_NAME}" ./release-artifacts/* --clobber
 
+  homebrew:
+    name: Update Homebrew tap
+    needs: release
+    if: ${{ !contains(inputs.tag || github.ref_name, '-') }}
+
+    environment: release
+
+    permissions: {}
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Check out the tap
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: erikjuhani/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          persist-credentials: false
+          path: homebrew-tap
+
+      - name: Generate and commit the formula
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          REF_NAME: ${{ inputs.tag || github.ref_name }}
+        shell: bash
+        run: |
+          version="${REF_NAME##*/v}"
+
+          checksums="$(mktemp -d)"
+          gh release download "${REF_NAME}" --repo "${GITHUB_REPOSITORY}" \
+            --pattern '*.tar.gz.sha256' --dir "${checksums}"
+
+          mkdir -p homebrew-tap/Formula
+          .github/scripts/homebrew-formula.sh "${version}" "${checksums}" \
+            > homebrew-tap/Formula/basalt.rb
+
+          cd homebrew-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/basalt.rb
+          git diff --cached --quiet && exit 0
+          git commit -m "basalt ${version}"
+          git push "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/erikjuhani/homebrew-tap.git" HEAD
+

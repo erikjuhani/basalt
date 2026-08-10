@@ -90,15 +90,18 @@ jobs:
 
           target="${MATRIX_TARGET}"
           bin_path="target/${target}/release"
-          archive="basalt-${version}-${target}"
+          staging="basalt-${version}-${target}"
+          mkdir -p "${staging}"
 
           if [ "${MATRIX_OS}" = "windows-latest" ]; then
-            archive="${archive}.zip"
-            7z a "${archive}" "${bin_path}/basalt.exe"
+            cp "${bin_path}/basalt.exe" "${staging}/"
+            archive="${staging}.zip"
+            7z a "${archive}" "${staging}"
             certutil -hashfile "${archive}" SHA256 > "${archive}.sha256"
           else
-            archive="${archive}.tar.gz"
-            tar -czf "${archive}" "${bin_path}/basalt"
+            cp "${bin_path}/basalt" "${staging}/"
+            archive="${staging}.tar.gz"
+            tar -czf "${archive}" "${staging}"
             shasum -a 256 "${archive}" > "${archive}.sha256"
           fi
 
