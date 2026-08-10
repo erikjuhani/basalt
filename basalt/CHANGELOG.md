@@ -191,6 +191,18 @@
 > last line never rises above the bottom, keeping as much content below the
 > heading visible as possible.
 
+- [50198c0](https://github.com/erikjuhani/basalt/commit/50198c0ccccbf4fc914e962254abf853f4355977) Keep explorer cursor and selection stable across background rescans by @erikjuhani
+
+> The debounced vault watcher fired a rescan roughly 250ms after picking a
+> note, which rebuilt the tree and snapped the explorer cursor back to the
+> active note. Moving the cursor right after selecting caused it to jump
+> back once loading finished.
+>
+> Split the rebuild into an intentional-select path (used on create and
+> rename) and a new refresh_entries that captures the cursor and the picked
+> note by path before rebuilding and restores each independently, so a
+> background rescan snaps neither.
+
 ## [0.12.6](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.6) (Jun, 21 2026)
 
 ### Added

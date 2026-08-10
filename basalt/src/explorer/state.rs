@@ -181,23 +181,42 @@ impl ExplorerState {
     }
 
     pub fn with_entries(&mut self, entries: Vec<VaultEntry>, select: Option<PathBuf>) {
+        self.rebuild(entries);
+
+        if let Some(index) = select.as_deref().and_then(|path| self.index_of(path)) {
+            self.list_state.select(Some(index));
+            self.selected_item_index = Some(index);
+            self.selected_item_path = select;
+        }
+    }
+
+    /// Rebuilds the tree from a background rescan, preserving the cursor and the
+    /// picked note independently so an async vault change snaps neither one.
+    pub fn refresh_entries(&mut self, entries: Vec<VaultEntry>) {
+        let cursor = self.current_item().map(|item| item.path().to_path_buf());
+        let picked = self.selected_item_path.clone();
+
+        self.rebuild(entries);
+
+        if let Some(index) = cursor.as_deref().and_then(|path| self.index_of(path)) {
+            self.list_state.select(Some(index));
+        }
+        self.selected_item_index = picked.as_deref().and_then(|path| self.index_of(path));
+        self.selected_item_path = picked;
+    }
+
+    fn rebuild(&mut self, entries: Vec<VaultEntry>) {
         let items: Vec<Item> = entries
             .into_iter()
             .map(|entry| self.map_to_item(0, entry))
             .collect();
-
         self.flatten_with_items(&items);
+    }
 
-        if let Some(path) = select {
-            if let Some(index) = self.flat_items.iter().position(|(item, _)| match item {
-                Item::File { note, .. } => note.path() == path,
-                Item::Directory { path: dir_path, .. } => dir_path == &path,
-            }) {
-                self.list_state.select(Some(index));
-                self.selected_item_index = Some(index);
-                self.selected_item_path = Some(path);
-            }
-        }
+    fn index_of(&self, path: &Path) -> Option<usize> {
+        self.flat_items
+            .iter()
+            .position(|(item, _)| item.path() == path)
     }
 
     pub fn reveal_path(&mut self, path: &Path) {

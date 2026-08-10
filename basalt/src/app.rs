@@ -609,11 +609,7 @@ impl<'a> App<'a> {
                 return Some(Message::SetActivePane(ActivePane::Explorer));
             }
             Message::RescanVault => {
-                let select = state
-                    .tabs
-                    .active_note()
-                    .map(|note| note.path().to_path_buf());
-                state.explorer.with_entries(state.vault.entries(), select);
+                state.explorer.refresh_entries(state.vault.entries());
                 debug!("rescanned vault after watcher change");
             }
             Message::CreateUntitledNote => {
