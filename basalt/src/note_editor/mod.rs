@@ -14,6 +14,8 @@ mod virtual_document;
 // `Direction` is part of the public `Message::FindChar` API, so re-export it
 // for callers (command dispatch) that construct find messages.
 pub use motion::Direction;
+// `LinkTarget` is carried by `AppMessage::FollowLink`, resolved in `app.rs`.
+pub use motion::LinkTarget;
 
 use std::time::Duration;
 
@@ -66,6 +68,7 @@ pub enum Message {
     ParagraphForward,
     ParagraphBackward,
     MatchingPair,
+    FollowLink,
     CursorDocStart,
     CursorDocEnd,
     FindChar {
@@ -319,6 +322,9 @@ pub fn update<'a>(
             state.cursor_right(count);
         }
         Message::JumpToBlock(idx) => state.cursor_jump(idx),
+        Message::FollowLink => {
+            return motion::link_at(&state.content, offset(state)).map(AppMessage::FollowLink);
+        }
         Message::CursorUp => {
             let count = state.take_count().unwrap_or(1);
             if state.pending_operator().is_some() {

@@ -1,4 +1,6 @@
-use basalt_core::obsidian::{self, create_untitled_dir, create_untitled_note, Note, Vault};
+use basalt_core::obsidian::{
+    self, create_note, create_untitled_dir, create_untitled_note, Note, Vault,
+};
 use ratatui::{
     buffer::Buffer,
     crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
@@ -117,6 +119,7 @@ pub enum Message<'a> {
     Quit,
     Exec(String),
     Spawn(String),
+    FollowLink(note_editor::LinkTarget),
     CopyToClipboard(String),
     Resize(Size),
     SetActivePane(ActivePane),
@@ -792,6 +795,44 @@ impl<'a> App<'a> {
                     .unwrap_or_default();
 
                 return command::spawn_command(command, &state.vault.name, note_name, &note_path);
+            }
+
+            Message::FollowLink(note_editor::LinkTarget::Url(url)) => {
+                return command::open_url(&url);
+            }
+            Message::FollowLink(note_editor::LinkTarget::Wikilink(name)) => {
+                if let Some(note) = state.vault.find_note(&name) {
+                    state.explorer.reveal_path(note.path());
+                    return Some(Message::SelectNote(note.into()));
+                }
+                let directory = state
+                    .tabs
+                    .active_note()
+                    .and_then(|note| note.path().parent())
+                    .unwrap_or(&state.vault.path);
+                match create_note(directory, &name) {
+                    Ok(note) => {
+                        info!(path = %note.path().display(), "created note from wiki link");
+                        return Some(Message::Batch(vec![
+                            Message::RefreshVault {
+                                rename: None,
+                                select: Some(note.path().to_path_buf()),
+                            },
+                            Message::SelectNote(note.into()),
+                            Message::Toast(toast::Message::Create(toast::Toast::success(
+                                "Note created",
+                                Duration::from_secs(2),
+                            ))),
+                        ]));
+                    }
+                    Err(error) => {
+                        error!(?error, name, "failed to create note from wiki link");
+                        return Some(Message::Toast(toast::Message::Create(toast::Toast::error(
+                            "Failed to create note",
+                            Duration::from_secs(2),
+                        ))));
+                    }
+                }
             }
 
             Message::CopyToClipboard(text) => {
