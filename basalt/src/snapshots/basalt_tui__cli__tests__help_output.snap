@@ -7,5 +7,6 @@ Usage: basalt [OPTIONS]
 Options:
       --debug                  Open the debug log overlay on startup
       --log-level <LOG_LEVEL>  Minimum log level shown in the debug log overlay [default: trace] [possible values: trace, debug, info, warn, error]
+      --theme <THEME>          Override the configured theme by name (e.g. "causeway-dark")
   -h, --help                   Print help
   -V, --version                Print version

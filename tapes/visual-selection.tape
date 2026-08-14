@@ -2,7 +2,7 @@ Hide
 # Create a note that explains visual selection
 Type "printf '# Visual selection\n\nYank text straight to your clipboard.\n\n- Press v for a charwise selection\n- Press V to grab whole lines\n- Press y to yank and esc to cancel\n' > 'docs/Visual selection.md'"
 Enter
-Type "cargo run --release -q"
+Type "cargo run --release -q -- --theme $BASALT_THEME"
 Enter
 Sleep 2s
 Show

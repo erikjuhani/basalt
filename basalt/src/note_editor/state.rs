@@ -8,10 +8,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use ratatui::layout::Size;
+use ratatui::{layout::Size, style::Color};
 
 use crate::{
-    config::Symbols,
+    config::{Symbols, Theme},
     note_editor::{
         ast::{self},
         cursor::{self, Cursor},
@@ -117,6 +117,41 @@ impl fmt::Display for View {
     }
 }
 
+/// The editor's current mode, shown as the status-bar indicator.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum Mode {
+    Insert,
+    Normal,
+    Visual,
+    VisualLine,
+    Edit,
+    #[default]
+    Read,
+}
+
+impl Mode {
+    pub fn label(self) -> &'static str {
+        match self {
+            Mode::Insert => "INSERT",
+            Mode::Normal => "NORMAL",
+            Mode::Visual => "VISUAL",
+            Mode::VisualLine => "V-LINE",
+            Mode::Edit => "EDIT",
+            Mode::Read => "READ",
+        }
+    }
+
+    /// Indicator colour for the mode, from the active theme.
+    pub fn color(self, theme: &Theme) -> Color {
+        match self {
+            Mode::Insert | Mode::Edit => theme.mode_insert,
+            Mode::Normal => theme.mode_normal,
+            Mode::Visual | Mode::VisualLine => theme.accent,
+            Mode::Read => theme.mode_read,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct NoteEditorState<'a> {
     // FIXME: Use Rope instead of String for O(log n) instead of O(n).
@@ -126,6 +161,7 @@ pub struct NoteEditorState<'a> {
     pub ast_nodes: Vec<ast::Node>,
     pub virtual_document: VirtualDocument<'a>,
     pub symbols: Symbols,
+    theme: Theme,
     filepath: PathBuf,
     filename: String,
     active: bool,
@@ -161,6 +197,7 @@ impl<'a> NoteEditorState<'a> {
             cursor: Cursor::default(),
             viewport: Viewport::default(),
             symbols: symbols.clone(),
+            theme: Theme::default(),
             virtual_document: VirtualDocument::new(symbols),
             filename: filename.to_string(),
             filepath: filepath.to_path_buf(),
@@ -201,6 +238,22 @@ impl<'a> NoteEditorState<'a> {
 
     pub fn vim_mode(&self) -> bool {
         self.vim_mode
+    }
+
+    /// The current editor mode for the status-bar indicator.
+    pub fn mode(&self) -> Mode {
+        match self.view {
+            View::Edit(..) if self.vim_mode && self.insert_mode => Mode::Insert,
+            View::Edit(..) if self.vim_mode && self.is_selecting() => {
+                match self.selection().map(|selection| selection.mode) {
+                    Some(SelectionMode::Line) => Mode::VisualLine,
+                    _ => Mode::Visual,
+                }
+            }
+            View::Edit(..) if self.vim_mode => Mode::Normal,
+            View::Edit(..) => Mode::Edit,
+            View::Read => Mode::Read,
+        }
     }
 
     pub fn set_vim_mode(&mut self, mode: bool) {
@@ -481,6 +534,17 @@ impl<'a> NoteEditorState<'a> {
 
     pub fn set_active(&mut self, active: bool) {
         self.active = active;
+    }
+
+    pub fn theme(&self) -> Theme {
+        self.theme
+    }
+
+    /// Swaps the colour theme and re-lays out so the new colours take effect.
+    pub fn set_theme(&mut self, theme: &Theme) {
+        self.theme = *theme;
+        self.virtual_document.set_theme(theme);
+        self.update_layout();
     }
 
     pub fn modified(&self) -> bool {

@@ -2,7 +2,7 @@ Hide
 # Create a note that showcases callout blocks
 Type "printf '> [!note]\n> Callouts render with an icon and a coloured header.\n\n> [!tip]- Did you know?\n> Any callout can have a custom title.\n\n> [!success]\n> Everything went well.\n\n> [!warning]\n> Be careful with this step.\n\n> [!danger]\n> This could go wrong.\n\n> [!quote]\n> Simplicity is the ultimate sophistication.\n' > docs/Callouts.md"
 Enter
-Type "cargo run --release -q"
+Type "cargo run --release -q -- --theme $BASALT_THEME"
 Enter
 Sleep 3s
 Show

@@ -2,7 +2,7 @@ Hide
 # Create a small table note for the demo
 Type "printf '| Task | Done |\n| --- | --- |\n| Ship | yes |\n| Docs | no |\n' > docs/Tables.md"
 Enter
-Type "cargo run --release -q"
+Type "cargo run --release -q -- --theme $BASALT_THEME"
 Enter
 Sleep 2s
 Show

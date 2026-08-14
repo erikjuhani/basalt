@@ -1,39 +1,36 @@
 (function () {
   'use strict';
 
-  // ── theme toggle ──────────────────────────────────────────────────────────
-  var toggle = document.getElementById('theme-toggle');
+  const toggle = document.getElementById('theme-toggle');
   if (toggle) {
     toggle.addEventListener('click', flipTheme);
   }
 
   function flipTheme() {
-    var next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
     document.documentElement.dataset.theme = next;
     try { localStorage.setItem('theme', next); } catch (e) {}
   }
 
-  // ── install-row copy buttons ──────────────────────────────────────────────
   document.querySelectorAll('[data-copy]').forEach(function (btn) {
     btn.addEventListener('click', function () {
-      var text = btn.getAttribute('data-copy');
+      const text = btn.getAttribute('data-copy');
       if (!text) return;
       try {
         navigator.clipboard.writeText(text);
-        var orig = btn.textContent;
+        const orig = btn.textContent;
         btn.textContent = 'copied';
         setTimeout(function () { btn.textContent = orig; }, 1200);
       } catch (e) {}
     });
   });
 
-  // ── install tabs ──────────────────────────────────────────────────────────
   document.querySelectorAll('[data-install]').forEach(function (root) {
-    var tabs = root.querySelectorAll('[data-install-tab]');
-    var panes = root.querySelectorAll('[data-install-pane]');
+    const tabs = root.querySelectorAll('[data-install-tab]');
+    const panes = root.querySelectorAll('[data-install-pane]');
     tabs.forEach(function (tab) {
       tab.addEventListener('click', function () {
-        var name = tab.getAttribute('data-install-tab');
+        const name = tab.getAttribute('data-install-tab');
         tabs.forEach(function (t) {
           t.setAttribute('aria-selected', t === tab ? 'true' : 'false');
         });
@@ -45,9 +42,8 @@
     });
   });
 
-  // ── mobile nav toggle ─────────────────────────────────────────────────────
-  var navToggle = document.getElementById('nav-toggle');
-  var topbarNav = document.getElementById('topbar-nav');
+  const navToggle = document.getElementById('nav-toggle');
+  const topbarNav = document.getElementById('topbar-nav');
   function setNavOpen(open) {
     if (!topbarNav || !navToggle) return;
     topbarNav.dataset.open = open ? 'true' : 'false';
@@ -62,19 +58,42 @@
     });
   }
 
-  // ── help modal ────────────────────────────────────────────────────────────
-  var modal = document.getElementById('help-modal');
+  const modal = document.getElementById('help-modal');
   function openModal() { if (modal) { modal.dataset.open = 'true'; modal.setAttribute('aria-hidden', 'false'); } }
   function closeModal() { if (modal) { modal.dataset.open = 'false'; modal.setAttribute('aria-hidden', 'true'); } }
   if (modal) modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
 
-  // ── keyboard shortcuts ────────────────────────────────────────────────────
+  const lightbox = document.getElementById('gif-lightbox');
+  const lightboxImg = lightbox && lightbox.querySelector('.lightbox__img');
+  function closeLightbox() {
+    if (!lightbox) return;
+    lightbox.dataset.open = 'false';
+    lightbox.setAttribute('aria-hidden', 'true');
+    lightboxImg.src = '';
+  }
+  if (lightbox) {
+    lightbox.addEventListener('click', closeLightbox);
+    document.querySelectorAll('.gif').forEach(function (gif) {
+      gif.addEventListener('click', function () {
+        // Enlarge whichever variant the active theme is showing.
+        const theme = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+        const img = gif.querySelector('.gif--' + theme) || gif.querySelector('img');
+        if (!img) return;
+        lightboxImg.src = img.currentSrc || img.src;
+        lightboxImg.alt = img.alt || '';
+        lightbox.dataset.open = 'true';
+        lightbox.setAttribute('aria-hidden', 'false');
+      });
+    });
+  }
+
   document.addEventListener('keydown', function (e) {
     var tag = (e.target && e.target.tagName) || '';
     var typing = tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable;
 
     if (e.key === 'Escape') {
       closeModal();
+      closeLightbox();
       closeSearch();
       setNavOpen(false);
       if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
@@ -84,7 +103,7 @@
 
     if (e.key === '/') {
       e.preventDefault();
-      var s = document.getElementById('search');
+      const s = document.getElementById('search');
       if (s) s.focus();
     } else if (e.key === '?') {
       e.preventDefault();
@@ -95,24 +114,23 @@
     }
   });
 
-  // ── search ────────────────────────────────────────────────────────────────
-  var searchInput = document.getElementById('search');
-  var searchResults = document.getElementById('search-results');
-  var searchReady = false;
-  var searchIndex = null;
-  var searchData = null;
-  var focusIdx = -1;
+  const searchInput = document.getElementById('search');
+  const searchResults = document.getElementById('search-results');
+  const searchReady = false;
+  const searchIndex = null;
+  const searchData = null;
+  const focusIdx = -1;
 
   function ensureSearchLoaded() {
     if (searchReady || !window.SEARCH_INDEX_URL) return Promise.resolve();
     return new Promise(function (resolve) {
-      var s = document.createElement('script');
+      const s = document.createElement('script');
       s.src = window.SEARCH_INDEX_URL;
       s.onload = function () {
         if (typeof elasticlunr === 'undefined' || !window.searchIndex) {
           // Zola serializes the index to window.searchIndex; if elasticlunr isn't
           // loaded we fetch it from a CDN before building the index.
-          var e = document.createElement('script');
+          const e = document.createElement('script');
           e.src = 'https://cdn.jsdelivr.net/npm/elasticlunr@0.9.5/elasticlunr.min.js';
           e.onload = function () { initIndex(); resolve(); };
           document.head.appendChild(e);
@@ -138,19 +156,19 @@
   if (searchInput && searchResults) {
     searchInput.addEventListener('focus', ensureSearchLoaded);
     searchInput.addEventListener('input', function () {
-      var q = searchInput.value.trim();
+      const q = searchInput.value.trim();
       if (!q) { closeSearch(); return; }
       ensureSearchLoaded().then(function () {
         if (!searchReady) return;
-        var hits = searchIndex.search(q, { bool: 'AND', expand: true }).slice(0, 8);
+        const hits = searchIndex.search(q, { bool: 'AND', expand: true }).slice(0, 8);
         if (!hits.length) {
           searchResults.innerHTML = '<div class="sr-empty">no matches</div>';
           openSearch();
           return;
         }
         searchResults.innerHTML = hits.map(function (h) {
-          var doc = searchData[h.ref];
-          var snippet = (doc.body || '').replace(/\s+/g, ' ').slice(0, 140);
+          const doc = searchData[h.ref];
+          const snippet = (doc.body || '').replace(/\s+/g, ' ').slice(0, 140);
           return '<a href="' + h.ref + '">' +
                    '<span class="sr-title">' + escapeHtml(doc.title || h.ref) + '</span>' +
                    (doc.description ? '<span class="sr-section">' + escapeHtml(doc.description) + '</span>' : '') +
@@ -163,7 +181,7 @@
     });
 
     searchInput.addEventListener('keydown', function (e) {
-      var items = searchResults.querySelectorAll('a');
+      const items = searchResults.querySelectorAll('a');
       if (!items.length) return;
       if (e.key === 'ArrowDown') {
         e.preventDefault();

@@ -9,6 +9,7 @@ use ratatui::{
 
 use crate::{
     app::Message as AppMessage,
+    config::Theme,
     vault_selector::{VaultSelector, VaultSelectorState},
 };
 
@@ -95,14 +96,16 @@ pub struct VaultSelectorModal<'a> {
     _lifetime: PhantomData<&'a ()>,
     pub border_type: BorderType,
     pub vault_active: String,
+    pub theme: Theme,
 }
 
 impl<'a> VaultSelectorModal<'a> {
-    pub fn new(border_type: BorderType, vault_active: String) -> Self {
+    pub fn new(border_type: BorderType, vault_active: String, theme: Theme) -> Self {
         Self {
             _lifetime: PhantomData,
             border_type,
             vault_active,
+            theme,
         }
     }
 
@@ -124,7 +127,7 @@ impl<'a> StatefulWidget for VaultSelectorModal<'a> {
     {
         let area = self.modal_area(area);
         Widget::render(Clear, area, buf);
-        VaultSelector::new(self.border_type, self.vault_active).render(
+        VaultSelector::new(self.border_type, self.vault_active, self.theme).render(
             area,
             buf,
             &mut state.vault_selector_state,

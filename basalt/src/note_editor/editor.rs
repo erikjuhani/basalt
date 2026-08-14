@@ -4,19 +4,16 @@ use ratatui::{
     buffer::Buffer,
     layout::{Offset, Rect},
     style::{Color, Style, Stylize},
-    text::Line,
+    text::{Line, Span},
     widgets::{
-        Block, Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget,
-        Widget,
+        Block, Borders, Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+        StatefulWidget, Widget,
     },
 };
 use unicode_width::UnicodeWidthChar;
 
 use crate::note_editor::{
-    cursor::CursorWidget,
-    state::{NoteEditorState, SelectionMode, View},
-    viewport::Viewport,
-    virtual_document::VirtualLine,
+    cursor::CursorWidget, state::NoteEditorState, viewport::Viewport, virtual_document::VirtualLine,
 };
 
 const SELECTION_STYLE: Style = Style::new().reversed();
@@ -90,51 +87,41 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
     type State = NoteEditorState<'a>;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        let (mode_label, mode_color) = match state.view {
-            View::Edit(..) if state.vim_mode() && state.insert_mode() => ("INSERT", Color::Green),
-            View::Edit(..) if state.vim_mode() && state.is_selecting() => {
-                match state.selection().map(|selection| selection.mode) {
-                    Some(SelectionMode::Line) => ("V-LINE", Color::Magenta),
-                    _ => ("VISUAL", Color::Magenta),
-                }
-            }
-            View::Edit(..) if state.vim_mode() => ("NORMAL", Color::Yellow),
-            View::Edit(..) => ("EDIT", Color::Green),
-            View::Read => ("READ", Color::Red),
-        };
-
-        let pending = state.pending_hint();
-        let mode_text = if pending.is_empty() {
-            format!(" {mode_label}")
+        let theme = state.theme();
+        let active = state.active();
+        let pane = theme.note_editor;
+        let fallback = if active {
+            state.symbols.border_active
         } else {
-            format!(" {mode_label} {pending}")
+            state.symbols.border_inactive
+        }
+        .into();
+        let border_line = pane.border_line(fallback);
+
+        // The editor mode is shown in the status bar and the modified marker in
+        // the tab, so the border only carries the pending-keys hint (which-key),
+        // and only while keys are pending, keeping a clean note's border unbroken.
+        let pending = state.pending_hint();
+        let footer: Vec<Span> = if pending.is_empty() {
+            Vec::new()
+        } else {
+            vec![format!(" {pending} ").fg(theme.accent).bold()]
         };
 
-        let block = Block::bordered()
-            .border_type(if state.active() {
-                state.symbols.border_active.into()
+        let mut block = Block::new()
+            .borders(if border_line.is_some() {
+                pane.border_edges.to_borders()
             } else {
-                state.symbols.border_inactive.into()
+                Borders::NONE
             })
-            // NOTE: Uncomment for debugging
-            // .title_top(format!(
-            //     "{},{},{}",
-            //     state.cursor.virtual_line(),
-            //     state.cursor.virtual_column(),
-            //     state.cursor.source_offset()
-            // ))
-            .title_bottom(
-                [
-                    mode_text.fg(mode_color).bold().italic(),
-                    if state.modified() {
-                        "* ".bold().italic()
-                    } else {
-                        " ".into()
-                    },
-                ]
-                .to_vec(),
-            )
+            .style(Style::new().fg(theme.text).bg(pane.background))
+            .border_style(Style::new().fg(pane.border(active)))
+            .title_bottom(footer)
             .padding(Padding::horizontal(1));
+
+        if let Some(line) = border_line {
+            block = block.border_type(line);
+        }
 
         let inner_area = block.inner(area);
 
@@ -196,6 +183,7 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
                     y: inner_area.y as i32,
                 })
                 .with_meta_len(meta_lines_count as u16)
+                .with_theme(&theme)
                 .render(state.viewport().area(), buf, &mut state.cursor);
         }
 
@@ -216,7 +204,10 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
 mod tests {
     use std::path::Path;
 
-    use crate::{config::Symbols, note_editor::state::EditMode};
+    use crate::{
+        config::Symbols,
+        note_editor::state::{EditMode, SelectionMode, View},
+    };
 
     use super::*;
     use indoc::indoc;

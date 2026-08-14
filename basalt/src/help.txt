@@ -88,6 +88,7 @@ INTERFACE
       ‹Shift+Tab› Switch to previous pane
 
       ‹Leader›‹v› Toggle vault selector modal
+      ‹Leader›‹t› Toggle theme selector (previews themes live)
       ‹Ctrl+B›    Toggle explorer panel visibility
       ‹Ctrl+U›    Scroll up half a page
       ‹Ctrl+D›    Scroll down half a page
@@ -118,6 +119,7 @@ INTERFACE
 
       ‹Ctrl+O›    Toggle outline pane visibility
       ‹Leader›‹v› Toggle vault selector modal
+      ‹Leader›‹t› Toggle theme selector (previews themes live)
       ‹Ctrl+B›    Toggle explorer pane visibility
 
   NOTE EDITOR PANE

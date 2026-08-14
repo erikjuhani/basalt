@@ -3,7 +3,8 @@ use ratatui::{
     buffer::Buffer,
     crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
     layout::{Constraint, Flex, Layout, Rect, Size},
-    widgets::{StatefulWidget, Widget},
+    style::Style,
+    widgets::{Block, StatefulWidget, Widget},
     DefaultTerminal,
 };
 use tracing::{debug, error, info, warn};
@@ -19,7 +20,7 @@ use std::{
 
 use crate::{
     command,
-    config::{self, Config, Keystroke},
+    config::{self, Config, Keystroke, Theme},
     debug_log::{self, DebugLogModal, DebugLogModalState, LogLevel},
     explorer::{self, Explorer, ExplorerState, Item, Visibility},
     header::Header,
@@ -36,6 +37,7 @@ use crate::{
     stylized_text::{self, FontStyle},
     tabs::{Tab, Tabs},
     text_counts::{CharCount, WordCount},
+    theme_selector_modal::{self, ThemeSelectorModal, ThemeSelectorModalState},
     toast::{self, Toast, TOAST_WIDTH},
     vault_selector_modal::{self, VaultSelectorModal, VaultSelectorModalState},
     vault_watcher::VaultWatcher,
@@ -67,6 +69,7 @@ pub struct AppState<'a> {
     pending_keys: Vec<Keystroke>,
 
     active_pane: ActivePane,
+    theme: Theme,
     explorer: ExplorerState,
     tabs: Tabs<'a>,
     outline: OutlineState,
@@ -77,6 +80,7 @@ pub struct AppState<'a> {
     help_modal: HelpModalState,
     vault_selector_modal: VaultSelectorModalState<'a>,
     debug_log_modal: DebugLogModalState,
+    theme_selector_modal: ThemeSelectorModalState,
 }
 
 impl<'a> AppState<'a> {
@@ -85,12 +89,18 @@ impl<'a> AppState<'a> {
     }
 
     pub fn active_component(&self) -> ActivePane {
+        // Ordered top-most first, matching the modal render (z) order so the
+        // visually top modal is the one that receives input.
         if self.debug_log_modal.visible {
             return ActivePane::DebugLogModal;
         }
 
         if self.help_modal.visible {
             return ActivePane::HelpModal;
+        }
+
+        if self.theme_selector_modal.visible {
+            return ActivePane::ThemeSelectorModal;
         }
 
         if self.vault_selector_modal.visible {
@@ -144,6 +154,9 @@ pub enum Message<'a> {
     HelpModal(help_modal::Message),
     VaultSelectorModal(vault_selector_modal::Message),
     DebugLog(debug_log::Message),
+    ThemeSelectorModal(theme_selector_modal::Message),
+    PreviewTheme(Theme),
+    SaveTheme(String),
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
@@ -157,6 +170,7 @@ pub enum ActivePane {
     HelpModal,
     VaultSelectorModal,
     DebugLogModal,
+    ThemeSelectorModal,
 }
 
 impl From<ActivePane> for &str {
@@ -170,6 +184,7 @@ impl From<ActivePane> for &str {
             ActivePane::HelpModal => "Help",
             ActivePane::VaultSelectorModal => "Vault Selector",
             ActivePane::DebugLogModal => "Debug Log",
+            ActivePane::ThemeSelectorModal => "Theme Selector",
         }
     }
 }
@@ -231,6 +246,15 @@ fn help_text(version: &str) -> String {
     HELP_TEXT.replace("%version-notice", version)
 }
 
+/// Applies a colour theme to the app and every sub-state that caches it.
+/// The note editor re-lays out so its baked-in span colours update.
+fn apply_theme(state: &mut AppState, theme: Theme) {
+    state.theme = theme;
+    state.explorer.set_theme(&theme);
+    state.outline.set_theme(&theme);
+    state.tabs.set_theme(&theme);
+}
+
 fn active_config_section<'a>(
     config: &'a Config,
     active: ActivePane,
@@ -241,6 +265,7 @@ fn active_config_section<'a>(
         ActivePane::Outline => &config.outline,
         ActivePane::HelpModal => &config.help_modal,
         ActivePane::VaultSelectorModal => &config.vault_selector_modal,
+        ActivePane::ThemeSelectorModal => &config.theme_selector_modal,
         ActivePane::Input => &config.input_modal,
         ActivePane::NoteEditor => &config.note_editor,
         ActivePane::DebugLogModal => &config.debug_log_modal,
@@ -260,6 +285,9 @@ fn rebuild_outline(state: &mut AppState, config: &Config) {
         None => OutlineState::new(&[], 0, is_open, &config.symbols),
     };
     state.outline.set_active(was_active);
+    // A fresh OutlineState carries the default theme; re-apply the active one so
+    // rebuilding (e.g. on a tab switch) doesn't revert it to the default look.
+    state.outline.set_theme(&state.theme);
 }
 
 fn focus_active_editor(state: &mut AppState) {
@@ -353,10 +381,15 @@ impl<'a> App<'a> {
         initial_vault: Option<Vault>,
         debug: bool,
         log_level: LogLevel,
+        theme_override: Option<String>,
     ) -> Result<()> {
         let version = stylized_text::stylize(VERSION, FontStyle::Script);
         let size = terminal.size()?;
-        let (config, warnings) = config::load().unwrap();
+        let (mut config, warnings) = config::load().unwrap();
+
+        if let Some(name) = &theme_override {
+            config.theme = config::theme::theme_by_name(name);
+        }
 
         let vault = initial_vault.clone().unwrap_or_default();
         let explorer = match &initial_vault {
@@ -369,13 +402,15 @@ impl<'a> App<'a> {
             ActivePane::default()
         };
 
-        let state = AppState {
+        let mut state = AppState {
             vault,
             explorer,
             active_pane,
+            theme: config.theme,
             screen_size: size,
             help_modal: HelpModalState::new(&help_text(&version)),
             vault_selector_modal: VaultSelectorModalState::new(vaults.clone()),
+            theme_selector_modal: ThemeSelectorModalState::new(config::theme::load_themes()),
             splash_modal: SplashModalState::new(&version, vaults, initial_vault.is_none()),
             outline: OutlineState {
                 symbols: config.symbols.clone(),
@@ -395,6 +430,8 @@ impl<'a> App<'a> {
                 .collect(),
             ..Default::default()
         };
+
+        apply_theme(&mut state, config.theme);
 
         App::new(state, config, terminal).run()
     }
@@ -709,6 +746,7 @@ impl<'a> App<'a> {
                 state.explorer = ExplorerState::new(&vault.name, vault.entries(), &config.symbols);
                 state.tabs = Tabs::default();
                 rebuild_outline(state, config);
+                apply_theme(state, state.theme);
                 return Some(Message::SetActivePane(ActivePane::Explorer));
             }
             Message::SelectNote(selected_note) => {
@@ -739,6 +777,8 @@ impl<'a> App<'a> {
                 }
 
                 rebuild_outline(state, config);
+
+                apply_theme(state, state.theme);
 
                 if state.explorer.visibility == Visibility::FullWidth && is_different {
                     return Some(Message::Explorer(explorer::Message::HidePane));
@@ -808,6 +848,26 @@ impl<'a> App<'a> {
             Message::VaultSelectorModal(message) => {
                 return vault_selector_modal::update(&message, &mut state.vault_selector_modal);
             }
+            Message::ThemeSelectorModal(message) => {
+                return theme_selector_modal::update(
+                    &message,
+                    &mut state.theme_selector_modal,
+                    state.theme,
+                );
+            }
+            Message::PreviewTheme(theme) => apply_theme(state, theme),
+            Message::SaveTheme(name) => {
+                let toast = match config::save_theme(&name) {
+                    Ok(_) => {
+                        Toast::success(&format!("Saved theme \"{name}\""), Duration::from_secs(2))
+                    }
+                    Err(error) => Toast::error(
+                        &format!("Could not save theme: {error}"),
+                        Duration::from_secs(4),
+                    ),
+                };
+                return Some(Message::Toast(toast::Message::Create(toast)));
+            }
             Message::Splash(message) => {
                 return splash_modal::update(&message, &mut state.splash_modal);
             }
@@ -822,6 +882,24 @@ impl<'a> App<'a> {
                 if let Some(editor) = state.tabs.active_editor_mut() {
                     return note_editor::update(message, size, editor);
                 }
+                // With no open tab there is no editor to update, but pane
+                // navigation must still work so the user isn't trapped in the
+                // empty editor.
+                return match message {
+                    note_editor::Message::SwitchPaneNext => {
+                        Some(Message::SetActivePane(ActivePane::Outline))
+                    }
+                    note_editor::Message::SwitchPanePrevious => {
+                        Some(Message::SetActivePane(ActivePane::Explorer))
+                    }
+                    note_editor::Message::ToggleExplorer => {
+                        Some(Message::Explorer(explorer::Message::Toggle))
+                    }
+                    note_editor::Message::ToggleOutline => {
+                        Some(Message::Outline(outline::Message::Toggle))
+                    }
+                    _ => None,
+                };
             }
             Message::Input(message) => return input::update(message, &mut state.input_modal),
             Message::DebugLog(message) => {
@@ -833,10 +911,16 @@ impl<'a> App<'a> {
         None
     }
 
-    fn render_splash(&self, area: Rect, buf: &mut Buffer, state: &mut SplashModalState<'a>) {
+    fn render_splash(
+        &self,
+        area: Rect,
+        buf: &mut Buffer,
+        theme: Theme,
+        state: &mut SplashModalState<'a>,
+    ) {
         let border_modal = self.config.symbols.border_modal.into();
         let vault_active = self.config.symbols.vault_active.clone();
-        SplashModal::new(border_modal, vault_active).render(area, buf, state)
+        SplashModal::new(border_modal, vault_active, theme).render(area, buf, state)
     }
 
     fn render_main(&self, area: Rect, buf: &mut Buffer, state: &mut AppState<'a>) {
@@ -848,7 +932,7 @@ impl<'a> App<'a> {
         .horizontal_margin(1)
         .areas(area);
 
-        Header::new(&self.config.symbols, &state.tabs).render(header, buf);
+        Header::new(&self.config.symbols, &state.theme, &state.tabs).render(header, buf);
 
         let (left, right) = match state.explorer.visibility {
             Visibility::Hidden => (Constraint::Length(4), Constraint::Fill(1)),
@@ -867,17 +951,21 @@ impl<'a> App<'a> {
         ])
         .areas(content);
 
+        let theme = state.theme;
+
         Explorer::new().render(explorer_pane, buf, &mut state.explorer);
         match state.tabs.active_editor_mut() {
             Some(editor) => NoteEditor::default().render(note, buf, editor),
             None => {
                 let mut empty = NoteEditorState::new("", "", Path::new(""), &self.config.symbols);
+                empty.set_theme(&theme);
+                empty.set_active(state.active_pane == ActivePane::NoteEditor);
                 NoteEditor::default().render(note, buf, &mut empty);
             }
         }
         Outline.render(outline, buf, &mut state.outline);
         let border_modal = self.config.symbols.border_modal.into();
-        Input::new(border_modal).render(explorer_pane, buf, &mut state.input_modal);
+        Input::new(border_modal, theme).render(explorer_pane, buf, &mut state.input_modal);
 
         let (word_count, char_count) = state
             .tabs
@@ -888,13 +976,20 @@ impl<'a> App<'a> {
             })
             .unwrap_or_default();
 
+        let mode = state
+            .tabs
+            .active_editor()
+            .map(|editor| editor.mode())
+            .unwrap_or_default();
+
         let mut status_bar_state = StatusBarState::new(
             state.active_pane.into(),
+            mode,
             word_count.into(),
             char_count.into(),
         );
 
-        let status_bar = StatusBar::new(&self.config.symbols);
+        let status_bar = StatusBar::new(&theme);
         status_bar.render(statusbar, buf, &mut status_bar_state);
 
         self.render_modals(area, buf, state);
@@ -904,7 +999,7 @@ impl<'a> App<'a> {
             let border_modal = self.config.symbols.border_modal.into();
             let memory_mb =
                 memory_stats::memory_stats().map(|stats| stats.physical_mem as f64 / 1_048_576.0);
-            DebugLogModal::new(border_modal, memory_mb).render(
+            DebugLogModal::new(border_modal, state.theme, memory_mb).render(
                 area,
                 buf,
                 &mut state.debug_log_modal,
@@ -913,23 +1008,34 @@ impl<'a> App<'a> {
     }
 
     fn render_modals(&self, area: Rect, buf: &mut Buffer, state: &mut AppState<'a>) {
+        let theme = state.theme;
+
         if state.splash_modal.visible {
-            self.render_splash(area, buf, &mut state.splash_modal);
+            self.render_splash(area, buf, theme, &mut state.splash_modal);
         }
 
         if state.vault_selector_modal.visible {
             let border_modal = self.config.symbols.border_modal.into();
             let vault_active = self.config.symbols.vault_active.clone();
-            VaultSelectorModal::new(border_modal, vault_active).render(
+            VaultSelectorModal::new(border_modal, vault_active, theme).render(
                 area,
                 buf,
                 &mut state.vault_selector_modal,
             );
         }
 
+        if state.theme_selector_modal.visible {
+            let border_modal = self.config.symbols.border_modal.into();
+            ThemeSelectorModal::new(border_modal, theme).render(
+                area,
+                buf,
+                &mut state.theme_selector_modal,
+            );
+        }
+
         if state.help_modal.visible {
             let border_modal = self.config.symbols.border_modal.into();
-            HelpModal::new(border_modal).render(area, buf, &mut state.help_modal);
+            HelpModal::new(border_modal, theme).render(area, buf, &mut state.help_modal);
         }
     }
 
@@ -951,6 +1057,7 @@ impl<'a> App<'a> {
             let mut toast = toast.clone();
             toast.border_type = self.config.symbols.border_modal.into();
             toast.icon = toast.level_icon(&self.config.symbols);
+            toast.theme = state.theme;
             toast.render(toast_area, buf)
         });
     }
@@ -960,6 +1067,9 @@ impl<'a> StatefulWidget for &App<'a> {
     type State = AppState<'a>;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
+        Block::new()
+            .style(Style::new().bg(state.theme.background))
+            .render(area, buf);
         self.render_main(area, buf, state);
     }
 }

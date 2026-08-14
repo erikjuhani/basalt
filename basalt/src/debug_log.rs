@@ -25,7 +25,10 @@ use ratatui::{
 use tracing::{field::Field, field::Visit, level_filters::LevelFilter, Event, Subscriber};
 use tracing_subscriber::{layer::Context, Layer};
 
-use crate::app::{calc_scroll_amount, Message as AppMessage, ScrollAmount};
+use crate::{
+    app::{calc_scroll_amount, Message as AppMessage, ScrollAmount},
+    config::Theme,
+};
 
 /// Maximum number of retained log entries. Oldest entries are evicted past this.
 const CAPACITY: usize = 2000;
@@ -63,13 +66,13 @@ impl LogLevel {
         }
     }
 
-    pub fn color(self) -> Color {
+    pub fn color(self, theme: &Theme) -> Color {
         match self {
-            LogLevel::Trace => Color::DarkGray,
-            LogLevel::Debug => Color::Blue,
-            LogLevel::Info => Color::Green,
-            LogLevel::Warn => Color::Yellow,
-            LogLevel::Error => Color::Red,
+            LogLevel::Trace => theme.muted,
+            LogLevel::Debug => theme.info,
+            LogLevel::Info => theme.success,
+            LogLevel::Warn => theme.warning,
+            LogLevel::Error => theme.error,
         }
     }
 
@@ -276,7 +279,7 @@ fn list_height(area: Rect) -> usize {
 
 /// Renders one entry as wrapped rows. The first row carries the timestamp, level
 /// and target; wrapped continuation rows sit flush left.
-fn entry_rows(entry: &LogEntry, text_width: usize) -> Vec<Line<'static>> {
+fn entry_rows(entry: &LogEntry, text_width: usize, theme: &Theme) -> Vec<Line<'static>> {
     let timestamp = format!("{:<8} ", format!("{:.3}s", entry.elapsed.as_secs_f64()));
     let level = format!("{} ", entry.level.label());
     let target = format!("{} ", entry.target);
@@ -293,9 +296,9 @@ fn entry_rows(entry: &LogEntry, text_width: usize) -> Vec<Line<'static>> {
             if row == 0 {
                 let message = part.strip_prefix(reserved.as_str()).unwrap_or(part);
                 Line::from(vec![
-                    Span::from(timestamp.clone()).dark_gray(),
-                    Span::from(level.clone()).fg(entry.level.color()),
-                    Span::from(target.clone()).dark_gray(),
+                    Span::from(timestamp.clone()).fg(theme.muted),
+                    Span::from(level.clone()).fg(entry.level.color(theme)),
+                    Span::from(target.clone()).fg(theme.muted),
                     Span::from(message.to_string()),
                 ])
             } else {
@@ -307,14 +310,16 @@ fn entry_rows(entry: &LogEntry, text_width: usize) -> Vec<Line<'static>> {
 
 pub struct DebugLogModal {
     pub border_type: BorderType,
+    pub theme: Theme,
     /// Resident memory in MiB, supplied by the caller so the widget stays pure.
     pub memory_mb: Option<f64>,
 }
 
 impl DebugLogModal {
-    pub fn new(border_type: BorderType, memory_mb: Option<f64>) -> Self {
+    pub fn new(border_type: BorderType, theme: Theme, memory_mb: Option<f64>) -> Self {
         Self {
             border_type,
+            theme,
             memory_mb,
         }
     }
@@ -332,11 +337,13 @@ impl StatefulWidget for DebugLogModal {
 
         let entries = snapshot(state.min_level);
         let rows: Vec<Line> = if entries.is_empty() {
-            vec![Line::from(Span::from("No log entries").dark_gray())]
+            vec![Line::from(
+                Span::from("No log entries").fg(self.theme.muted),
+            )]
         } else {
             entries
                 .iter()
-                .flat_map(|entry| entry_rows(entry, text_width))
+                .flat_map(|entry| entry_rows(entry, text_width, &self.theme))
                 .collect()
         };
         let total = rows.len();
@@ -358,7 +365,8 @@ impl StatefulWidget for DebugLogModal {
             state.min_level.label().trim()
         );
         let block = Block::bordered()
-            .dark_gray()
+            .fg(self.theme.muted)
+            .bg(self.theme.background)
             .border_type(self.border_type)
             .padding(Padding::horizontal(1))
             .title_style(Style::default().italic().bold())
@@ -369,7 +377,7 @@ impl StatefulWidget for DebugLogModal {
         StatefulWidget::render(
             List::new(rows.into_iter().map(ListItem::new).collect::<Vec<_>>())
                 .block(block)
-                .fg(Color::default())
+                .fg(self.theme.text)
                 .highlight_symbol("▎ "),
             area,
             buf,
@@ -462,7 +470,7 @@ mod tests {
         terminal
             .draw(|frame| {
                 // Fixed memory keeps the snapshot stable; live memory comes from the app.
-                DebugLogModal::new(BorderType::Rounded, Some(24.1)).render(
+                DebugLogModal::new(BorderType::Rounded, Theme::default(), Some(24.1)).render(
                     frame.area(),
                     frame.buffer_mut(),
                     &mut DebugLogModalState {

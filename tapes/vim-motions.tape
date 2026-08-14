@@ -3,7 +3,7 @@ Hide
 # practice text the cursor then performs them on.
 Type `printf '# Vim motions\n\n> gg and G jump to both ends of the note.\n\nWatch the cursor leap around.\n\n> w b e move by word; 0 $ jump to ends.\n\nThe quick brown fox jumps over lazy dogs.\n\n> f finds a char; ; and , repeat it.\n\nLook for the letter o on this row of text.\n\n> dw deletes a word, cw changes it, u undo.\n\ndelete or change the first word here now.\n\n> r replaces a char, dd deletes a line.\n\nreplace the first letter of this line.\n\n> yy yanks a line, p pastes it below.\n\ncopy this line and paste a duplicate.\n\n> ci" edits quotes, da( edits parens.\n\nedit "a quoted phrase" and (some parens).\n\n> v selects, V lines, y yanks, d deletes.\n\nselect these first three words to yank.\n' > 'docs/Vim motions.md'`
 Enter
-Type "cargo run --release -q"
+Type "cargo run --release -q -- --theme $BASALT_THEME"
 Enter
 Sleep 2s
 Show

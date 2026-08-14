@@ -5,6 +5,7 @@
 #
 # quit: exits the application
 # vault_selector_modal_toggle: toggles vault selector modal (not available in splash screen)
+# theme_selector_modal_toggle: toggles the theme picker; scrolling previews each theme live
 # help_modal_toggle: toggles help modal
 # spawn: <command> spawns a new process without blocking. This is for opening external applications or URLs.
 # exec: <command> runs a command in the current shell environment.
@@ -114,6 +115,14 @@
 # debug_log_scroll_down_one: scrolls down by one
 # debug_log_scroll_up_half_page: scrolls up by half page
 # debug_log_scroll_down_half_page: scrolls down by half page
+#
+# Theme selector commands:
+#
+# theme_selector_modal_up: moves selector up (previews the highlighted theme)
+# theme_selector_modal_down: moves selector down (previews the highlighted theme)
+# theme_selector_modal_close: closes the picker and reverts to the previous theme
+# theme_selector_modal_open: keeps the highlighted theme and closes the picker
+# theme_selector_modal_toggle: toggles the theme picker
 
 # Editor is experimental
 experimental_editor = false
@@ -124,6 +133,17 @@ vim_mode = false
 # in the user config takes effect.
 leader = "<space>"
 
+# Colour theme. Built-in: "default", "causeway-dark", "causeway-light",
+# "gruvbox-dark", "gruvbox-light", "everforest-dark", "everforest-light",
+# "nord", "dracula", "catppuccin-latte", "catppuccin-frappe",
+# "catppuccin-macchiato", "catppuccin-mocha", "minimal". Add your own by
+# dropping a <name>.toml in $config/basalt/themes/ (see the bundled themes for
+# the format); it then appears in the theme picker too. Themes colour text,
+# backgrounds, headings, code and markdown, the status bar, and per-pane
+# borders (including which edges draw, so a theme can keep only the dividers
+# between panes).
+theme = "default"
+
 [symbols]
 preset = "unicode"
 
@@ -133,6 +153,7 @@ key_bindings = [
  { key = "?", command = "help_modal_toggle" },
  { key = "<leader>v", command = "vault_selector_modal_toggle" },
  { key = "<leader>d", command = "debug_log_toggle" },
+ { key = "<leader>t", command = "theme_selector_modal_toggle" },
  { key = "ctrl+n", command = "tab_next" },
  { key = "ctrl+p", command = "tab_previous" },
  { key = "ctrl+w", command = "tab_close" },
@@ -275,4 +296,14 @@ key_bindings = [
  { key = "ctrl+d", command = "debug_log_scroll_down_half_page" },
  { key = "c", command = "debug_log_clear" },
  { key = "l", command = "debug_log_cycle_level" },
+]
+
+[theme_selector_modal]
+key_bindings = [
+ { key = "k", command = "theme_selector_modal_up" },
+ { key = "j", command = "theme_selector_modal_down" },
+ { key = "up", command = "theme_selector_modal_up" },
+ { key = "down", command = "theme_selector_modal_down" },
+ { key = "enter", command = "theme_selector_modal_open" },
+ { key = "esc", command = "theme_selector_modal_close" },
 ]

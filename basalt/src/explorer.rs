@@ -23,7 +23,7 @@ use ratatui::{
 use crate::app::{
     calc_scroll_amount, ActivePane, Message as AppMessage, ScrollAmount, SelectedNote,
 };
-use crate::config::Symbols;
+use crate::config::{Symbols, Theme};
 use crate::input;
 use crate::input::InputModalConfig;
 use crate::outline;
@@ -140,6 +140,7 @@ impl Explorer<'_> {
 
     fn list_item<'a>(
         symbols: &'a Symbols,
+        theme: &'a Theme,
         selected_path: Option<PathBuf>,
         is_open: bool,
     ) -> impl Fn(&'a (Item, usize)) -> ListItem<'a> {
@@ -166,33 +167,33 @@ impl Explorer<'_> {
                         .to_vec(),
                         (true, false) => [
                             indentation,
-                            format!("{} ", symbols.unselected).dark_gray(),
+                            format!("{} ", symbols.unselected).fg(theme.muted),
                             name.into(),
                         ]
                         .to_vec(),
                         (false, true) => [symbols.selected.clone().into()].to_vec(),
-                        (false, false) => [symbols.unselected.clone().dark_gray()].to_vec(),
+                        (false, false) => [symbols.unselected.clone().fg(theme.muted)].to_vec(),
                     }))
                 }
                 Item::Directory { expanded, name, .. } => {
                     ListItem::new(Line::from(match (is_open, expanded) {
                         (true, true) => [
                             indentation,
-                            format!("{} ", symbols.tree_expanded).dark_gray(),
+                            format!("{} ", symbols.tree_expanded).fg(theme.muted),
                             name.into(),
                         ]
                         .to_vec(),
                         (true, false) => [
                             indentation,
-                            format!("{} ", symbols.tree_collapsed).dark_gray(),
+                            format!("{} ", symbols.tree_collapsed).fg(theme.muted),
                             name.into(),
                         ]
                         .to_vec(),
                         (false, true) => {
-                            [symbols.folder_expanded_collapsed.clone().dark_gray()].to_vec()
+                            [symbols.folder_expanded_collapsed.clone().fg(theme.muted)].to_vec()
                         }
                         (false, false) => {
-                            [symbols.folder_collapsed_collapsed.clone().dark_gray()].to_vec()
+                            [symbols.folder_collapsed_collapsed.clone().fg(theme.muted)].to_vec()
                         }
                     }))
                 }
@@ -205,13 +206,30 @@ impl<'a> StatefulWidget for Explorer<'a> {
     type State = ExplorerState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        let block = Block::bordered()
-            .border_type(if state.active {
-                state.symbols.border_active.into()
-            } else {
-                state.symbols.border_inactive.into()
-            })
+        let active = state.active;
+        let pane = state.theme.explorer;
+        let fallback = if active {
+            state.symbols.border_active
+        } else {
+            state.symbols.border_inactive
+        }
+        .into();
+        let border_line = pane.border_line(fallback);
+
+        let border_set = match (border_line.is_some(), state.is_open()) {
+            (false, _) => Borders::NONE,
+            (true, true) => pane.border_edges.to_borders(),
+            (true, false) => pane.collapsed_borders(Borders::LEFT | Borders::TOP | Borders::BOTTOM),
+        };
+
+        let mut block = Block::new()
+            .borders(border_set)
+            .style(Style::new().fg(state.theme.text).bg(pane.background))
+            .border_style(Style::new().fg(pane.border(active)))
             .title_style(Style::default().italic().bold());
+        if let Some(line) = border_line {
+            block = block.border_type(line);
+        }
 
         let Rect { height, .. } = block.inner(area);
         state.update_offset_mut(height.into());
@@ -226,6 +244,7 @@ impl<'a> StatefulWidget for Explorer<'a> {
             .iter()
             .map(Self::list_item(
                 &state.symbols,
+                &state.theme,
                 state.selected_path(),
                 state.is_open(),
             ))
@@ -253,19 +272,15 @@ impl<'a> StatefulWidget for Explorer<'a> {
                             .alignment(Alignment::Right),
                         ),
                 )
-                .highlight_style(Style::new().reversed().dark_gray())
+                .highlight_style(Style::new().reversed().fg(state.theme.muted))
                 .highlight_symbol(" ")
                 .render(area, buf, &mut state.list_state);
         } else {
             let layout = Layout::horizontal([Constraint::Length(5)]).split(area);
 
             List::new(items)
-                .block(
-                    block
-                        .title(format!(" {} ", state.symbols.pane_open))
-                        .borders(Borders::LEFT | Borders::TOP | Borders::BOTTOM),
-                )
-                .highlight_style(Style::new().reversed().dark_gray())
+                .block(block.title(format!(" {} ", state.symbols.pane_open)))
+                .highlight_style(Style::new().reversed().fg(state.theme.muted))
                 .highlight_symbol(" ")
                 .render(layout[0], buf, &mut state.list_state);
         }

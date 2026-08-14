@@ -14,6 +14,10 @@ pub struct Cli {
     /// Minimum log level shown in the debug log overlay
     #[arg(long, value_enum, default_value_t = LogLevel::Trace)]
     pub log_level: LogLevel,
+
+    /// Override the configured theme by name (e.g. "causeway-dark")
+    #[arg(long)]
+    pub theme: Option<String>,
 }
 
 #[cfg(test)]

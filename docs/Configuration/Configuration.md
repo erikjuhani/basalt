@@ -94,6 +94,14 @@ The `[symbols]` table controls the visual glyphs used across the interface. Basa
 preset = "unicode"
 ```
 
+## Themes
+
+The `theme` key sets the interface colour scheme. Basalt ships with themes like `gruvbox-dark`, `everforest-dark`, `catppuccin-mocha` and its own `causeway-dark`, and you can preview them live with `<leader>t` or drop your own into the themes directory. See [[Themes]] for the full role reference and how to create one.
+
+```toml
+theme = "causeway-dark"
+```
+
 ## Default configuration
 
 The full default configuration is shown below. The default `exec:` and `spawn:` commands use macOS conventions (`vi`, `open`). On Linux, replace `open` with `xdg-open`; on Windows, use `start`. See [[Custom commands]] for details.

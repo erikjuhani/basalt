@@ -6,7 +6,7 @@ use ratatui::{
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
-    config::Symbols,
+    config::{Symbols, Theme},
     note_editor::{
         ast::{self, SourceRange},
         rich_text::RichText,
@@ -31,10 +31,6 @@ impl SpanExt for &Span<'_> {
         )
     }
 }
-
-/// Background for code blocks: the terminal theme's black, so it follows the
-/// user's colour scheme rather than a hard-coded shade.
-const CODE_BG: Color = Color::Black;
 
 /// Vertical bar drawn down the side of a plain block quote.
 const QUOTE_BAR: &str = "┃ ";
@@ -156,6 +152,7 @@ pub fn edit_lines<'a>(
     max_width: usize,
     horizontal_offset: usize,
     symbols: &Symbols,
+    theme: &Theme,
 ) -> Vec<VirtualLine<'a>> {
     // Full-width fills (code backgrounds, heading rules) extend by the horizontal
     // scroll so they still span the viewport once it pans to follow the cursor.
@@ -176,13 +173,14 @@ pub fn edit_lines<'a>(
 
         if in_code || fence {
             quote = None;
-            lines.push(code_line(text, &line_range, fill_width));
+            lines.push(code_line(text, &line_range, fill_width, theme));
             // A fence toggles the block: the opener enters it, the next closes it.
             in_code ^= fence;
         } else {
             let rest = text.trim_start();
-            quote = quote_prefix(rest)
-                .map(|(prefix_len, _)| quote.unwrap_or_else(|| quote_style(&rest[prefix_len..])));
+            quote = quote_prefix(rest).map(|(prefix_len, _)| {
+                quote.unwrap_or_else(|| quote_style(&rest[prefix_len..], theme))
+            });
             lines.extend(edit_line(
                 text,
                 &line_range,
@@ -191,6 +189,7 @@ pub fn edit_lines<'a>(
                 fill_width,
                 quote,
                 symbols,
+                theme,
             ));
         }
     }
@@ -207,6 +206,7 @@ fn edit_line<'a>(
     fill_width: usize,
     quote: Option<QuoteStyle>,
     symbols: &Symbols,
+    theme: &Theme,
 ) -> Vec<VirtualLine<'a>> {
     if text.is_empty() {
         return vec![virtual_line!([content_span!(
@@ -221,7 +221,9 @@ fn edit_line<'a>(
     // Headings always keep their rendered style (bold, colour, underline) while
     // editing; the `#` markers stay visible but dimmed so they can still be edited.
     if let Some(level) = heading_level(rest) {
-        return heading_lines(text, line_range, indent_len, level, fill_width, symbols);
+        return heading_lines(
+            text, line_range, indent_len, level, fill_width, symbols, theme,
+        );
     }
 
     if is_cursor {
@@ -234,7 +236,7 @@ fn edit_line<'a>(
         return render_raw_line(text, Span::default(), line_range, max_width, symbols);
     }
 
-    decorate_line(text, line_range, max_width, quote, symbols)
+    decorate_line(text, line_range, max_width, quote, symbols, theme)
 }
 
 /// True if the line opens or closes a fenced code block (``` ``` ``` or `~~~`).
@@ -249,12 +251,16 @@ fn code_line<'a>(
     text: &str,
     line_range: &SourceRange<usize>,
     fill_width: usize,
+    theme: &Theme,
 ) -> VirtualLine<'a> {
-    let code_bg = Style::new().bg(CODE_BG);
+    let code_bg = Style::new().bg(theme.code_bg);
     let pad = fill_width.saturating_sub(display_width(text) + 1);
     virtual_line!([
         synthetic_span!(Span::styled(" ", code_bg)),
-        content_span!(Span::raw(text.to_string()).bg(CODE_BG), line_range.clone()),
+        content_span!(
+            Span::raw(text.to_string()).bg(theme.code_bg),
+            line_range.clone()
+        ),
         synthetic_span!(Span::styled(" ".repeat(pad), code_bg))
     ])
 }
@@ -269,6 +275,7 @@ fn heading_lines<'a>(
     level: usize,
     fill_width: usize,
     symbols: &Symbols,
+    theme: &Theme,
 ) -> Vec<VirtualLine<'a>> {
     let marker_end = (indent_len + level + 1).min(text.len());
     let title = &text[marker_end..];
@@ -277,11 +284,11 @@ fn heading_lines<'a>(
     let mut lines = vec![virtual_line!([
         content_span!(text[..indent_len].to_string(), start..start + indent_len),
         content_span!(
-            text[indent_len..marker_end].to_string().dark_gray(),
+            text[indent_len..marker_end].to_string().fg(theme.muted),
             (start + indent_len)..(start + marker_end)
         ),
         content_span!(
-            heading_span(title, level),
+            heading_span(title, level, theme),
             (start + marker_end)..line_range.end
         )
     ])];
@@ -293,7 +300,7 @@ fn heading_lines<'a>(
         2 => lines.push(virtual_line!([synthetic_span!(symbols
             .h2_underline
             .repeat(fill_width)
-            .yellow())])),
+            .fg(theme.heading_2))])),
         _ => {}
     }
     lines
@@ -333,6 +340,7 @@ fn decorate_line<'a>(
     max_width: usize,
     quote: Option<QuoteStyle>,
     symbols: &Symbols,
+    theme: &Theme,
 ) -> Vec<VirtualLine<'a>> {
     let indent_len = text.len() - text.trim_start().len();
     let rest = &text[indent_len..];
@@ -359,14 +367,14 @@ fn decorate_line<'a>(
         let content_start = indent_len + marker_len;
         let (icon, content) = if checked {
             (
-                format!("{} ", symbols.task_checked).magenta(),
+                format!("{} ", symbols.task_checked).fg(theme.task),
                 Span::raw(text[content_start..].to_string())
-                    .dark_gray()
+                    .fg(theme.muted)
                     .add_modifier(Modifier::CROSSED_OUT),
             )
         } else {
             (
-                format!("{} ", symbols.task_unchecked).dark_gray(),
+                format!("{} ", symbols.task_unchecked).fg(theme.muted),
                 Span::raw(text[content_start..].to_string()),
             )
         };
@@ -380,7 +388,7 @@ fn decorate_line<'a>(
         };
         let content_start = indent_len + marker_len;
         return render(
-            Some(format!("{bullet} ").dark_gray()),
+            Some(format!("{bullet} ").fg(theme.list_marker)),
             content_start,
             Span::raw(text[content_start..].to_string()),
         );
@@ -388,7 +396,7 @@ fn decorate_line<'a>(
     if let Some(marker_len) = ordered_marker(rest) {
         let content_start = indent_len + marker_len;
         return render(
-            Some(rest[..marker_len].to_string().dark_gray()),
+            Some(rest[..marker_len].to_string().fg(theme.list_marker)),
             content_start,
             Span::raw(text[content_start..].to_string()),
         );
@@ -456,12 +464,10 @@ fn quote_prefix(rest: &str) -> Option<(usize, usize)> {
     (levels > 0).then_some((len, levels))
 }
 
-fn heading_span<'a>(text: &str, level: usize) -> Span<'a> {
+fn heading_span<'a>(text: &str, level: usize, theme: &Theme) -> Span<'a> {
     let span = Span::raw(text.to_string()).bold();
     match level {
-        2 => span.yellow(),
-        3 => span.cyan(),
-        4 => span.magenta(),
+        2..=4 => span.fg(theme.heading(level)),
         _ => span,
     }
 }
@@ -499,6 +505,7 @@ pub fn heading<'a>(
     horizontal_offset: usize,
     option: &RenderStyle,
     symbols: &Symbols,
+    theme: &Theme,
 ) -> VirtualBlock<'a> {
     use ast::HeadingLevel::*;
 
@@ -565,13 +572,19 @@ pub fn heading<'a>(
             symbols.h1_underline.repeat(underline_width).into(),
         ),
         H2 => h_with_underline(
-            text.bold().yellow(),
-            symbols.h2_underline.repeat(underline_width).yellow(),
+            text.bold().fg(theme.heading_2),
+            symbols
+                .h2_underline
+                .repeat(underline_width)
+                .fg(theme.heading_2),
         ),
-        H3 => h(format!("{} ", symbols.h3_marker).cyan(), text.bold().cyan()),
+        H3 => h(
+            format!("{} ", symbols.h3_marker).fg(theme.heading_3),
+            text.bold().fg(theme.heading_3),
+        ),
         H4 => h(
-            format!("{} ", symbols.h4_marker).magenta(),
-            text.bold().magenta(),
+            format!("{} ", symbols.h4_marker).fg(theme.heading_4),
+            text.bold().fg(theme.heading_4),
         ),
         H5 => h(
             format!("{} ", symbols.h5_marker).into(),
@@ -705,9 +718,11 @@ pub fn code_block<'a>(
     max_width: usize,
     horizontal_offset: usize,
     option: &RenderStyle,
+    theme: &Theme,
 ) -> VirtualBlock<'a> {
     // Extend the background by the horizontal scroll so it still spans the viewport when panned.
     let fill_width = max_width + horizontal_offset;
+    let code_bg = theme.code_bg;
     let lines = match option {
         RenderStyle::Raw => {
             let content = content.get(source_range.clone()).unwrap_or(content);
@@ -721,15 +736,15 @@ pub fn code_block<'a>(
 
                     virtual_line!([
                         synthetic_span!(prefix.clone()),
-                        synthetic_span!(Span::styled(" ", Style::new().bg(CODE_BG))),
-                        content_span!(line.to_string().bg(CODE_BG), line_range),
+                        synthetic_span!(Span::styled(" ", Style::new().bg(code_bg))),
+                        content_span!(line.to_string().bg(code_bg), line_range),
                         synthetic_span!(" "
                             .repeat(
                                 fill_width
                                     .saturating_sub(prefix.width() + line.chars().count())
                                     .saturating_sub(1)
                             )
-                            .bg(CODE_BG)),
+                            .bg(code_bg)),
                     ])
                 })
                 .collect::<Vec<_>>();
@@ -744,7 +759,7 @@ pub fn code_block<'a>(
                 synthetic_span!(prefix.clone()),
                 synthetic_span!(" "
                     .repeat(fill_width.saturating_sub(prefix.width()))
-                    .bg(CODE_BG))
+                    .bg(code_bg))
             ]);
 
             let mut current_range_start = source_range.start;
@@ -756,15 +771,15 @@ pub fn code_block<'a>(
 
                 virtual_line!([
                     synthetic_span!(prefix.clone()),
-                    synthetic_span!(Span::styled(" ", Style::new().bg(CODE_BG))),
-                    content_span!(line.to_string().bg(CODE_BG), source_range),
+                    synthetic_span!(Span::styled(" ", Style::new().bg(code_bg))),
+                    content_span!(line.to_string().bg(code_bg), source_range),
                     synthetic_span!(" "
                         .repeat(
                             fill_width
                                 .saturating_sub(prefix.width() + line.chars().count())
                                 .saturating_sub(1)
                         )
-                        .bg(CODE_BG)),
+                        .bg(code_bg)),
                 ])
             }));
             lines.extend([padding_line]);
@@ -787,6 +802,7 @@ pub fn list<'a>(
     horizontal_offset: usize,
     option: &RenderStyle,
     symbols: &Symbols,
+    theme: &Theme,
     list_depth: usize,
 ) -> VirtualBlock<'a> {
     let lines = match option {
@@ -818,6 +834,7 @@ pub fn list<'a>(
                             prefix.clone(),
                             option,
                             symbols,
+                            theme,
                             list_depth,
                         )
                         .lines,
@@ -857,6 +874,7 @@ pub fn task<'a>(
     horizontal_offset: usize,
     option: &RenderStyle,
     symbols: &Symbols,
+    theme: &Theme,
     list_depth: usize,
 ) -> VirtualBlock<'a> {
     let lines = match option {
@@ -872,16 +890,16 @@ pub fn task<'a>(
             let text = text.to_string();
             let (marker, text) = match kind {
                 ast::TaskKind::Unchecked => (
-                    format!("{} ", symbols.task_unchecked).dark_gray(),
+                    format!("{} ", symbols.task_unchecked).fg(theme.muted),
                     text.into(),
                 ),
                 ast::TaskKind::LooselyChecked => (
-                    format!("{} ", symbols.task_checked).magenta(),
-                    text.dark_gray(),
+                    format!("{} ", symbols.task_checked).fg(theme.task),
+                    text.fg(theme.muted),
                 ),
                 ast::TaskKind::Checked => (
-                    format!("{} ", symbols.task_checked).magenta(),
-                    text.dark_gray().add_modifier(Modifier::CROSSED_OUT),
+                    format!("{} ", symbols.task_checked).fg(theme.task),
+                    text.fg(theme.muted).add_modifier(Modifier::CROSSED_OUT),
                 ),
             };
 
@@ -904,6 +922,7 @@ pub fn task<'a>(
                     prefix.merge("  ".into()),
                     option,
                     symbols,
+                    theme,
                     list_depth + 1,
                 )
                 .lines
@@ -928,6 +947,7 @@ pub fn item<'a>(
     horizontal_offset: usize,
     option: &RenderStyle,
     symbols: &Symbols,
+    theme: &Theme,
     list_depth: usize,
 ) -> VirtualBlock<'a> {
     let lines = match option {
@@ -943,14 +963,14 @@ pub fn item<'a>(
             let text = text.to_string();
 
             let marker = match kind {
-                ast::ItemKind::Ordered(i) => format!("{i}. ").dark_gray(),
+                ast::ItemKind::Ordered(i) => format!("{i}. ").fg(theme.list_marker),
                 ast::ItemKind::Unordered => {
                     let marker = if symbols.list_markers.is_empty() {
                         "-"
                     } else {
                         &symbols.list_markers[list_depth % symbols.list_markers.len()]
                     };
-                    format!("{marker} ").dark_gray()
+                    format!("{marker} ").fg(theme.list_marker)
                 }
             };
 
@@ -974,6 +994,7 @@ pub fn item<'a>(
                     prefix.merge("  ".into()),
                     option,
                     symbols,
+                    theme,
                     list_depth + 1,
                 )
                 .lines
@@ -1020,29 +1041,32 @@ impl QuoteStyle {
     }
 }
 
-fn quote_style(first_line: &str) -> QuoteStyle {
+fn quote_style(first_line: &str, theme: &Theme) -> QuoteStyle {
     match ast::parse_callout_marker(first_line) {
         Some(marker) => QuoteStyle {
-            color: callout_color(&Some(marker.kind)),
+            color: callout_color(&Some(marker.kind), theme),
             callout: true,
         },
-        None => QuoteStyle::default(),
+        None => QuoteStyle {
+            color: theme.blockquote,
+            callout: false,
+        },
     }
 }
 
 /// Per-kind accent colour for a callout block quote; plain quotes (`None`) keep
 /// the default magenta border.
-fn callout_color(kind: &Option<ast::BlockQuoteKind>) -> Color {
+fn callout_color(kind: &Option<ast::BlockQuoteKind>, theme: &Theme) -> Color {
     use ast::BlockQuoteKind::*;
     match kind {
-        None => Color::Magenta,
-        Some(Note | Info | Todo) => Color::Blue,
-        Some(Abstract | Tip) => Color::Cyan,
-        Some(Success) => Color::Green,
-        Some(Question | Warning) => Color::Yellow,
-        Some(Failure | Danger | Bug) => Color::Red,
-        Some(Example) => Color::Magenta,
-        Some(Quote) => Color::Gray,
+        None => theme.blockquote,
+        Some(Note | Info | Todo) => theme.info,
+        Some(Abstract | Tip) => theme.heading_3,
+        Some(Success) => theme.success,
+        Some(Question | Warning) => theme.warning,
+        Some(Failure | Danger | Bug) => theme.error,
+        Some(Example) => theme.accent,
+        Some(Quote) => theme.muted,
     }
 }
 
@@ -1099,8 +1123,9 @@ pub fn block_quote<'a>(
     horizontal_offset: usize,
     option: &RenderStyle,
     symbols: &Symbols,
+    theme: &Theme,
 ) -> VirtualBlock<'a> {
-    let color = callout_color(kind);
+    let color = callout_color(kind, theme);
     let bar = if kind.is_some() {
         CALLOUT_BAR
     } else {
@@ -1138,6 +1163,7 @@ pub fn block_quote<'a>(
                         bar_prefix(),
                         option,
                         symbols,
+                        theme,
                         0,
                     )
                     .lines,
@@ -1207,6 +1233,7 @@ pub fn edit_table<'a>(
     max_width: usize,
     horizontal_offset: usize,
     symbols: &Symbols,
+    theme: &Theme,
 ) -> Vec<VirtualLine<'a>> {
     let prefix = Span::default();
 
@@ -1240,6 +1267,7 @@ pub fn edit_table<'a>(
             max_width,
             horizontal_offset,
             symbols,
+            theme,
         );
     }
 
@@ -1612,6 +1640,7 @@ pub fn render_node<'a>(
     prefix: Span<'static>,
     option: &RenderStyle,
     symbols: &Symbols,
+    theme: &Theme,
     list_depth: usize,
 ) -> VirtualBlock<'a> {
     use ast::Node::*;
@@ -1630,6 +1659,7 @@ pub fn render_node<'a>(
             horizontal_offset,
             option,
             symbols,
+            theme,
         ),
         Paragraph { text, source_range } => paragraph(
             &content,
@@ -1653,6 +1683,7 @@ pub fn render_node<'a>(
             max_width,
             horizontal_offset,
             option,
+            theme,
         ),
         List {
             nodes,
@@ -1666,6 +1697,7 @@ pub fn render_node<'a>(
             horizontal_offset,
             option,
             symbols,
+            theme,
             list_depth,
         ),
         Item {
@@ -1682,6 +1714,7 @@ pub fn render_node<'a>(
             horizontal_offset,
             option,
             symbols,
+            theme,
             list_depth,
         ),
         Task {
@@ -1698,6 +1731,7 @@ pub fn render_node<'a>(
             horizontal_offset,
             option,
             symbols,
+            theme,
             list_depth,
         ),
         BlockQuote {
@@ -1716,6 +1750,7 @@ pub fn render_node<'a>(
             horizontal_offset,
             option,
             symbols,
+            theme,
         ),
         Table {
             alignments,

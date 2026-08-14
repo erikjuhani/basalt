@@ -23,15 +23,9 @@ This page documents current limitations and features not yet implemented.
 
 ## Experimental editor
 
-The [[Editor (experimental)|experimental editor]] is disabled by default and requires [[Configuration|configuration]] to enable. When enabled, it provides a custom-built editor with limited capabilities.
+The [[Editor (experimental)|experimental editor]] is disabled by default and requires [[Configuration|configuration]] to enable. It edits the whole note line by line. With [[Configuration|vim mode]] it supports undo/redo, clipboard, visual (line and block) selection, line and word deletion and jumps to the start and end of the line and document.
 
-- No undo/redo
-- No clipboard (copy/cut/paste)
-- No text selection
-- No multi-line deletion
-- No line/word deletion commands
-- No jumping to start/end of line
-- The editor works on individual blocks (paragraphs, headings, etc.) rather than the full document
+- Pasting images from the clipboard is not supported
 
 ## Configuration
 

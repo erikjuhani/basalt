@@ -1,5 +1,5 @@
 Set Theme { 
-  "name": "Basalt Causeway",
+  "name": "Causeway Dark",
   "background": "#1a1d21",
   "foreground": "#c4bfb6",
   "cursor": "#7a9e8e",
@@ -21,3 +21,5 @@ Set Theme {
   "brightCyan": "#7ab5b5",
   "brightWhite": "#ddd8cf"
 }
+
+Env BASALT_THEME "causeway-dark"

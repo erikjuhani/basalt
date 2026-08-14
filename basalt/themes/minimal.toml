@@ -1,0 +1,55 @@
+text = "fg"
+background = "bg"
+muted = "gray"
+accent = "blue"
+
+border = "divider"
+border-active = "fg-dim"
+border-type = "plain"
+
+mode-insert = "green"
+mode-normal = "fg-dim"
+mode-read = "fg-dim"
+
+heading-1 = "fg"
+heading-2 = "blue"
+heading-3 = "cyan"
+heading-4 = "fg-dim"
+heading-5 = "fg-dim"
+heading-6 = "fg-dim"
+
+code-bg = "bg-soft"
+blockquote = "cyan"
+list-marker = "blue"
+task = "green"
+
+success = "green"
+info = "blue"
+warning = "yellow"
+error = "red"
+
+[explorer]
+border-edges = "right"
+
+[note-editor]
+border-edges = "vertical"
+
+[outline]
+border-edges = "left"
+
+[status-bar]
+background = "bg-soft"
+foreground = "fg"
+
+[palette]
+fg = "#d4d4d4"
+fg-dim = "#a0a0a0"
+gray = "#6b6b6b"
+bg = "#1c1c1c"
+bg-soft = "#262626"
+divider = "#3a3a3a"
+blue = "#7aa2f7"
+cyan = "#7dcfff"
+green = "#9ece6a"
+yellow = "#e0af68"
+red = "#f7768e"

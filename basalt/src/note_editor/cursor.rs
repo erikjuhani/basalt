@@ -3,12 +3,15 @@ use std::ops::ControlFlow;
 use ratatui::{
     buffer::Buffer,
     layout::{Offset, Rect},
-    style::Style,
+    style::{Color, Style},
     widgets::StatefulWidget,
 };
 use unicode_width::UnicodeWidthChar;
 
-use crate::note_editor::{text_buffer::TextBuffer, virtual_document::VirtualLine};
+use crate::{
+    config::Theme,
+    note_editor::{text_buffer::TextBuffer, virtual_document::VirtualLine},
+};
 
 #[derive(Clone, Debug)]
 pub enum Message {
@@ -330,10 +333,21 @@ impl Cursor {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct CursorWidget {
     offset: Offset,
     meta_len: u16,
+    selection: Color,
+}
+
+impl Default for CursorWidget {
+    fn default() -> Self {
+        Self {
+            offset: Offset::default(),
+            meta_len: 0,
+            selection: Theme::default().muted,
+        }
+    }
 }
 
 impl CursorWidget {
@@ -344,6 +358,11 @@ impl CursorWidget {
 
     pub fn with_meta_len(mut self, meta_len: u16) -> Self {
         self.meta_len = meta_len;
+        self
+    }
+
+    pub fn with_theme(mut self, theme: &Theme) -> Self {
+        self.selection = theme.muted;
         self
     }
 }
@@ -364,7 +383,7 @@ impl StatefulWidget for CursorWidget {
             CursorMode::Read => {
                 buf.set_style(
                     Rect::new(self.offset.x as u16, y, area.width, 1),
-                    Style::default().reversed().dark_gray(),
+                    Style::default().reversed().fg(self.selection),
                 );
             }
             CursorMode::Edit => {
@@ -373,7 +392,7 @@ impl StatefulWidget for CursorWidget {
                     .saturating_sub(area.left());
                 buf.set_style(
                     Rect::new(x, y, 1, 1),
-                    Style::default().reversed().dark_gray(),
+                    Style::default().reversed().fg(self.selection),
                 );
             }
         }
@@ -386,7 +405,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        config::Symbols,
+        config::{Symbols, Theme},
         note_editor::{
             parser,
             render::{render_node, RenderStyle},
@@ -406,6 +425,7 @@ mod tests {
                     Span::default(),
                     &RenderStyle::Raw,
                     &Symbols::unicode(),
+                    &Theme::default(),
                     0,
                 )
                 .lines
@@ -651,6 +671,7 @@ mod tests {
                     Span::default(),
                     &RenderStyle::Reader,
                     &Symbols::unicode(),
+                    &Theme::default(),
                     0,
                 )
                 .lines

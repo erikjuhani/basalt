@@ -2,7 +2,7 @@ Hide
 # Create a small note that showcases line-by-line rendering
 Type "printf '# Line by line editing\n\n> Basalt reveals the raw markdown only on the line you edit.\n> Every other line stays rendered.\n\n- Fruits\n  - apples\n  - bananas\n- Vegetables\n  - carrots\n' > docs/Demo.md"
 Enter
-Type "cargo run --release -q"
+Type "cargo run --release -q -- --theme $BASALT_THEME"
 Enter
 Sleep 3s
 Show

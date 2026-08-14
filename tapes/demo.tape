@@ -2,7 +2,7 @@ Hide
 Sleep 1s
 Enter
 Sleep 1s
-Type "cargo run --release -q"
+Type "cargo run --release -q -- --theme $BASALT_THEME"
 Enter
 Sleep 5s
 Show

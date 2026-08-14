@@ -14,7 +14,7 @@ use ratatui::{
 
 use crate::{
     app::{ActivePane, Message as AppMessage},
-    config::Symbols,
+    config::{Symbols, Theme},
     explorer,
     note_editor::{self, ast::Node},
 };
@@ -71,58 +71,63 @@ pub fn update<'a>(message: &Message, state: &mut OutlineState) -> Option<AppMess
 pub struct Outline;
 
 trait AsListItems {
-    fn to_list_items<'a>(&'a self, symbols: &'a Symbols) -> Vec<ListItem<'a>>;
-    fn to_collapsed_items<'a>(&'a self, symbols: &'a Symbols) -> Vec<ListItem<'a>>;
+    fn to_list_items<'a>(&'a self, symbols: &'a Symbols, theme: &Theme) -> Vec<ListItem<'a>>;
+    fn to_collapsed_items<'a>(&'a self, symbols: &'a Symbols, theme: &Theme) -> Vec<ListItem<'a>>;
 }
 
 impl AsListItems for Vec<Item> {
-    fn to_collapsed_items<'a>(&'a self, symbols: &'a Symbols) -> Vec<ListItem<'a>> {
+    fn to_collapsed_items<'a>(&'a self, symbols: &'a Symbols, theme: &Theme) -> Vec<ListItem<'a>> {
         self.flatten()
             .iter()
             .map(|item| match item {
                 Item::Heading { .. } => {
                     ListItem::new(Line::from(symbols.outline_heading_dot.as_str()))
-                        .dark_gray()
+                        .fg(theme.muted)
                         .dim()
                 }
                 Item::HeadingEntry { expanded: true, .. } => {
                     ListItem::new(Line::from(symbols.outline_heading_expanded.as_str()))
-                        .red()
+                        .fg(theme.error)
                         .dim()
                 }
                 Item::HeadingEntry {
                     expanded: false, ..
                 } => ListItem::new(Line::from(symbols.outline_heading_collapsed.as_str()))
-                    .dark_gray()
+                    .fg(theme.muted)
                     .dim(),
             })
             .collect()
     }
 
-    fn to_list_items<'a>(&'a self, symbols: &'a Symbols) -> Vec<ListItem<'a>> {
+    fn to_list_items<'a>(&'a self, symbols: &'a Symbols, theme: &Theme) -> Vec<ListItem<'a>> {
         fn list_item<'a>(
             indentation: Span<'a>,
             symbol: Span<'a>,
-            content: &'a str,
+            content: Span<'a>,
         ) -> ListItem<'a> {
-            ListItem::new(Line::from([indentation, symbol, content.into()].to_vec()))
+            ListItem::new(Line::from([indentation, symbol, content].to_vec()))
         }
 
         fn to_list_items_inner<'a>(
             depth: usize,
             symbols: &'a Symbols,
+            theme: Theme,
         ) -> impl Fn(&'a Item) -> Vec<ListItem<'a>> {
+            let muted = theme.muted;
+            let text = theme.text;
             let indentation = if depth > 0 {
-                Span::raw(format!("{} ", symbols.outline_indent).repeat(depth)).black()
+                Span::raw(format!("{} ", symbols.outline_indent).repeat(depth)).fg(muted)
             } else {
-                Span::raw("  ".repeat(depth)).black()
+                Span::raw("  ".repeat(depth))
             };
-            let expanded_marker = Span::from(format!("{} ", symbols.outline_expanded));
-            let collapsed_marker = Span::from(format!("{} ", symbols.outline_collapsed));
+            let expanded_marker = Span::from(format!("{} ", symbols.outline_expanded)).fg(muted);
+            let collapsed_marker = Span::from(format!("{} ", symbols.outline_collapsed)).fg(muted);
             move |item| match item {
-                Item::Heading { content, .. } => {
-                    vec![list_item(indentation.clone(), "  ".into(), content)]
-                }
+                Item::Heading { content, .. } => vec![list_item(
+                    indentation.clone(),
+                    "  ".into(),
+                    Span::raw(content).fg(text),
+                )],
                 Item::HeadingEntry {
                     expanded: true,
                     children,
@@ -132,13 +137,13 @@ impl AsListItems for Vec<Item> {
                     let mut items = vec![list_item(
                         indentation.clone(),
                         expanded_marker.clone(),
-                        content,
+                        Span::raw(content).fg(text),
                     )];
-                    items.extend(
-                        children
-                            .iter()
-                            .flat_map(to_list_items_inner(depth + 1, symbols)),
-                    );
+                    items.extend(children.iter().flat_map(to_list_items_inner(
+                        depth + 1,
+                        symbols,
+                        theme,
+                    )));
                     items
                 }
                 Item::HeadingEntry {
@@ -148,13 +153,13 @@ impl AsListItems for Vec<Item> {
                 } => vec![list_item(
                     indentation.clone(),
                     collapsed_marker.clone(),
-                    content,
+                    Span::raw(content).fg(text),
                 )],
             }
         }
 
         self.iter()
-            .flat_map(to_list_items_inner(0, symbols))
+            .flat_map(to_list_items_inner(0, symbols, *theme))
             .collect()
     }
 }
@@ -163,12 +168,28 @@ impl StatefulWidget for Outline {
     type State = OutlineState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        let block = Block::bordered()
-            .border_type(if state.active {
-                state.symbols.border_active.into()
-            } else {
-                state.symbols.border_inactive.into()
-            })
+        let active = state.active;
+        let pane = state.theme.outline;
+        let fallback = if active {
+            state.symbols.border_active
+        } else {
+            state.symbols.border_inactive
+        }
+        .into();
+        let border_line = pane.border_line(fallback);
+
+        let border_set = match (border_line.is_some(), state.is_open()) {
+            (false, _) => Borders::NONE,
+            (true, true) => pane.border_edges.to_borders(),
+            (true, false) => {
+                pane.collapsed_borders(Borders::RIGHT | Borders::TOP | Borders::BOTTOM)
+            }
+        };
+
+        let mut block = Block::new()
+            .borders(border_set)
+            .style(Style::new().fg(state.theme.text).bg(pane.background))
+            .border_style(Style::new().fg(pane.border(active)))
             .title(if state.is_open() {
                 format!(" {} Outline ", state.symbols.pane_open)
             } else {
@@ -177,20 +198,19 @@ impl StatefulWidget for Outline {
             .title_alignment(Alignment::Right)
             .padding(Padding::horizontal(1))
             .title_style(Style::default().italic().bold());
+        if let Some(line) = border_line {
+            block = block.border_type(line);
+        }
 
         let items = if state.is_open() {
-            state.items.to_list_items(&state.symbols)
+            state.items.to_list_items(&state.symbols, &state.theme)
         } else {
-            state.items.to_collapsed_items(&state.symbols)
+            state.items.to_collapsed_items(&state.symbols, &state.theme)
         };
 
         List::new(items)
-            .block(if state.is_open() {
-                block
-            } else {
-                block.borders(Borders::RIGHT | Borders::TOP | Borders::BOTTOM)
-            })
-            .highlight_style(Style::default().reversed().dark_gray())
+            .block(block)
+            .highlight_style(Style::default().reversed().fg(state.theme.muted))
             .highlight_symbol("")
             .render(area, buf, &mut state.list_state);
     }

@@ -9,7 +9,7 @@ use unicode_width::UnicodeWidthChar;
 use std::borrow::Cow;
 
 use crate::{
-    config::Symbols,
+    config::{Symbols, Theme},
     note_editor::{
         ast::{self, SourceRange},
         render::{
@@ -192,6 +192,7 @@ impl<'a> VirtualBlock<'a> {
 #[derive(Clone, Debug, Default)]
 pub struct VirtualDocument<'a> {
     symbols: Symbols,
+    theme: Theme,
     meta: Vec<VirtualLine<'a>>,
     blocks: Vec<VirtualBlock<'a>>,
     lines: Vec<VirtualLine<'a>>,
@@ -204,6 +205,10 @@ impl<'a> VirtualDocument<'a> {
             symbols: symbols.clone(),
             ..Default::default()
         }
+    }
+
+    pub fn set_theme(&mut self, theme: &Theme) {
+        self.theme = *theme;
     }
     pub fn meta(&self) -> &[VirtualLine<'_>] {
         &self.meta
@@ -309,6 +314,7 @@ impl<'a> VirtualDocument<'a> {
                                 width,
                                 horizontal_offset,
                                 &self.symbols,
+                                &self.theme,
                             )
                         } else {
                             edit_lines(
@@ -318,6 +324,7 @@ impl<'a> VirtualDocument<'a> {
                                 width,
                                 horizontal_offset,
                                 &self.symbols,
+                                &self.theme,
                             )
                         };
                         VirtualBlock::new(&lines, range)
@@ -330,6 +337,7 @@ impl<'a> VirtualDocument<'a> {
                         Span::default(),
                         &styled,
                         &self.symbols,
+                        &self.theme,
                         0,
                     ),
                 };

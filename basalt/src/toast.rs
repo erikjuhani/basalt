@@ -8,7 +8,10 @@ use ratatui::{
     widgets::{Block, BorderType, Clear, Paragraph, Widget},
 };
 
-use crate::{app::Message as AppMessage, config::Symbols};
+use crate::{
+    app::Message as AppMessage,
+    config::{Symbols, Theme},
+};
 
 pub const TOAST_WIDTH: u16 = 40;
 
@@ -21,6 +24,7 @@ pub struct Toast {
     duration: Duration,
     width: usize,
     pub border_type: BorderType,
+    pub theme: Theme,
 }
 
 impl Toast {
@@ -87,11 +91,16 @@ impl Widget for Toast {
         Self: Sized,
     {
         let height = self.height();
-        let color = self.level.as_ref().map(|l| l.color()).unwrap_or_default();
+        let color = self
+            .level
+            .as_ref()
+            .map(|l| l.color(&self.theme))
+            .unwrap_or(self.theme.text);
 
         let block = Block::bordered()
             .border_type(self.border_type)
-            .border_style(Style::new().fg(color));
+            .border_style(Style::new().fg(color))
+            .style(Style::new().fg(self.theme.text).bg(self.theme.background));
 
         let toast_area = Rect {
             x: area.x,
@@ -136,6 +145,7 @@ impl Default for Toast {
             duration: Duration::default(),
             border_type: BorderType::default(),
             width: 30,
+            theme: Theme::default(),
         }
     }
 }
@@ -158,16 +168,19 @@ impl ToastLevel {
         }
     }
 
-    pub fn color(&self) -> Color {
+    pub fn color(&self, theme: &Theme) -> Color {
         match self {
-            ToastLevel::Success => Color::Green,
-            ToastLevel::Info => Color::Blue,
-            ToastLevel::Error => Color::Red,
-            ToastLevel::Warning => Color::Yellow,
+            ToastLevel::Success => theme.success,
+            ToastLevel::Info => theme.info,
+            ToastLevel::Error => theme.error,
+            ToastLevel::Warning => theme.warning,
         }
     }
 }
 
+// A Toast owns a full Theme by value (~200 bytes); the size gap to `Tick` is
+// expected and boxing every construction site is not worth it.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, PartialEq, Debug)]
 pub enum Message {
     Create(Toast),
