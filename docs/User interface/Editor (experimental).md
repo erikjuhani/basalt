@@ -8,7 +8,7 @@ To enable the experimental editor, add the following to your [[Configuration]] f
 experimental_editor = true
 ```
 
-![[editing.gif]]
+![[note-editor.gif]]
 
 ## Views
 
@@ -52,9 +52,6 @@ Displays the raw markdown source and allows editing.
 
 ### Limitations
 
-- No undo/redo support
-- No clipboard operations (copy/paste/cut)
-- No text selection
-- No multi-line or line/word deletion
-- No jumping to start/end of line or document
-- Single block editing only (only the block under the cursor can be edited)
+The edit view edits the whole note line by line. With [[Configuration|vim mode]] it also supports motions, operators (delete, change, yank, paste), visual (line and block) selection, undo/redo and jumps to the start and end of the line and document.
+
+- Pasting images from the clipboard is not supported
