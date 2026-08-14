@@ -503,7 +503,21 @@ impl<'a> NoteEditorState<'a> {
             0
         };
 
-        let horizontal = if cursor_column < self.viewport.left() as i32 {
+        let line_width = self
+            .virtual_document
+            .lines()
+            .get(self.cursor.virtual_row())
+            .map(|line| {
+                line.virtual_spans()
+                    .iter()
+                    .map(|span| span.width())
+                    .sum::<usize>()
+            })
+            .unwrap_or(0);
+
+        let horizontal = if line_width <= self.viewport.width as usize {
+            -(self.viewport.left() as i32)
+        } else if cursor_column < self.viewport.left() as i32 {
             cursor_column - self.viewport.left() as i32
         } else if cursor_column >= self.viewport.right() as i32 {
             cursor_column - self.viewport.right() as i32 + 1
@@ -1884,6 +1898,30 @@ mod tests {
         state.resize_viewport(Size::new(40, 10));
         state.set_view(View::Edit(EditMode::Source));
         state
+    }
+
+    #[test]
+    fn test_typing_wrapping_paragraph_never_pans_horizontally() {
+        let mut state =
+            NoteEditorState::new("hello\n", "test", Path::new("test.md"), &Symbols::unicode());
+        state.resize_viewport(Size::new(12, 20));
+        state.set_view(View::Edit(EditMode::Source));
+        state.cursor_right(100);
+
+        for c in " world foobar".chars() {
+            state.insert_char(c);
+            assert_eq!(
+                state.viewport().left(),
+                0,
+                "wrapped text must not pan; left stayed non-zero after typing {c:?}",
+            );
+        }
+
+        assert!(
+            state.cursor.virtual_row() > 0,
+            "the word should have wrapped"
+        );
+        assert_cursor_visible(&state, "after the word wrapped");
     }
 
     #[test]

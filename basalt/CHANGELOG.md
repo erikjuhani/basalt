@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.12.7](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.7) (Unreleased)
+## [0.12.7](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.7) (Aug, 14 2026)
 
 ### Added
 
@@ -183,6 +183,16 @@
 > are regenerated in each theme.
 
 ### Fixed
+
+- [59120fd](https://github.com/erikjuhani/basalt/commit/59120fd4098375746a83b473c2b6bc62b49aa4f1) Keep the cursor line from panning when wrapped text reaches the edge by @erikjuhani
+
+> While editing, typing a word that filled the line to the viewport width
+> panned the viewport right by one column, hiding the first column of every
+> line. The pan stuck even after the word wrapped to the next visual line.
+>
+> Wrapped text never exceeds the viewport width, so it needs no horizontal
+> pan. Reset the pan to zero for lines that fit, and keep panning only for
+> lines that truly overflow, such as code blocks and long unbroken words.
 
 - [1aa72d0](https://github.com/erikjuhani/basalt/commit/1aa72d00abe7e0bdb00aa883921422aae12dbb1d) Highlight prettified list markers in visual selection by @erikjuhani
 
