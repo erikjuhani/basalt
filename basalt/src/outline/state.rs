@@ -3,7 +3,7 @@ use std::{iter::Peekable, ops::Range, slice::Iter};
 use ratatui::widgets::ListState;
 
 use crate::{
-    config::Symbols,
+    config::{Symbols, Theme},
     note_editor::ast::{HeadingLevel, Node},
 };
 
@@ -17,6 +17,13 @@ pub struct OutlineState {
     pub(crate) list_state: ListState,
     pub(crate) active: bool,
     pub(crate) symbols: Symbols,
+    pub(crate) theme: Theme,
+}
+
+impl OutlineState {
+    pub fn set_theme(&mut self, theme: &Theme) {
+        self.theme = *theme;
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

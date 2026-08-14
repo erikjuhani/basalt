@@ -1,0 +1,45 @@
+text = "fg"
+background = "bg"
+muted = "gray"
+accent = "magenta"
+
+border = "surface"
+border-active = "gray"
+border-type = "plain"
+
+mode-insert = "green"
+mode-normal = "gray"
+mode-read = "gray"
+
+heading-1 = "fg"
+heading-2 = "yellow"
+heading-3 = "cyan"
+heading-4 = "magenta"
+heading-5 = "fg"
+heading-6 = "fg"
+
+code-bg = "surface"
+blockquote = "magenta"
+list-marker = "gray"
+task = "magenta"
+
+success = "green"
+info = "blue"
+warning = "yellow"
+error = "red"
+
+[status-bar]
+background = "surface"
+foreground = "fg"
+
+[palette]
+bg = "#1a1d21"
+fg = "#c4bfb6"
+surface = "#2a2e33"
+gray = "#4a4f55"
+red = "#a65d57"
+green = "#7a9e8e"
+yellow = "#c4a672"
+blue = "#5b7e8a"
+magenta = "#8a7190"
+cyan = "#5e9b9b"

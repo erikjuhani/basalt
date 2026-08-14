@@ -1,19 +1,20 @@
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Rect},
-    style::{Color, Stylize},
+    style::{Color, Style, Stylize},
     text::{Line, Span},
-    widgets::Widget,
+    widgets::{Block, Widget},
 };
 use unicode_width::UnicodeWidthStr;
 
 use crate::{
-    config::{symbol::Preset, Symbols},
+    config::{symbol::Preset, Symbols, Theme},
     tabs::Tabs,
 };
 
 pub struct Header<'a, 'b> {
     symbols: &'a Symbols,
+    theme: &'a Theme,
     tabs: &'a Tabs<'b>,
 }
 
@@ -39,25 +40,39 @@ fn truncate(label: &str, max_width: usize, ellipsis: &str) -> String {
 }
 
 impl<'a, 'b> Header<'a, 'b> {
-    pub fn new(symbols: &'a Symbols, tabs: &'a Tabs<'b>) -> Self {
-        Self { symbols, tabs }
+    pub fn new(symbols: &'a Symbols, theme: &'a Theme, tabs: &'a Tabs<'b>) -> Self {
+        Self {
+            symbols,
+            theme,
+            tabs,
+        }
     }
 }
 
 impl Widget for Header<'_, '_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let brand = Line::from(Span::from(" ⋅𝕭𝖆𝖘𝖆𝖑𝖙⋅ ").magenta().bold());
+        Block::new()
+            .style(Style::new().bg(self.theme.background))
+            .render(area, buf);
+
+        let brand = Line::from(Span::from(" ⋅𝕭𝖆𝖘𝖆𝖑𝖙⋅ ").fg(self.theme.accent).bold());
 
         let brand_width = (brand.width() as u16).min(area.width);
         let [brand_area, tabs_area] =
             Layout::horizontal([Constraint::Length(brand_width), Constraint::Fill(1)]).areas(area);
         brand.render(brand_area, buf);
 
+        // A theme that owns a real background (any colour scheme) gets the
+        // bufferline style: an accent left bar and a raised surface highlight.
+        // The default theme keeps the terminal palette, so it renders the
+        // classic reversed tabs instead.
+        let themed = self.theme.background != Color::Reset;
+
         let unicode = self.symbols.preset != Preset::Ascii;
-        let (separator, modified_glyph, ellipsis) = if unicode {
-            ("▍", "●", "…")
+        let (separator, active_bar, modified_glyph, ellipsis) = if unicode {
+            ("▍", "▎", "●", "…")
         } else {
-            ("|", "*", "...")
+            ("|", "|", "*", "...")
         };
 
         let titles = self.tabs.titles();
@@ -68,6 +83,12 @@ impl Widget for Header<'_, '_> {
         let available = tabs_area.width as usize;
         let tab_width = (available / titles.len()).clamp(MIN_TAB_WIDTH, MAX_TAB_WIDTH);
         let inner = tab_width.saturating_sub(1);
+
+        let background = self.theme.background;
+        let muted = self.theme.muted;
+        let text = self.theme.text;
+        let accent = self.theme.accent;
+        let highlight = self.theme.code_bg;
 
         let mut tabs: Vec<Vec<Span>> = Vec::new();
         let mut active_index = 0;
@@ -81,28 +102,43 @@ impl Widget for Header<'_, '_> {
             let padding = inner.saturating_sub(name.width() + suffix.width());
             let left = padding / 2;
             let right = padding - left;
-            let separator = if index > 0 {
-                Span::from(separator)
-            } else {
-                Span::from(" ")
-            };
-            let tab = if *active {
+            let lead = if index > 0 { separator } else { " " };
+
+            if *active {
                 active_index = index;
-                vec![
-                    separator.bg(Color::Reset).reversed(),
+            }
+
+            let tab = match (themed, *active) {
+                // Bufferline: accent left bar + raised surface + brighter text.
+                (true, true) => vec![
+                    Span::from(active_bar).fg(accent).bg(highlight),
+                    Span::from(" ".repeat(left)).bg(highlight),
+                    Span::from(name).fg(text).bg(highlight).bold(),
+                    Span::from(suffix).fg(accent).bg(highlight),
+                    Span::from(" ".repeat(right)).bg(highlight),
+                ],
+                (true, false) => vec![
+                    Span::from(lead).fg(muted),
+                    Span::from(" ".repeat(left)),
+                    Span::from(name).fg(muted),
+                    Span::from(suffix).fg(muted),
+                    Span::from(" ".repeat(right)),
+                ],
+                // Original reversed look for the terminal-default theme.
+                (false, true) => vec![
+                    Span::from(lead).bg(background).reversed(),
                     Span::from(" ".repeat(left)).reversed(),
                     Span::from(name).bold().reversed(),
                     Span::from(suffix).reversed(),
                     Span::from(" ".repeat(right)).reversed(),
-                ]
-            } else {
-                vec![
-                    separator.fg(Color::DarkGray).reversed(),
-                    Span::from(" ".repeat(left)).bg(Color::DarkGray),
-                    Span::from(name).white().reversed().fg(Color::DarkGray),
-                    Span::from(suffix).white().reversed().fg(Color::DarkGray),
-                    Span::from(" ".repeat(right)).bg(Color::DarkGray),
-                ]
+                ],
+                (false, false) => vec![
+                    Span::from(lead).fg(muted).reversed(),
+                    Span::from(" ".repeat(left)).bg(muted),
+                    Span::from(name).fg(text).reversed().fg(muted),
+                    Span::from(suffix).fg(text).reversed().fg(muted),
+                    Span::from(" ".repeat(right)).bg(muted),
+                ],
             };
             tabs.push(tab);
         }
@@ -157,7 +193,10 @@ mod tests {
         let symbols = Symbols::unicode();
         let mut terminal = Terminal::new(TestBackend::new(60, 1)).unwrap();
         terminal
-            .draw(|frame| Header::new(&symbols, &tabs).render(frame.area(), frame.buffer_mut()))
+            .draw(|frame| {
+                Header::new(&symbols, &Theme::default(), &tabs)
+                    .render(frame.area(), frame.buffer_mut())
+            })
             .unwrap();
 
         let buffer = terminal.backend().buffer();
@@ -205,7 +244,10 @@ mod tests {
         let symbols = Symbols::unicode();
         let mut terminal = Terminal::new(TestBackend::new(30, 1)).unwrap();
         terminal
-            .draw(|frame| Header::new(&symbols, &tabs).render(frame.area(), frame.buffer_mut()))
+            .draw(|frame| {
+                Header::new(&symbols, &Theme::default(), &tabs)
+                    .render(frame.area(), frame.buffer_mut())
+            })
             .unwrap();
 
         let buffer = terminal.backend().buffer();
@@ -239,7 +281,10 @@ mod tests {
         let symbols = Symbols::unicode();
         let mut terminal = Terminal::new(TestBackend::new(30, 1)).unwrap();
         terminal
-            .draw(|frame| Header::new(&symbols, &tabs).render(frame.area(), frame.buffer_mut()))
+            .draw(|frame| {
+                Header::new(&symbols, &Theme::default(), &tabs)
+                    .render(frame.area(), frame.buffer_mut())
+            })
             .unwrap();
 
         let buffer = terminal.backend().buffer();
@@ -264,7 +309,10 @@ mod tests {
         let symbols = Symbols::unicode();
         let mut terminal = Terminal::new(TestBackend::new(120, 1)).unwrap();
         terminal
-            .draw(|frame| Header::new(&symbols, &tabs).render(frame.area(), frame.buffer_mut()))
+            .draw(|frame| {
+                Header::new(&symbols, &Theme::default(), &tabs)
+                    .render(frame.area(), frame.buffer_mut())
+            })
             .unwrap();
 
         // Separators sit at the start of every tab but the first, so the gap
@@ -279,6 +327,43 @@ mod tests {
             separators[1] - separators[0],
             MAX_TAB_WIDTH,
             "tabs are the same (max) width regardless of name length"
+        );
+    }
+
+    #[test]
+    fn themed_active_tab_uses_highlight_background() {
+        use ratatui::{backend::TestBackend, style::Color, Terminal};
+
+        // A theme that owns a background switches the tabs to the bufferline
+        // style: the active tab paints its raised `code_bg` surface.
+        let highlight = Color::Rgb(10, 20, 30);
+        let theme = Theme {
+            background: Color::Rgb(1, 2, 3),
+            code_bg: highlight,
+            accent: Color::Rgb(200, 100, 50),
+            ..Theme::default()
+        };
+
+        let mut tabs = Tabs::default();
+        tabs.open(tab("alpha"));
+        tabs.open(tab("beta")); // active
+
+        let symbols = Symbols::unicode();
+        let mut terminal = Terminal::new(TestBackend::new(60, 1)).unwrap();
+        terminal
+            .draw(|frame| {
+                Header::new(&symbols, &theme, &tabs).render(frame.area(), frame.buffer_mut())
+            })
+            .unwrap();
+
+        let buffer = terminal.backend().buffer();
+        let active_on_highlight = (0..60).any(|x| {
+            let cell = buffer.cell((x, 0)).unwrap();
+            cell.symbol() == "b" && cell.bg == highlight
+        });
+        assert!(
+            active_on_highlight,
+            "themed active tab renders on the code_bg highlight"
         );
     }
 

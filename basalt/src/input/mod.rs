@@ -3,12 +3,13 @@ use ratatui::{
     buffer::Buffer,
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
     layout::{Constraint, Layout, Offset, Position, Rect},
-    style::{Color, Style, Stylize},
+    style::{Style, Stylize},
     text::Span,
     widgets::{Block, BorderType, Clear, Padding, Paragraph, StatefulWidget, Widget},
 };
 
 use crate::app::{ActivePane, Message as AppMessage};
+use crate::config::Theme;
 
 #[derive(Clone, Default, Debug, PartialEq)]
 enum InputMode {
@@ -286,11 +287,12 @@ pub fn handle_editing_event(key: KeyEvent) -> Option<Message> {
 #[derive(Clone, Debug, Default)]
 pub struct Input {
     pub border_type: BorderType,
+    pub theme: Theme,
 }
 
 impl Input {
-    pub fn new(border_type: BorderType) -> Self {
-        Self { border_type }
+    pub fn new(border_type: BorderType, theme: Theme) -> Self {
+        Self { border_type, theme }
     }
 }
 
@@ -343,8 +345,8 @@ impl StatefulWidget for Input {
         let input = &state.input[state.scroll..];
 
         let mode_color = match state.input_mode {
-            InputMode::Editing => Color::Green,
-            InputMode::Normal => Color::Red,
+            InputMode::Editing => self.theme.success,
+            InputMode::Normal => self.theme.error,
         };
 
         let mode = format!("{:?}", state.input_mode)
@@ -362,7 +364,8 @@ impl StatefulWidget for Input {
             .block(
                 Block::bordered()
                     .border_type(self.border_type)
-                    .border_style(Style::default().dark_gray())
+                    .border_style(Style::default().fg(self.theme.muted))
+                    .style(Style::default().bg(self.theme.background))
                     // TODO: Use a label field from state
                     .title(vec![
                         Span::from(" "),
@@ -378,7 +381,7 @@ impl StatefulWidget for Input {
         buf.set_style(
             Rect::new(col.saturating_sub(state.scroll as u16), row, 1, 1)
                 .offset(Offset { x: 2, y: 1 }),
-            Style::default().reversed().dark_gray(),
+            Style::default().reversed().fg(self.theme.muted),
         );
     }
 }
@@ -461,7 +464,7 @@ mod tests {
             terminal
                 .draw(|frame| {
                     let mut state = state_fn();
-                    Input::new(BorderType::Rounded).render(
+                    Input::new(BorderType::Rounded, Theme::default()).render(
                         frame.area(),
                         frame.buffer_mut(),
                         &mut state,

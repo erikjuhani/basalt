@@ -4,12 +4,14 @@ use basalt_core::obsidian::Vault;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::{Color, Style, Stylize},
+    style::{Style, Stylize},
     widgets::{
         Block, BorderType, List, ListItem, ListState, Scrollbar, ScrollbarOrientation,
         ScrollbarState, StatefulWidget,
     },
 };
+
+use crate::config::Theme;
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct VaultSelectorState<'a> {
@@ -61,14 +63,16 @@ pub struct VaultSelector<'a> {
     _lifetime: PhantomData<&'a ()>,
     pub border_type: BorderType,
     pub vault_active: String,
+    pub theme: Theme,
 }
 
 impl<'a> VaultSelector<'a> {
-    pub fn new(border_type: BorderType, vault_active: String) -> Self {
+    pub fn new(border_type: BorderType, vault_active: String, theme: Theme) -> Self {
         Self {
             _lifetime: PhantomData,
             border_type,
             vault_active,
+            theme,
         }
     }
 }
@@ -94,13 +98,14 @@ impl<'a> StatefulWidget for VaultSelector<'a> {
         List::new(items)
             .block(
                 Block::bordered()
-                    .dark_gray()
+                    .fg(self.theme.muted)
+                    .bg(self.theme.background)
                     .title(" Vaults ")
                     .title_style(Style::default().italic().bold())
                     .border_type(self.border_type),
             )
-            .fg(Color::default())
-            .highlight_style(Style::new().reversed().dark_gray())
+            .fg(self.theme.text)
+            .highlight_style(Style::new().reversed().fg(self.theme.muted))
             .highlight_symbol(" ")
             .render(area, buf, &mut state.list_state);
 

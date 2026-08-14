@@ -5,6 +5,7 @@ resolver = "2"
 [workspace.dependencies]
 similar-asserts = "2.0.0"
 toml = "1.0.0"
+toml_edit = "0.23.6"
 
 [profile.ci]
 inherits = "dev"

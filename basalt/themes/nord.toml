@@ -1,0 +1,48 @@
+text = "snow"
+background = "polar0"
+muted = "polar3"
+accent = "purple"
+
+border = "polar2"
+border-active = "polar3"
+border-type = "plain"
+
+mode-insert = "green"
+mode-normal = "snow"
+mode-read = "snow"
+
+heading-1 = "frost-cyan"
+heading-2 = "yellow"
+heading-3 = "frost-teal"
+heading-4 = "purple"
+heading-5 = "frost-blue"
+heading-6 = "frost-deep"
+
+code-bg = "polar1"
+blockquote = "frost-teal"
+list-marker = "frost-blue"
+task = "green"
+
+success = "green"
+info = "frost-deep"
+warning = "yellow"
+error = "red"
+
+[status-bar]
+background = "polar1"
+foreground = "snow"
+
+[palette]
+snow = "#d8dee9"
+polar0 = "#2e3440"
+polar1 = "#3b4252"
+polar2 = "#434c5e"
+polar3 = "#4c566a"
+frost-teal = "#8fbcbb"
+frost-cyan = "#88c0d0"
+frost-blue = "#81a1c1"
+frost-deep = "#5e81ac"
+red = "#bf616a"
+green = "#a3be8c"
+yellow = "#ebcb8b"
+purple = "#b48ead"

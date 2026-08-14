@@ -14,7 +14,7 @@ use crate::{
     debug_log, explorer, help_modal, input, note_editor,
     note_editor::state::Operator,
     note_editor::Direction,
-    outline, splash_modal, vault_selector_modal,
+    outline, splash_modal, theme_selector_modal, vault_selector_modal,
 };
 
 trait ReplaceVar {
@@ -147,6 +147,12 @@ pub(crate) enum Command {
     DebugLogScrollDownOne,
     DebugLogScrollUpHalfPage,
     DebugLogScrollDownHalfPage,
+
+    ThemeSelectorModalUp,
+    ThemeSelectorModalDown,
+    ThemeSelectorModalClose,
+    ThemeSelectorModalOpen,
+    ThemeSelectorModalToggle,
 
     InputModalWordForward,
     InputModalWordBackward,
@@ -296,6 +302,12 @@ fn str_to_command(s: &str) -> Option<Command> {
         "debug_log_scroll_down_one" => Some(Command::DebugLogScrollDownOne),
         "debug_log_scroll_up_half_page" => Some(Command::DebugLogScrollUpHalfPage),
         "debug_log_scroll_down_half_page" => Some(Command::DebugLogScrollDownHalfPage),
+
+        "theme_selector_modal_up" => Some(Command::ThemeSelectorModalUp),
+        "theme_selector_modal_down" => Some(Command::ThemeSelectorModalDown),
+        "theme_selector_modal_close" => Some(Command::ThemeSelectorModalClose),
+        "theme_selector_modal_open" => Some(Command::ThemeSelectorModalOpen),
+        "theme_selector_modal_toggle" => Some(Command::ThemeSelectorModalToggle),
 
         // TODO: Remove deprecations in the next major version
         // Deprecated
@@ -601,6 +613,21 @@ impl From<Command> for Message<'_> {
             }
             Command::DebugLogScrollDownHalfPage => {
                 Message::DebugLog(debug_log::Message::ScrollDown(ScrollAmount::HalfPage))
+            }
+            Command::ThemeSelectorModalClose => {
+                Message::ThemeSelectorModal(theme_selector_modal::Message::Close)
+            }
+            Command::ThemeSelectorModalToggle => {
+                Message::ThemeSelectorModal(theme_selector_modal::Message::Toggle)
+            }
+            Command::ThemeSelectorModalUp => {
+                Message::ThemeSelectorModal(theme_selector_modal::Message::Up)
+            }
+            Command::ThemeSelectorModalDown => {
+                Message::ThemeSelectorModal(theme_selector_modal::Message::Down)
+            }
+            Command::ThemeSelectorModalOpen => {
+                Message::ThemeSelectorModal(theme_selector_modal::Message::Select)
             }
 
             Command::Exec(command) => Message::Exec(command),

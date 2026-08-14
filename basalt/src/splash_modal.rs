@@ -4,13 +4,14 @@ use basalt_core::obsidian::Vault;
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Flex, Layout, Rect},
-    style::Stylize,
+    style::{Style, Stylize},
     text::Text,
-    widgets::{BorderType, Clear, StatefulWidget, Widget},
+    widgets::{Block, BorderType, Clear, StatefulWidget, Widget},
 };
 
 use crate::{
     app::Message as AppMessage,
+    config::Theme,
     vault_selector::{VaultSelector, VaultSelectorState},
 };
 
@@ -124,14 +125,16 @@ pub struct SplashModal<'a> {
     _lifetime: PhantomData<&'a ()>,
     pub border_type: BorderType,
     pub vault_active: String,
+    pub theme: Theme,
 }
 
 impl<'a> SplashModal<'a> {
-    pub fn new(border_type: BorderType, vault_active: String) -> Self {
+    pub fn new(border_type: BorderType, vault_active: String, theme: Theme) -> Self {
         Self {
             _lifetime: PhantomData,
             border_type,
             vault_active,
+            theme,
         }
     }
 }
@@ -141,6 +144,9 @@ impl<'a> StatefulWidget for SplashModal<'a> {
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         Clear.render(area, buf);
+        Block::new()
+            .style(Style::new().bg(self.theme.background))
+            .render(area, buf);
 
         let [_, center, _] = Layout::horizontal([
             Constraint::Fill(1),
@@ -176,26 +182,24 @@ impl<'a> StatefulWidget for SplashModal<'a> {
             .flex(Flex::Center)
             .areas(bottom);
 
-        Text::from_iter(LOGO)
-            .dark_gray()
-            .centered()
-            .render(logo, buf);
+        let muted = self.theme.muted;
+        Text::from_iter(LOGO).fg(muted).centered().render(logo, buf);
 
-        Text::from(TITLE).dark_gray().centered().render(title, buf);
+        Text::from(TITLE).fg(muted).centered().render(title, buf);
 
         Text::from(state.version)
-            .dark_gray()
+            .fg(muted)
             .italic()
             .centered()
             .render(version, buf);
 
         Text::from("Press (?) for help")
             .italic()
-            .dark_gray()
+            .fg(muted)
             .centered()
             .render(help, buf);
 
-        VaultSelector::new(self.border_type, self.vault_active).render(
+        VaultSelector::new(self.border_type, self.vault_active, self.theme).render(
             bottom,
             buf,
             &mut state.vault_selector_state,

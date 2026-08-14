@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::Path};
 
-use crate::{app::SelectedNote, note_editor::state::NoteEditorState};
+use crate::{app::SelectedNote, config::Theme, note_editor::state::NoteEditorState};
 
 #[derive(Clone)]
 pub struct Tab<'a> {
@@ -37,6 +37,14 @@ impl<'a> Tabs<'a> {
 
     pub fn active_editor_mut(&mut self) -> Option<&mut NoteEditorState<'a>> {
         self.tabs.get_mut(self.active).map(|tab| &mut tab.editor)
+    }
+
+    /// Applies a theme to every open tab's editor so switching tabs never
+    /// reveals a stale palette.
+    pub fn set_theme(&mut self, theme: &Theme) {
+        for tab in &mut self.tabs {
+            tab.editor.set_theme(theme);
+        }
     }
 
     fn index_of(&self, path: &Path) -> Option<usize> {

@@ -3,7 +3,7 @@ Set FontSize 16
 Set Padding 32
 Set Width 1000
 Set Height 600
-Set Theme "Gruvbox Light"
+Source tapes/causeway-light.tape
 
 Output assets/light/create.gif
 

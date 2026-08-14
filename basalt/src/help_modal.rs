@@ -1,7 +1,7 @@
 use ratatui::{
     buffer::Buffer,
     layout::{Alignment, Constraint, Flex, Layout, Rect, Size},
-    style::{Color, Style, Stylize},
+    style::{Style, Stylize},
     text::Line,
     widgets::{
         Block, BorderType, Clear, Padding, Paragraph, Scrollbar, ScrollbarOrientation,
@@ -10,6 +10,7 @@ use ratatui::{
 };
 
 use crate::app::{calc_scroll_amount, Message as AppMessage, ScrollAmount};
+use crate::config::Theme;
 
 fn modal_area_height(size: Size) -> usize {
     let vertical = Layout::vertical([Constraint::Percentage(50)]).flex(Flex::Center);
@@ -106,11 +107,12 @@ fn modal_area(area: Rect) -> Rect {
 
 pub struct HelpModal {
     pub border_type: BorderType,
+    pub theme: Theme,
 }
 
 impl HelpModal {
-    pub fn new(border_type: BorderType) -> Self {
-        Self { border_type }
+    pub fn new(border_type: BorderType, theme: Theme) -> Self {
+        Self { border_type, theme }
     }
 }
 
@@ -122,7 +124,8 @@ impl StatefulWidget for HelpModal {
         Self: Sized,
     {
         let block = Block::bordered()
-            .dark_gray()
+            .fg(self.theme.muted)
+            .bg(self.theme.background)
             .border_type(self.border_type)
             .padding(Padding::uniform(1))
             .title_style(Style::default().italic().bold())
@@ -137,7 +140,7 @@ impl StatefulWidget for HelpModal {
                 .wrap(Wrap::default())
                 .scroll((state.scrollbar_position as u16, 0))
                 .block(block)
-                .fg(Color::default()),
+                .fg(self.theme.text),
             area,
             buf,
         );

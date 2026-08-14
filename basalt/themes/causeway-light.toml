@@ -1,0 +1,46 @@
+text = "ink"
+background = "paper"
+muted = "stone"
+accent = "seaweed"
+
+border = "stone-light"
+border-active = "stone-mid"
+border-type = "plain"
+
+mode-insert = "seaweed"
+mode-normal = "stone"
+mode-read = "stone"
+
+heading-1 = "ink"
+heading-2 = "gold"
+heading-3 = "tide"
+heading-4 = "heather"
+heading-5 = "ink"
+heading-6 = "ink"
+
+code-bg = "surface"
+blockquote = "tide"
+list-marker = "seaweed"
+task = "seaweed"
+
+success = "seaweed"
+info = "tide"
+warning = "gold"
+error = "clay"
+
+[status-bar]
+background = "surface"
+foreground = "ink"
+
+[palette]
+paper = "#f2eee3"
+surface = "#e8e3d5"
+ink = "#33302a"
+stone = "#86806e"
+stone-light = "#d9d3c2"
+stone-mid = "#b6ad98"
+seaweed = "#517a4e"
+tide = "#46727e"
+gold = "#a67c33"
+heather = "#7c6484"
+clay = "#a15a4d"

@@ -1,0 +1,28 @@
+text = "reset"
+background = "reset"
+muted = "darkgray"
+accent = "magenta"
+
+border = "reset"
+border-active = "reset"
+
+mode-insert = "green"
+mode-normal = "gray"
+mode-read = "gray"
+
+heading-1 = "reset"
+heading-2 = "yellow"
+heading-3 = "cyan"
+heading-4 = "magenta"
+heading-5 = "reset"
+heading-6 = "reset"
+
+code-bg = "black"
+blockquote = "magenta"
+list-marker = "darkgray"
+task = "magenta"
+
+success = "green"
+info = "blue"
+warning = "yellow"
+error = "red"

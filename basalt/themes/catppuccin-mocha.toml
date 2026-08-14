@@ -1,0 +1,51 @@
+text = "text"
+background = "base"
+muted = "overlay1"
+accent = "mauve"
+
+border = "surface1"
+border-active = "overlay2"
+border-type = "plain"
+
+mode-insert = "green"
+mode-normal = "overlay2"
+mode-read = "overlay2"
+
+heading-1 = "mauve"
+heading-2 = "blue"
+heading-3 = "sapphire"
+heading-4 = "teal"
+heading-5 = "green"
+heading-6 = "peach"
+
+code-bg = "surface0"
+blockquote = "sapphire"
+list-marker = "mauve"
+task = "green"
+
+success = "green"
+info = "blue"
+warning = "yellow"
+error = "red"
+
+[status-bar]
+background = "mantle"
+foreground = "text"
+
+[palette]
+text = "#cdd6f4"
+overlay1 = "#7f849c"
+overlay2 = "#9399b2"
+surface1 = "#45475a"
+surface0 = "#313244"
+base = "#1e1e2e"
+mantle = "#181825"
+mauve = "#cba6f7"
+lavender = "#b4befe"
+blue = "#89b4fa"
+sapphire = "#74c7ec"
+teal = "#94e2d5"
+green = "#a6e3a1"
+peach = "#fab387"
+yellow = "#f9e2af"
+red = "#f38ba8"

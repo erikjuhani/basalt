@@ -6,7 +6,7 @@ use std::{
 use basalt_core::obsidian::{Note, VaultEntry};
 use ratatui::widgets::ListState;
 
-use crate::config::Symbols;
+use crate::config::{Symbols, Theme};
 
 use super::Item;
 
@@ -39,8 +39,15 @@ pub struct ExplorerState {
     pub(crate) list_state: ListState,
 
     pub(crate) symbols: Symbols,
+    pub(crate) theme: Theme,
 
     pub(crate) editing: bool,
+}
+
+impl ExplorerState {
+    pub fn set_theme(&mut self, theme: &Theme) {
+        self.theme = *theme;
+    }
 }
 
 /// Calculates the vertical offset of list items in rows.

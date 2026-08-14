@@ -1,6 +1,7 @@
 mod env;
 mod key_binding;
 pub mod symbol;
+pub mod theme;
 
 use core::fmt;
 use std::{collections::BTreeMap, fs::read_to_string};
@@ -13,6 +14,7 @@ use crate::{app::Message, command::Command};
 
 pub(crate) use key_binding::{Key, Keystroke};
 pub(crate) use symbol::Symbols;
+pub(crate) use theme::Theme;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
@@ -87,6 +89,7 @@ pub struct Config<'a> {
     pub experimental_editor: bool,
     pub vim_mode: bool,
     pub symbols: Symbols,
+    pub theme: Theme,
     pub global: ConfigSection<'a>,
     pub splash: ConfigSection<'a>,
     pub explorer: ConfigSection<'a>,
@@ -96,6 +99,7 @@ pub struct Config<'a> {
     pub note_editor: ConfigSection<'a>,
     pub vault_selector_modal: ConfigSection<'a>,
     pub debug_log_modal: ConfigSection<'a>,
+    pub theme_selector_modal: ConfigSection<'a>,
 }
 
 impl Default for Config<'_> {
@@ -131,6 +135,7 @@ impl Config<'_> {
     fn from_toml(value: TomlConfig, leader: &Leader) -> Self {
         Self {
             symbols: value.symbols.into(),
+            theme: theme::theme_by_name(value.theme.as_deref().unwrap_or("default")),
             experimental_editor: value.experimental_editor,
             vim_mode: value.vim_mode,
             global: ConfigSection::from_toml(value.global, leader),
@@ -142,6 +147,7 @@ impl Config<'_> {
             note_editor: ConfigSection::from_toml(value.note_editor, leader),
             vault_selector_modal: ConfigSection::from_toml(value.vault_selector_modal, leader),
             debug_log_modal: ConfigSection::from_toml(value.debug_log_modal, leader),
+            theme_selector_modal: ConfigSection::from_toml(value.theme_selector_modal, leader),
         }
     }
 
@@ -149,6 +155,7 @@ impl Config<'_> {
     /// existing entries with the value from another config.
     pub(crate) fn merge(&mut self, config: Self) -> Self {
         self.symbols = config.symbols;
+        self.theme = config.theme;
         self.experimental_editor = config.experimental_editor;
         self.vim_mode = config.vim_mode;
         self.global.merge_key_bindings(config.global);
@@ -162,6 +169,8 @@ impl Config<'_> {
             .merge_key_bindings(config.vault_selector_modal);
         self.debug_log_modal
             .merge_key_bindings(config.debug_log_modal);
+        self.theme_selector_modal
+            .merge_key_bindings(config.theme_selector_modal);
         self.clone()
     }
 
@@ -179,6 +188,8 @@ impl Config<'_> {
             .replace_key_bindings(config.vault_selector_modal);
         self.debug_log_modal
             .replace_key_bindings(config.debug_log_modal);
+        self.theme_selector_modal
+            .replace_key_bindings(config.theme_selector_modal);
         self.clone()
     }
 }
@@ -251,6 +262,8 @@ struct TomlConfig {
     #[serde(default)]
     symbols: symbol::TomlSymbols,
     #[serde(default)]
+    theme: Option<String>,
+    #[serde(default)]
     experimental_editor: bool,
     #[serde(default)]
     vim_mode: bool,
@@ -274,6 +287,8 @@ struct TomlConfig {
     vault_selector_modal: TomlConfigSection,
     #[serde(default)]
     debug_log_modal: TomlConfigSection,
+    #[serde(default)]
+    theme_selector_modal: TomlConfigSection,
 }
 
 /// Finds and reads the user configuration file in order of priority.
@@ -300,6 +315,52 @@ fn read_user_config() -> Result<TomlConfig, ConfigError> {
 
     toml::from_str::<TomlConfig>(&read_to_string(config_path)?)
         .map_err(|err| ConfigError::InvalidConfig(err.message().to_string()))
+}
+
+/// The path the user config should be written to: an existing config if there
+/// is one, otherwise `$config/basalt/config.toml`.
+fn user_config_write_path() -> Option<std::path::PathBuf> {
+    let home = home_dir().ok().map(|home| home.join(".basalt.toml"));
+    let config = choose_base_strategy()
+        .ok()
+        .map(|strategy| strategy.config_dir().join("basalt/config.toml"));
+
+    [home.clone(), config.clone()]
+        .into_iter()
+        .flatten()
+        .find(|path| path.exists())
+        .or(config)
+        .or(home)
+}
+
+/// Sets the top-level `theme` key, preserving the rest of the config (comments,
+/// formatting and ordering) by editing the TOML document in place.
+fn upsert_theme(content: &str, name: &str) -> Result<String, ConfigError> {
+    let mut config = content
+        .parse::<toml_edit::DocumentMut>()
+        .map_err(|error| ConfigError::InvalidConfig(error.to_string()))?;
+    config["theme"] = toml_edit::value(name);
+    Ok(config.to_string())
+}
+
+/// Persists the chosen theme to the user config so it loads on the next run.
+pub fn save_theme(name: &str) -> Result<std::path::PathBuf, ConfigError> {
+    let path = user_config_write_path().ok_or(ConfigError::UserConfigNotFound(
+        "Could not determine a config location".to_string(),
+    ))?;
+
+    // Only a missing file is empty; a read that fails for any other reason must
+    // abort rather than clobber the user's existing config with just the theme.
+    let existing = match read_to_string(&path) {
+        Ok(content) => content,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(error) => return Err(error.into()),
+    };
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(&path, upsert_theme(&existing, name)?)?;
+    Ok(path)
 }
 
 const BASE_CONFIGURATION_STR: &str =
@@ -373,6 +434,56 @@ mod tests {
 
     use super::*;
     // use insta::assert_snapshot;
+
+    fn theme_of(config: &str) -> Option<String> {
+        toml::from_str::<toml::Value>(config)
+            .unwrap()
+            .get("theme")
+            .and_then(toml::Value::as_str)
+            .map(str::to_string)
+    }
+
+    #[test]
+    fn upsert_theme_replaces_existing_key_and_keeps_comments() {
+        let updated =
+            upsert_theme("# keep me\ntheme = \"default\"\nvim_mode = true\n", "nord").unwrap();
+        assert_eq!(theme_of(&updated).as_deref(), Some("nord"));
+        assert!(updated.contains("# keep me"));
+        assert!(updated.contains("vim_mode = true"));
+    }
+
+    #[test]
+    fn upsert_theme_adds_missing_key_at_top_level() {
+        let updated = upsert_theme("vim_mode = false\n\n[global]\nkey = 1\n", "nord").unwrap();
+        let document = toml::from_str::<toml::Value>(&updated).unwrap();
+        assert_eq!(
+            document.get("theme").and_then(toml::Value::as_str),
+            Some("nord")
+        );
+        // The key must land top-level, not reparented under [global].
+        assert!(document["global"].get("theme").is_none());
+        assert_eq!(document["global"]["key"].as_integer(), Some(1));
+    }
+
+    #[test]
+    fn upsert_theme_ignores_commented_key() {
+        let updated = upsert_theme("# theme = \"default\"\n", "nord").unwrap();
+        assert_eq!(theme_of(&updated).as_deref(), Some("nord"));
+        assert!(updated.contains("# theme = \"default\""));
+    }
+
+    #[test]
+    fn upsert_theme_writes_into_empty_config() {
+        assert_eq!(
+            theme_of(&upsert_theme("", "nord").unwrap()).as_deref(),
+            Some("nord")
+        );
+    }
+
+    #[test]
+    fn upsert_theme_rejects_malformed_config() {
+        assert!(upsert_theme("this is = = not toml", "nord").is_err());
+    }
 
     #[test]
     fn test_base_config_parses() {
