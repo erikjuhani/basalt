@@ -1,4 +1,5 @@
 Set Shell fish
+Set FontFamily "BlexMono Nerd Font Mono"
 Set FontSize 16
 Set Padding 32
 Set Width 1000

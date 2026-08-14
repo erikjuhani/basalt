@@ -381,10 +381,15 @@ impl<'a> App<'a> {
         initial_vault: Option<Vault>,
         debug: bool,
         log_level: LogLevel,
+        theme_override: Option<String>,
     ) -> Result<()> {
         let version = stylized_text::stylize(VERSION, FontStyle::Script);
         let size = terminal.size()?;
-        let (config, warnings) = config::load().unwrap();
+        let (mut config, warnings) = config::load().unwrap();
+
+        if let Some(name) = &theme_override {
+            config.theme = config::theme::theme_by_name(name);
+        }
 
         let vault = initial_vault.clone().unwrap_or_default();
         let explorer = match &initial_vault {

@@ -33,7 +33,14 @@ fn main() -> Result<(), Error> {
     let mut terminal = ratatui::init();
     terminal.show_cursor()?;
 
-    App::start(terminal, vaults, initial_vault, cli.debug, cli.log_level)?;
+    App::start(
+        terminal,
+        vaults,
+        initial_vault,
+        cli.debug,
+        cli.log_level,
+        cli.theme,
+    )?;
 
     ratatui::restore();
 

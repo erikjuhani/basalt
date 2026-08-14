@@ -6,8 +6,8 @@ Set Width 1000
 Set Height 600
 Source tapes/causeway-dark.tape
 
-Output assets/dark/explorer.gif
+Output assets/dark/theme-selector.gif
 
 Env BASALT_EXP_VAULT_PATH "docs"
 
-Source tapes/explorer.tape
+Source tapes/theme-selector.tape

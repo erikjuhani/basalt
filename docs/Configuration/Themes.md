@@ -17,6 +17,8 @@ Press `<leader>t` (`Space` then `t`) to open the theme picker. Scrolling **previ
 - `↩ Enter` keeps the highlighted theme **and** writes it to your config as the new default.
 - `Esc` reverts to the theme you had when you opened the picker.
 
+![[theme-selector.gif]]
+
 Saving only sets the `theme` key; the rest of your config (comments, ordering, other keys) is left untouched.
 
 ## Built-in themes

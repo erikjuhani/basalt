@@ -4,10 +4,10 @@ Set FontSize 16
 Set Padding 32
 Set Width 1000
 Set Height 600
-Source tapes/causeway-dark.tape
+Source tapes/causeway-light.tape
 
-Output assets/dark/explorer.gif
+Output assets/light/theme-selector.gif
 
 Env BASALT_EXP_VAULT_PATH "docs"
 
-Source tapes/explorer.tape
+Source tapes/theme-selector.tape

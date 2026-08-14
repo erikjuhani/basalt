@@ -21,3 +21,5 @@ Set Theme {
   "brightCyan": "#7ab5b5",
   "brightWhite": "#ddd8cf"
 }
+
+Env BASALT_THEME "causeway-dark"
