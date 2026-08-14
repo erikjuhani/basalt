@@ -1,0 +1,21 @@
+{# Flattens a page's table of contents (any depth) into fuse search entries,
+   each linking straight to the heading anchor. #}
+{% macro toc(entries, permalink) %}
+{%- for heading in entries -%}
+{%- set link = permalink ~ "#" ~ heading.id -%}
+{"url":{{ link | json_encode | safe }},"title":{{ heading.title | json_encode | safe }}},
+{{- self::toc(entries=heading.children, permalink=permalink) -}}
+{%- endfor -%}
+{% endmacro toc %}
+
+{# Walks the whole section tree from a root path, emitting heading entries for
+   every page. Trailing commas are valid in a JS array literal. #}
+{% macro walk(section_path) %}
+{%- set section = get_section(path=section_path) -%}
+{%- for page in section.pages -%}
+{{- self::toc(entries=page.toc, permalink=page.permalink) -}}
+{%- endfor -%}
+{%- for subsection in section.subsections -%}
+{{- self::walk(section_path=subsection) -}}
+{%- endfor -%}
+{% endmacro walk %}

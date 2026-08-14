@@ -1,3 +1,4 @@
+{% import "macros/search.html" as search %}
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
@@ -72,7 +73,9 @@
     <img class="lightbox__img" src="" alt="">
   </div>
 
+  <script>window.searchHeadings = [{{ search::walk(section_path="_index.md") | safe }}];</script>
   <script>window.SEARCH_INDEX_URL = "{{ get_url(path='search_index.en.js', trailing_slash=false) }}";</script>
+  <script>window.SEARCH_BODIES_URL = "{{ get_url(path='search_bodies.js', trailing_slash=false) }}";</script>
   <script src="{{ get_url(path='main.js', trailing_slash=false) }}" defer></script>
 
   {% if config.extra.cloudflare_analytics_token %}

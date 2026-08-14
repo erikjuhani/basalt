@@ -23,7 +23,23 @@ h1, h2, h3, h4, h5, h6 {
   line-height: 1.25;
   margin-top: 1.6em;
   margin-bottom: 0.5em;
+  scroll-margin-top: 4.5rem;
 }
+
+.heading-anchor {
+  margin-left: 0.35em;
+  color: var(--fg-dim);
+  text-decoration: none;
+  opacity: 0;
+  transition: opacity 0.1s ease-in-out;
+}
+h1:hover .heading-anchor,
+h2:hover .heading-anchor,
+h3:hover .heading-anchor,
+h4:hover .heading-anchor,
+h5:hover .heading-anchor,
+h6:hover .heading-anchor,
+.heading-anchor:focus { opacity: 1; }
 h1 { font-size: 1.7rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; margin-top: 0.3em; }
 h2 { font-size: 1.4rem; }
 h3 { font-size: 1.2rem; }
