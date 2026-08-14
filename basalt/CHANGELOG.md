@@ -127,6 +127,17 @@
 > binding can express -- count digits and the character after f/t/r or a
 > text object -- take a raw-key path, mirroring insert mode.
 
+- [650413d](https://github.com/erikjuhani/basalt/commit/650413d0bdb9c0848c36ba8a39ad75248c888141) Add themes with pane styling
+
+> Introduce a theme system that maps roles to colours, with per-pane border
+> and section styling. Add Basalt's own theme _Causeway_ and a bundled set
+> (gruvbox, everforest, catppuccin and minimal), plus a theme picker that
+> saves the choice to the user config.
+
+- [935edee](https://github.com/erikjuhani/basalt/commit/935edeec017fa5e1fb01a7266371130265945316) Add a `--theme` flag to run basalt with selected theme
+
+> The --theme <name> flag overrides the configured theme.
+
 ### Breaking
 
 - [1863417](https://github.com/erikjuhani/basalt/commit/1863417adfd88ba2f82b7879ea456054ef01d38f) Relicense: GPL-3.0 for app, Apache-2.0 for libraries; add CLA by @erikjuhani
@@ -181,7 +192,7 @@
 > synthetic span when the content it precedes is selected, so the marker is
 > part of the selection.
 
-- [8a44f14](https://github.com/erikjuhani/basalt/commit/8a44f14e9a8fe3a64164ee732d2a2694d9aefbd3) Scroll an outline-jumped heading to the top of the viewport
+- [8a44f14](https://github.com/erikjuhani/basalt/commit/8a44f14e9a8fe3a64164ee732d2a2694d9aefbd3) Scroll an outline-jumped heading to the top of the viewport by @erikjuhani
 
 > Selecting a heading in the outline jumped the cursor to it but scrolled
 > the minimum amount needed to make it visible, so a heading below the
