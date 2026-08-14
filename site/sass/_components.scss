@@ -92,9 +92,30 @@
   display: block;
   width: 100%;
   height: auto;
+  cursor: zoom-in;
 }
 :root[data-theme="dark"]  .gif .gif--light { display: none; }
 :root[data-theme="light"] .gif .gif--dark  { display: none; }
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  z-index: 200;
+  cursor: zoom-out;
+}
+.lightbox[data-open="true"] { display: flex; }
+.lightbox__img {
+  max-width: 100%;
+  max-height: 100%;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+}
 
 .splash__gif {
   margin: 1.6rem auto;
