@@ -88,8 +88,8 @@
   }
 
   document.addEventListener('keydown', function (e) {
-    var tag = (e.target && e.target.tagName) || '';
-    var typing = tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable;
+    const tag = (e.target && e.target.tagName) || '';
+    const typing = tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable;
 
     if (e.key === 'Escape') {
       closeModal();
@@ -116,37 +116,51 @@
 
   const searchInput = document.getElementById('search');
   const searchResults = document.getElementById('search-results');
-  const searchReady = false;
-  const searchIndex = null;
-  const searchData = null;
-  const focusIdx = -1;
+  let searchReady = false;
+  let searchIndex = null;
+  let pageByUrl = {};
+  let focusIdx = -1;
 
-  function ensureSearchLoaded() {
-    if (searchReady || !window.SEARCH_INDEX_URL) return Promise.resolve();
-    return new Promise(function (resolve) {
-      const s = document.createElement('script');
-      s.src = window.SEARCH_INDEX_URL;
-      s.onload = function () {
-        if (typeof elasticlunr === 'undefined' || !window.searchIndex) {
-          // Zola serializes the index to window.searchIndex; if elasticlunr isn't
-          // loaded we fetch it from a CDN before building the index.
-          const e = document.createElement('script');
-          e.src = 'https://cdn.jsdelivr.net/npm/elasticlunr@0.9.5/elasticlunr.min.js';
-          e.onload = function () { initIndex(); resolve(); };
-          document.head.appendChild(e);
-        } else {
-          initIndex();
-          resolve();
-        }
-      };
-      document.head.appendChild(s);
+  const FUSE_URL = 'https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js';
+
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      const script = document.createElement('script');
+      script.src = src;
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
     });
   }
 
+  function ensureSearchLoaded() {
+    if (searchReady || !window.SEARCH_INDEX_URL) return Promise.resolve();
+    // Zola writes the page index to window.searchIndex. The transform writes
+    // the per-heading paragraphs to window.headingBodies. Both are same-origin.
+    // fuse.js comes from a CDN. Section bodies are cosmetic, so they may fail.
+    return Promise.all([
+      loadScript(window.SEARCH_INDEX_URL),
+      typeof Fuse === 'undefined' ? loadScript(FUSE_URL) : Promise.resolve(),
+      window.SEARCH_BODIES_URL ? loadScript(window.SEARCH_BODIES_URL).catch(function () {}) : Promise.resolve(),
+    ]).then(initIndex);
+  }
+
   function initIndex() {
-    if (!window.searchIndex || typeof elasticlunr === 'undefined') return;
-    searchIndex = elasticlunr.Index.load(window.searchIndex);
-    searchData = window.searchIndex.documentStore.docs;
+    if (!window.searchIndex || typeof Fuse === 'undefined') return;
+    // Pages carry title/description/body; headings carry title only and link
+    // straight to their anchor, so a query like "Tables" jumps to the section.
+    window.searchIndex.forEach(function (page) { pageByUrl[page.url] = page; });
+    const docs = window.searchIndex.concat(window.searchHeadings || []);
+    searchIndex = new Fuse(docs, {
+      keys: [
+        { name: 'title', weight: 3 },
+        { name: 'description', weight: 2 },
+        { name: 'body', weight: 1 },
+      ],
+      ignoreLocation: true,
+      threshold: 0.3,
+      minMatchCharLength: 2,
+    });
     searchReady = true;
   }
 
@@ -160,20 +174,20 @@
       if (!q) { closeSearch(); return; }
       ensureSearchLoaded().then(function () {
         if (!searchReady) return;
-        const hits = searchIndex.search(q, { bool: 'AND', expand: true }).slice(0, 8);
+        const hits = searchIndex.search(q).slice(0, 8);
         if (!hits.length) {
           searchResults.innerHTML = '<div class="sr-empty">no matches</div>';
           openSearch();
           return;
         }
+        const bodies = window.headingBodies || {};
         searchResults.innerHTML = hits.map(function (h) {
-          const doc = searchData[h.ref];
-          const snippet = (doc.body || '').replace(/\s+/g, ' ').slice(0, 140);
-          return '<a href="' + h.ref + '">' +
-                   '<span class="sr-title">' + escapeHtml(doc.title || h.ref) + '</span>' +
-                   (doc.description ? '<span class="sr-section">' + escapeHtml(doc.description) + '</span>' : '') +
-                   '<div class="sr-snippet">' + escapeHtml(snippet) + '…</div>' +
-                 '</a>';
+          const doc = h.item;
+          if (doc.body) return renderResult(doc.url, doc.title, doc.description, doc.body);
+          // Heading hit: show its section's first paragraph and the page title.
+          const page = pageByUrl[doc.url.split('#')[0]] || {};
+          const body = bodies[(page.title || '') + '\n' + doc.title] || page.body || '';
+          return renderResult(doc.url, doc.title, page.title, body);
         }).join('');
         focusIdx = -1;
         openSearch();
@@ -204,6 +218,16 @@
 
   function highlight(items) {
     items.forEach(function (a, i) { a.dataset.focus = i === focusIdx ? 'true' : 'false'; });
+  }
+
+  function renderResult(url, title, context, body) {
+    const snippet = body.replace(/\s+/g, ' ');
+    const shown = snippet.length > 260 ? snippet.slice(0, 260) + '…' : snippet;
+    return '<a href="' + url + '">' +
+             '<span class="sr-title">' + escapeHtml(title || url) + '</span>' +
+             (context ? '<span class="sr-section">' + escapeHtml(context) + '</span>' : '') +
+             (shown ? '<div class="sr-snippet">' + escapeHtml(shown) + '</div>' : '') +
+           '</a>';
   }
 
   function escapeHtml(s) {

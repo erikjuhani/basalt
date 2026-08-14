@@ -25,3 +25,4 @@ target/
 /site/content/
 /site/public/
 /site/static/assets/
+/site/static/search_bodies.js

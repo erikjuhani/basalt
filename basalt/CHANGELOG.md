@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.12.7](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.7) (Aug, 14 2026)
+## [0.12.7](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.7) (Aug, 15 2026)
 
 ### Added
 

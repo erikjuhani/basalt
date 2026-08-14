@@ -68,8 +68,10 @@ fn run(root: &Path, strict: bool) -> Result<(), String> {
     let link_map = build_link_map(&pages);
 
     let re_wiki = Regex::new(r"(!?)\[\[([^\]\|]+?)(?:\|([^\]]+))?\]\]").unwrap();
+    let re_link = Regex::new(r"\[([^\]]+)\]\([^)]*\)").unwrap();
 
     let mut warnings = 0usize;
+    let mut heading_bodies: Vec<(String, String)> = Vec::new();
 
     for page in &pages {
         let source_abs = docs.join(&page.source_path);
@@ -78,6 +80,7 @@ fn run(root: &Path, strict: bool) -> Result<(), String> {
 
         let raw = strip_yaml_front_matter(&raw);
         let body = rewrite_body(&raw, &re_wiki, &link_map, &page.order_key, &mut warnings);
+        collect_heading_bodies(&body, &page.title, &re_link, &mut heading_bodies);
         let weight = order.pages.get(&page.order_key).copied().unwrap_or(10);
         let date = last_git_date(root, &source_abs).unwrap_or_else(today);
 
@@ -123,6 +126,8 @@ fn run(root: &Path, strict: bool) -> Result<(), String> {
         out.push_str("+++\n");
         fs::write(&path, out).map_err(|e| format!("write {}: {e}", path.display()))?;
     }
+
+    write_heading_bodies(root, &heading_bodies)?;
 
     let version = read_version(root)?;
     write_landing(&content, root, &version)?;
@@ -332,6 +337,93 @@ fn slugify(s: &str) -> String {
     while out.ends_with('-') {
         out.pop();
     }
+    out
+}
+
+/// First prose paragraph after each ATX heading, keyed by
+/// `"<page title>\n<heading text>"`. The site joins this against fuse heading
+/// hits to show the section's opening paragraph in search results.
+fn collect_heading_bodies(
+    body: &str,
+    page_title: &str,
+    re_link: &Regex,
+    out: &mut Vec<(String, String)>,
+) {
+    let mut lines = body.lines().peekable();
+    let mut in_fence = false;
+    while let Some(line) = lines.next() {
+        if line.trim_start().starts_with("```") {
+            in_fence = !in_fence;
+            continue;
+        }
+        if in_fence {
+            continue;
+        }
+        let Some(heading) = heading_text(line) else {
+            continue;
+        };
+        while lines.next_if(|next| next.trim().is_empty()).is_some() {}
+        let mut paragraph = String::new();
+        while let Some(next) =
+            lines.next_if(|next| !next.trim().is_empty() && heading_text(next).is_none())
+        {
+            if !paragraph.is_empty() {
+                paragraph.push(' ');
+            }
+            paragraph.push_str(next.trim());
+        }
+        let paragraph = clean_inline(&paragraph, re_link);
+        if !paragraph.is_empty() {
+            let key = format!("{page_title}\n{}", clean_inline(&heading, re_link));
+            out.push((key, paragraph));
+        }
+    }
+}
+
+fn heading_text(line: &str) -> Option<String> {
+    let hashes = line.bytes().take_while(|&byte| byte == b'#').count();
+    let rest = line.get(hashes..)?;
+    ((1..=6).contains(&hashes) && rest.starts_with(' ')).then(|| rest.trim().to_string())
+}
+
+/// Strips the inline markdown that Zola drops from heading text and that reads
+/// as noise in a snippet: link syntax to its label, emphasis and code markers.
+fn clean_inline(text: &str, re_link: &Regex) -> String {
+    re_link
+        .replace_all(text, "$1")
+        .chars()
+        .filter(|&ch| ch != '*' && ch != '`')
+        .collect()
+}
+
+fn write_heading_bodies(root: &Path, bodies: &[(String, String)]) -> Result<(), String> {
+    let mut out = String::from("window.headingBodies = {");
+    for (key, value) in bodies {
+        out.push_str(&json_str(key));
+        out.push(':');
+        out.push_str(&json_str(value));
+        out.push(',');
+    }
+    out.push_str("};\n");
+    let path = root.join("site").join("static").join("search_bodies.js");
+    fs::write(&path, out).map_err(|e| format!("write {}: {e}", path.display()))
+}
+
+fn json_str(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for ch in s.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
     out
 }
 
@@ -596,6 +688,24 @@ mod tests {
         let out = rewrite_body("![[explorer.gif]]", &re, &link_map, "test", &mut warnings);
         assert!(out.contains("{{ gif(name=\"explorer\") }}"));
         assert_eq!(warnings, 0);
+    }
+
+    #[test]
+    fn heading_bodies_capture_first_paragraph() {
+        let re_link = Regex::new(r"\[([^\]]+)\]\([^)]*\)").unwrap();
+        let body = "## Tables\n\nGFM tables render as boxes.\n\n```markdown\n| a |\n```\n\n## Links\n\nSee [the docs](@/x.md) for **more**.\n";
+        let mut out = Vec::new();
+        collect_heading_bodies(body, "Editing", &re_link, &mut out);
+        assert_eq!(
+            out,
+            vec![
+                (
+                    "Editing\nTables".into(),
+                    "GFM tables render as boxes.".into()
+                ),
+                ("Editing\nLinks".into(), "See the docs for more.".into()),
+            ]
+        );
     }
 
     #[test]
