@@ -1,4 +1,4 @@
-base_url = "https://erikjuhani.github.io/basalt"
+base_url = "https://basalt.page"
 title = "basalt"
 description = "TUI to manage Obsidian vaults and notes from the terminal."
 default_language = "en"
