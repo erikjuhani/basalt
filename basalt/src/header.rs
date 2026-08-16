@@ -55,7 +55,12 @@ impl Widget for Header<'_, '_> {
             .style(Style::new().bg(self.theme.background))
             .render(area, buf);
 
-        let brand = Line::from(Span::from(" ⋅𝕭𝖆𝖘𝖆𝖑𝖙⋅ ").fg(self.theme.accent).bold());
+        let brand_text = if self.symbols.preset == Preset::Ascii {
+            " Basalt "
+        } else {
+            " ⋅𝕭𝖆𝖘𝖆𝖑𝖙⋅ "
+        };
+        let brand = Line::from(Span::from(brand_text).fg(self.theme.accent).bold());
 
         let brand_width = (brand.width() as u16).min(area.width);
         let [brand_area, tabs_area] =

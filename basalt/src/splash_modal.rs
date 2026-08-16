@@ -11,7 +11,7 @@ use ratatui::{
 
 use crate::{
     app::Message as AppMessage,
-    config::Theme,
+    config::{symbol::Preset, Theme},
     vault_selector::{VaultSelector, VaultSelectorState},
 };
 
@@ -39,6 +39,7 @@ pub fn update<'a>(message: &Message, state: &mut SplashModalState<'a>) -> Option
 }
 
 const TITLE: &str = "⋅𝕭𝖆𝖘𝖆𝖑𝖙⋅";
+const TITLE_ASCII: &str = "Basalt";
 
 pub const LOGO: [&str; 25] = [
     "           ▒███▓░          ",
@@ -126,15 +127,22 @@ pub struct SplashModal<'a> {
     pub border_type: BorderType,
     pub vault_active: String,
     pub theme: Theme,
+    pub preset: Preset,
 }
 
 impl<'a> SplashModal<'a> {
-    pub fn new(border_type: BorderType, vault_active: String, theme: Theme) -> Self {
+    pub fn new(
+        border_type: BorderType,
+        vault_active: String,
+        theme: Theme,
+        preset: Preset,
+    ) -> Self {
         Self {
             _lifetime: PhantomData,
             border_type,
             vault_active,
             theme,
+            preset,
         }
     }
 }
@@ -185,7 +193,15 @@ impl<'a> StatefulWidget for SplashModal<'a> {
         let muted = self.theme.muted;
         Text::from_iter(LOGO).fg(muted).centered().render(logo, buf);
 
-        Text::from(TITLE).fg(muted).centered().render(title, buf);
+        let title_text = if self.preset == Preset::Ascii {
+            TITLE_ASCII
+        } else {
+            TITLE
+        };
+        Text::from(title_text)
+            .fg(muted)
+            .centered()
+            .render(title, buf);
 
         Text::from(state.version)
             .fg(muted)
