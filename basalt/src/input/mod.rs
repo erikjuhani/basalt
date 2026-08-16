@@ -37,6 +37,7 @@ pub struct InputModalState {
     label: String,
     offset_x: usize,
     callback: Option<Callback>,
+    pub(crate) terminal_cursor: Option<Position>,
 }
 
 impl InputModalState {
@@ -53,6 +54,7 @@ impl InputModalState {
             visible,
             label: String::from("Input"),
             callback: None,
+            terminal_cursor: None,
         }
     }
 
@@ -299,6 +301,7 @@ impl Input {
 impl StatefulWidget for Input {
     type State = InputModalState;
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
+        state.terminal_cursor = None;
         if !state.visible {
             return;
         }
@@ -377,12 +380,9 @@ impl StatefulWidget for Input {
             )
             .render(area, buf);
 
-        // FIXME: When drawing the input above
-        buf.set_style(
-            Rect::new(col.saturating_sub(state.scroll as u16), row, 1, 1)
-                .offset(Offset { x: 2, y: 1 }),
-            Style::default().reversed().fg(self.theme.muted),
-        );
+        let cursor = Rect::new(col.saturating_sub(state.scroll as u16), row, 1, 1)
+            .offset(Offset { x: 2, y: 1 });
+        state.terminal_cursor = Some(Position::new(cursor.x, cursor.y));
     }
 }
 

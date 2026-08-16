@@ -1,8 +1,12 @@
 use basalt_core::obsidian::{self, create_untitled_dir, create_untitled_note, Note, Vault};
 use ratatui::{
     buffer::Buffer,
-    crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
-    layout::{Constraint, Flex, Layout, Rect, Size},
+    crossterm::{
+        cursor::SetCursorStyle,
+        event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
+        execute,
+    },
+    layout::{Constraint, Flex, Layout, Position, Rect, Size},
     style::Style,
     widgets::{Block, StatefulWidget, Widget},
     DefaultTerminal,
@@ -29,7 +33,7 @@ use crate::{
     note_editor::{
         self, ast,
         editor::NoteEditor,
-        state::{EditMode, NoteEditorState, View},
+        state::{EditMode, Mode, NoteEditorState, View},
     },
     outline::{self, Outline, OutlineState},
     splash_modal::{self, SplashModal, SplashModalState},
@@ -272,6 +276,33 @@ fn active_config_section<'a>(
     }
 }
 
+fn focused_cursor(state: &AppState) -> Option<Position> {
+    match state.active_component() {
+        ActivePane::NoteEditor => state
+            .tabs
+            .active_editor()
+            .and_then(|editor| editor.terminal_cursor),
+        ActivePane::Input => state.input_modal.terminal_cursor,
+        _ => None,
+    }
+}
+
+fn cursor_style(state: &AppState) -> SetCursorStyle {
+    let inserting = match state.active_component() {
+        ActivePane::NoteEditor => matches!(
+            state.tabs.active_editor().map(NoteEditorState::mode),
+            Some(Mode::Insert | Mode::Edit)
+        ),
+        ActivePane::Input => state.input_modal.is_editing(),
+        _ => false,
+    };
+    if inserting {
+        SetCursorStyle::SteadyBar
+    } else {
+        SetCursorStyle::SteadyBlock
+    }
+}
+
 fn rebuild_outline(state: &mut AppState, config: &Config) {
     let is_open = state.outline.is_open();
     let was_active = state.outline.active;
@@ -486,11 +517,18 @@ impl<'a> App<'a> {
     fn draw(&self, state: &mut AppState<'a>) -> Result<()> {
         let mut terminal = self.terminal.borrow_mut();
 
-        terminal.draw(move |frame| {
+        terminal.draw(|frame| {
             let area = frame.area();
-            let buf = frame.buffer_mut();
-            self.render(area, buf, state);
+            self.render(area, frame.buffer_mut(), state);
+
+            if let Some(position) = focused_cursor(state) {
+                frame.set_cursor_position(position);
+            }
         })?;
+
+        if focused_cursor(state).is_some() {
+            execute!(terminal.backend_mut(), cursor_style(state))?;
+        }
 
         Ok(())
     }

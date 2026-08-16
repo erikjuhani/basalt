@@ -2,7 +2,7 @@ use std::{marker::PhantomData, ops::Range};
 
 use ratatui::{
     buffer::Buffer,
-    layout::{Offset, Rect},
+    layout::{Offset, Position, Rect},
     style::{Color, Style, Stylize},
     text::{Line, Span},
     widgets::{
@@ -13,7 +13,10 @@ use ratatui::{
 use unicode_width::UnicodeWidthChar;
 
 use crate::note_editor::{
-    cursor::CursorWidget, state::NoteEditorState, viewport::Viewport, virtual_document::VirtualLine,
+    cursor::{CursorMode, CursorWidget},
+    state::NoteEditorState,
+    viewport::Viewport,
+    virtual_document::VirtualLine,
 };
 
 const SELECTION_STYLE: Style = Style::new().reversed();
@@ -178,15 +181,30 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
             );
         }
 
+        state.terminal_cursor = None;
         if !state.content.is_empty() || state.is_editing() {
-            CursorWidget::default()
-                .with_offset(Offset {
-                    x: inner_area.x as i32,
-                    y: inner_area.y as i32,
-                })
-                .with_meta_len(meta_lines_count as u16)
-                .with_theme(&theme)
-                .render(state.viewport().area(), buf, &mut state.cursor);
+            match *state.cursor.mode() {
+                CursorMode::Read => CursorWidget::default()
+                    .with_offset(Offset {
+                        x: inner_area.x as i32,
+                        y: inner_area.y as i32,
+                    })
+                    .with_meta_len(meta_lines_count as u16)
+                    .with_theme(&theme)
+                    .render(state.viewport().area(), buf, &mut state.cursor),
+                CursorMode::Edit => {
+                    let scroll = state.viewport().area();
+                    let y = (state.cursor.virtual_row() as u16)
+                        .saturating_add(meta_lines_count as u16)
+                        .saturating_sub(scroll.top())
+                        .saturating_add(inner_area.y);
+                    let x = (state.cursor.virtual_column() as u16)
+                        .saturating_add(inner_area.x)
+                        .saturating_sub(scroll.left());
+                    let position = Position { x, y };
+                    state.terminal_cursor = inner_area.contains(position).then_some(position);
+                }
+            }
         }
 
         if !area.is_empty() && total_lines as u16 > inner_area.bottom() {
