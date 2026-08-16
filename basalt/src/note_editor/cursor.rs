@@ -24,7 +24,7 @@ pub enum Message {
     SwitchMode(CursorMode),
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub enum CursorMode {
     #[default]
     Read,
@@ -374,28 +374,19 @@ impl StatefulWidget for CursorWidget {
     where
         Self: Sized,
     {
+        if !matches!(state.mode, CursorMode::Read) {
+            return;
+        }
+
         let y = (state.virtual_row as u16)
             .saturating_add(self.meta_len)
             .saturating_sub(area.top())
             .saturating_add(self.offset.y as u16);
 
-        match state.mode {
-            CursorMode::Read => {
-                buf.set_style(
-                    Rect::new(self.offset.x as u16, y, area.width, 1),
-                    Style::default().reversed().fg(self.selection),
-                );
-            }
-            CursorMode::Edit => {
-                let x = (state.virtual_column as u16)
-                    .saturating_add(self.offset.x as u16)
-                    .saturating_sub(area.left());
-                buf.set_style(
-                    Rect::new(x, y, 1, 1),
-                    Style::default().reversed().fg(self.selection),
-                );
-            }
-        }
+        buf.set_style(
+            Rect::new(self.offset.x as u16, y, area.width, 1),
+            Style::default().reversed().fg(self.selection),
+        );
     }
 }
 

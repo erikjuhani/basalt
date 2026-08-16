@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use basalt_core::obsidian::{self, Error, Vault};
 use basalt_tui::{app::App, cli::Cli, debug_log};
+use ratatui::crossterm::{cursor::SetCursorStyle, execute};
 
 fn main() -> Result<(), Error> {
     let cli = Cli::parse();
@@ -30,19 +31,21 @@ fn main() -> Result<(), Error> {
         Err(_) => None,
     };
 
-    let mut terminal = ratatui::init();
-    terminal.show_cursor()?;
+    let terminal = ratatui::init();
 
-    App::start(
+    let result = App::start(
         terminal,
         vaults,
         initial_vault,
         cli.debug,
         cli.log_level,
         cli.theme,
-    )?;
+    );
 
+    let _ = execute!(std::io::stdout(), SetCursorStyle::DefaultUserShape);
     ratatui::restore();
+
+    result?;
 
     Ok(())
 }

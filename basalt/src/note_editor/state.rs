@@ -8,7 +8,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use ratatui::{layout::Size, style::Color};
+use ratatui::{
+    layout::{Position, Size},
+    style::Color,
+};
 
 use crate::{
     config::{Symbols, Theme},
@@ -184,6 +187,7 @@ pub struct NoteEditorState<'a> {
     /// the layout always matches the text_buffer, even when the cursor
     /// position would temporarily resolve to a different block.
     editing_block: Option<usize>,
+    pub(crate) terminal_cursor: Option<Position>,
 }
 
 impl<'a> NoteEditorState<'a> {
@@ -217,6 +221,7 @@ impl<'a> NoteEditorState<'a> {
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             editing_block: None,
+            terminal_cursor: None,
         }
     }
 
