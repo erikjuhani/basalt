@@ -1,6 +1,12 @@
 ## Installation
 
-[[Basalt]] is available to install via [Cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html), [aqua](https://aquaproj.github.io/docs/install), and as pre-compiled binaries from [GitHub releases](https://github.com/erikjuhani/basalt/releases).
+[[Basalt]] is available to install via [Homebrew](https://brew.sh), [Cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html), [aqua](https://aquaproj.github.io/docs/install) and as pre-compiled binaries from [GitHub releases](https://github.com/erikjuhani/basalt/releases).
+
+### Homebrew
+
+```
+brew install erikjuhani/tap/basalt
+```
 
 ### Cargo
 
@@ -16,7 +22,31 @@ aqua g -i erikjuhani/basalt
 
 ### Pre-compiled binaries
 
-Download the appropriate archive for your system and architecture from [GitHub releases](https://github.com/erikjuhani/basalt/releases), extract it, and move the `basalt` binary to a location in your `PATH`.
+Download the appropriate archive for your system and architecture from [GitHub releases](https://github.com/erikjuhani/basalt/releases), extract it and move the `basalt` binary to a location in your `PATH`.
+
+## Nightly builds
+
+Nightly builds track the latest `main` commit. They are unstable and meant for testing. The [nightly release](https://github.com/erikjuhani/basalt/releases/tag/nightly) always holds the newest build. A downloaded nightly binary reports a `-nightly` suffix in `basalt --version`. A build from source reports the commit hash instead.
+
+### Homebrew
+
+Build the latest `main` from source:
+
+```
+brew install --HEAD erikjuhani/tap/basalt
+```
+
+### Cargo
+
+Build the latest `main` from source:
+
+```
+cargo install --git https://github.com/erikjuhani/basalt --branch main basalt-tui
+```
+
+### Pre-compiled nightly binaries
+
+Download the archive for your system and architecture from the [nightly release](https://github.com/erikjuhani/basalt/releases/tag/nightly), extract it and move the `basalt` binary to a location in your `PATH`.
 
 ## Starting Basalt
 

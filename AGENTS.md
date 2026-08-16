@@ -1,10 +1,10 @@
 # Agent guidelines for Basalt
 
-This file is for LLMs and coding agents working in this repository. Humans should read [CONTRIBUTING.md](CONTRIBUTING.md).
+This file is for LLMs and coding agents working in this repository.
 
 ## Contribution policy
 
-Basalt is a hand-crafted side project. The maintainer values writing the code himself, so agent-authored contributions are restricted.
+Basalt is _mostly_ hand-crafted side project. The maintainer values writing the code himself, so some agent-authored contributions are restricted.
 
 - **Never open a pull request for a "good first issue".** These are reserved for humans to solve by hand so newcomers can learn the codebase. They are intentionally simple and do not need an LLM. If you were pointed at one, stop and tell your human to program it themselves.
 - **Stay scoped.** Open an issue to discuss feature work before writing it. Don't bundle unrelated changes.

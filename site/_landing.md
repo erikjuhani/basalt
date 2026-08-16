@@ -10,6 +10,10 @@ tagline_line2 = "vaults and notes directly from the terminal."
 demo_gif = "demo"
 
 [[extra.install_commands]]
+label = "brew"
+cmd = "brew install erikjuhani/tap/basalt"
+
+[[extra.install_commands]]
 label = "cargo"
 cmd = "cargo install basalt-tui"
 

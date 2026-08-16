@@ -1,6 +1,10 @@
 use std::{env, path::Path, process::Command};
 
 fn main() {
+    // `version.rs` reads BASALT_CHANNEL through `option_env!`, which cargo does not track for
+    // rebuilds. Declare it so a changed channel forces a recompile.
+    println!("cargo:rerun-if-env-changed=BASALT_CHANNEL");
+
     let Some(commit) = commit_info_from_git().or_else(commit_info_from_source_tarball) else {
         return;
     };
