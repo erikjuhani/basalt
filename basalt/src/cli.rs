@@ -35,6 +35,7 @@ mod tests {
                     hash: Some("abc123def0123456789"),
                     short_hash: Some("abc123def"),
                     date: Some("2026-05-15"),
+                    ..Default::default()
                 }
                 .to_string(),
             )

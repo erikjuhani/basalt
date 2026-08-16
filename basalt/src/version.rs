@@ -3,6 +3,7 @@ use std::fmt;
 #[derive(Default)]
 pub struct VersionInfo {
     pub version: &'static str,
+    pub channel: Option<&'static str>,
     pub hash: Option<&'static str>,
     pub short_hash: Option<&'static str>,
     pub date: Option<&'static str>,
@@ -12,6 +13,7 @@ impl VersionInfo {
     pub const fn from_env() -> Self {
         Self {
             version: env!("CARGO_PKG_VERSION"),
+            channel: option_env!("BASALT_CHANNEL"),
             hash: option_env!("BASALT_COMMIT_HASH"),
             short_hash: option_env!("BASALT_COMMIT_SHORT_HASH"),
             date: option_env!("BASALT_COMMIT_DATE"),
@@ -22,6 +24,9 @@ impl VersionInfo {
 impl fmt::Display for VersionInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.version)?;
+        if let Some(channel) = self.channel.filter(|channel| !channel.is_empty()) {
+            write!(f, "-{channel}")?;
+        }
         match (self.short_hash, self.date) {
             (None, _) => Ok(()),
             (Some(short_hash), None) => write!(f, " ({})", short_hash),
@@ -41,8 +46,31 @@ mod tests {
             hash: Some("abc123def0123456789"),
             short_hash: Some("abc123def"),
             date: Some("2026-05-15"),
+            ..Default::default()
         };
         assert_eq!(info.to_string(), "0.12.5 (abc123def 2026-05-15)");
+    }
+
+    #[test]
+    fn with_channel() {
+        let info = VersionInfo {
+            version: "0.12.5",
+            channel: Some("nightly"),
+            short_hash: Some("abc123def"),
+            date: Some("2026-05-15"),
+            ..Default::default()
+        };
+        assert_eq!(info.to_string(), "0.12.5-nightly (abc123def 2026-05-15)");
+    }
+
+    #[test]
+    fn empty_channel_is_omitted() {
+        let info = VersionInfo {
+            version: "0.12.5",
+            channel: Some(""),
+            ..Default::default()
+        };
+        assert_eq!(info.to_string(), "0.12.5");
     }
 
     #[test]

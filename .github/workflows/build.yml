@@ -2,6 +2,17 @@ name: Build
 
 on:
   workflow_call:
+    inputs:
+      version:
+        description: Version used in artifact names (defaults to the tag ref)
+        required: false
+        type: string
+        default: ''
+      channel:
+        description: Release channel baked into the binary (e.g. nightly)
+        required: false
+        type: string
+        default: ''
 
 concurrency:
   group: build-${{ github.ref }}
@@ -80,13 +91,17 @@ jobs:
 
       - name: Build binary
         shell: bash
+        env:
+          BASALT_CHANNEL: ${{ inputs.channel }}
         run: cargo build --locked --release --target "${MATRIX_TARGET}"
 
       - name: Prepare artifact
         shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
           ref_name="${GITHUB_REF_NAME}"
-          version="${ref_name##*/v}"
+          version="${VERSION:-${ref_name##*/v}}"
 
           target="${MATRIX_TARGET}"
           bin_path="target/${target}/release"
