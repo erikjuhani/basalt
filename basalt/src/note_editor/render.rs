@@ -827,7 +827,7 @@ pub fn list<'a>(
 
                     lines.extend(
                         render_node(
-                            content.to_string(),
+                            content,
                             node,
                             max_width,
                             horizontal_offset,
@@ -915,7 +915,7 @@ pub fn task<'a>(
 
             lines.extend(rest.iter().flat_map(|node| {
                 render_node(
-                    content.to_string(),
+                    content,
                     node,
                     max_width,
                     horizontal_offset,
@@ -987,7 +987,7 @@ pub fn item<'a>(
 
             lines.extend(rest.iter().flat_map(|node| {
                 render_node(
-                    content.to_string(),
+                    content,
                     node,
                     max_width,
                     horizontal_offset,
@@ -1156,7 +1156,7 @@ pub fn block_quote<'a>(
             for (i, node) in nodes.iter().enumerate() {
                 lines.extend(
                     render_node(
-                        content.to_string(),
+                        content,
                         node,
                         max_width,
                         horizontal_offset,
@@ -1633,7 +1633,7 @@ fn table_border<'a>(text: &str) -> Span<'a> {
 // FIXME: Use options struct or similar
 #[allow(clippy::too_many_arguments)]
 pub fn render_node<'a>(
-    content: String,
+    content: &str,
     node: &ast::Node,
     max_width: usize,
     horizontal_offset: usize,
@@ -1651,7 +1651,7 @@ pub fn render_node<'a>(
             source_range,
         } => heading(
             *level,
-            &content,
+            content,
             prefix,
             text,
             source_range,
@@ -1662,7 +1662,7 @@ pub fn render_node<'a>(
             theme,
         ),
         Paragraph { text, source_range } => paragraph(
-            &content,
+            content,
             prefix,
             text,
             source_range,
@@ -1675,7 +1675,7 @@ pub fn render_node<'a>(
             text,
             source_range,
         } => code_block(
-            &content,
+            content,
             prefix,
             lang,
             text,
@@ -1689,7 +1689,7 @@ pub fn render_node<'a>(
             nodes,
             source_range,
         } => list(
-            &content,
+            content,
             prefix,
             nodes,
             source_range,
@@ -1705,7 +1705,7 @@ pub fn render_node<'a>(
             nodes,
             source_range,
         } => item(
-            &content,
+            content,
             prefix,
             kind,
             nodes,
@@ -1722,7 +1722,7 @@ pub fn render_node<'a>(
             nodes,
             source_range,
         } => task(
-            &content,
+            content,
             prefix,
             kind,
             nodes,
@@ -1740,7 +1740,7 @@ pub fn render_node<'a>(
             nodes,
             source_range,
         } => block_quote(
-            &content,
+            content,
             prefix,
             kind,
             title,
@@ -1758,7 +1758,7 @@ pub fn render_node<'a>(
             rows,
             source_range,
         } => table(
-            &content,
+            content,
             prefix,
             alignments,
             head,
