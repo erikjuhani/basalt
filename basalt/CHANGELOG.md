@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.13.0](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.13.0) (Unreleased)
+
+### Changed
+
+- [27bdefa](https://github.com/erikjuhani/basalt/commit/27bdefa3cc2b7d98380ec4577f29d45ecb25029e) Memoize note layout instead of rebuilding it every frame by @erikjuhani
+
+> The editor built the whole layout document on every frame and cloned the
+> result twice to draw a single screen. This slowed down the editing
+> experience considerably.
+>
+> By caching the layout on a cache struct of its inputs and skipping the
+> rebuild when nothing changed, and by cloning only the visible rows. Idle
+> and scroll frames drop by around ~50ms.
+>
+> Also borrow content in render_node instead of cloning it per block.
+
+### Fixed
+
+- [28429e2](https://github.com/erikjuhani/basalt/commit/28429e2440fca596a1470fe6caca9bf424a1ad03) Match title text to the symbol preset by @erikjuhani
+
+> The `⋅𝕭𝖆𝖘𝖆𝖑𝖙⋅` title was hardcoded in the header and the splash modal,
+> so an `ascii` preset still emitted the dot operator and Fraktur-bold
+> glyphs on terminals that cannot render them. Both sites now branch on
+> the preset and fall back to plain `Basalt` when it is `Ascii`, while
+> unicode and nerd-font presets keep the stylized form.
+
 ## [0.12.7](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.12.7) (Aug, 15 2026)
 
 ### Added
