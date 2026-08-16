@@ -28,6 +28,22 @@ Basalt is a cross-platform TUI (Terminal User Interface) for managing Obsidian v
 
 Or download a pre-compiled binary from the [latest release](https://github.com/erikjuhani/basalt/releases/latest), extract it, and move the `basalt` binary to a location in your `PATH`.
 
+## Nightly builds
+
+Nightly builds track the latest `main` commit. They are unstable and meant for testing. The [`nightly` release](https://github.com/erikjuhani/basalt/releases/tag/nightly) always holds the newest build. A downloaded nightly binary reports a `-nightly` suffix in `basalt --version`. A build from source reports the commit hash instead.
+
+- Using [Homebrew](https://brew.sh) (builds from source):
+  ```sh
+  brew install --HEAD erikjuhani/tap/basalt
+  ```
+
+- Using [Cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html) (builds from source):
+  ```sh
+  cargo install --git https://github.com/erikjuhani/basalt --branch main basalt-tui
+  ```
+
+Or download a pre-compiled binary from the [nightly release](https://github.com/erikjuhani/basalt/releases/tag/nightly).
+
 ## Configuration
 
 Basalt can be customized using a TOML configuration file. The file does not exist by default — create it manually when you want to override the defaults.

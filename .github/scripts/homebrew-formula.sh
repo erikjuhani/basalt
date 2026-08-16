@@ -29,6 +29,11 @@ class Basalt < Formula
   homepage "https://github.com/erikjuhani/basalt"
   license "GPL-3.0-or-later"
 
+  head do
+    url "https://github.com/erikjuhani/basalt.git", branch: "main"
+    depends_on "rust" => :build
+  end
+
   on_macos do
     on_arm do
       url "${base_url}/basalt-${version}-aarch64-apple-darwin.tar.gz"
@@ -52,11 +57,16 @@ class Basalt < Formula
   end
 
   def install
-    bin.install "basalt"
+    if build.head?
+      system "cargo", "install", *std_cargo_args(path: "basalt")
+    else
+      bin.install "basalt"
+    end
   end
 
   test do
-    assert_match version.to_s, shell_output("#{bin}/basalt --version")
+    expected = build.head? ? "basalt" : version.to_s
+    assert_match expected, shell_output("#{bin}/basalt --version")
   end
 end
 FORMULA
