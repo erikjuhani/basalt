@@ -8,12 +8,12 @@ That said, open source projects flourish with multiple contributors. I won't say
 
 ## AI and LLM-assisted contributions
 
-Basalt is a side project I work on for fun, and a big part of that fun is the craft of writing the code by hand. Please keep that in mind when contributing.
+Basalt is a side project I work on for fun, and one big part of that fun is also writing the code by hand. Please keep that in mind when contributing.
 
 - **Good first issues are for humans.** They are intentionally small and simple so newcomers can learn the codebase by solving them. Do not complete them with an LLM or coding agent. If you want one, program it by hand.
 - **You own what you submit.** Understand every line you open a PR with and be able to explain it. "The model wrote it" is not an answer to review feedback.
 
-Using AI as an assistant is fine in moderation. Letting it author whole contributions you don't understand is not.
+Using AI as an assistant and executor is fine. Letting it author whole contributions you don't understand is not.
 
 ## Licensing of contributions
 
