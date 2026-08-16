@@ -1,4 +1,5 @@
 use std::{
+    hash::{DefaultHasher, Hash, Hasher},
     iter,
     str::{CharIndices, Chars},
 };
@@ -189,6 +190,29 @@ impl<'a> VirtualBlock<'a> {
     }
 }
 
+fn hash_str(value: &str) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    value.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// Fingerprint of every input that shapes a layout, so a frame whose inputs are
+/// unchanged reuses the previous result instead of rebuilding the whole document.
+/// The theme is not part of the key; `set_theme` clears the cache instead.
+#[derive(Clone, Debug, PartialEq)]
+struct LayoutKey {
+    name_hash: u64,
+    content_hash: u64,
+    edit: bool,
+    editing_block: Option<usize>,
+    cursor_offset: usize,
+    ast_len: usize,
+    ast_last_end: usize,
+    width: usize,
+    horizontal_offset: usize,
+    buffer: Option<(u64, SourceRange<usize>, bool)>,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct VirtualDocument<'a> {
     symbols: Symbols,
@@ -197,6 +221,7 @@ pub struct VirtualDocument<'a> {
     blocks: Vec<VirtualBlock<'a>>,
     lines: Vec<VirtualLine<'a>>,
     line_to_block: Vec<usize>,
+    cache_key: Option<LayoutKey>,
 }
 
 impl<'a> VirtualDocument<'a> {
@@ -208,7 +233,10 @@ impl<'a> VirtualDocument<'a> {
     }
 
     pub fn set_theme(&mut self, theme: &Theme) {
-        self.theme = *theme;
+        if self.theme != *theme {
+            self.theme = *theme;
+            self.cache_key = None;
+        }
     }
     pub fn meta(&self) -> &[VirtualLine<'_>] {
         &self.meta
@@ -244,6 +272,32 @@ impl<'a> VirtualDocument<'a> {
         horizontal_offset: usize,
         text_buffer: Option<TextBuffer>,
     ) {
+        let edit = matches!(view, View::Edit(..));
+        let key = LayoutKey {
+            name_hash: hash_str(note_name),
+            content_hash: hash_str(content),
+            edit,
+            editing_block: current_block_idx,
+            // The cursor only reshapes layout while editing (it reveals its own
+            // line raw in the active block); in Read mode it never does.
+            cursor_offset: if edit { cursor_offset } else { 0 },
+            ast_len: ast_nodes.len(),
+            ast_last_end: ast_nodes.last().map_or(0, |node| node.source_range().end),
+            width,
+            horizontal_offset,
+            buffer: text_buffer.as_ref().map(|buffer| {
+                (
+                    hash_str(&buffer.content),
+                    buffer.source_range.clone(),
+                    buffer.modified,
+                )
+            }),
+        };
+        if self.cache_key.as_ref() == Some(&key) {
+            return;
+        }
+        self.cache_key = Some(key);
+
         if !note_name.is_empty() {
             let note_name = match self.symbols.title_font_style {
                 Some(style) => stylize(note_name, style),
@@ -330,7 +384,7 @@ impl<'a> VirtualDocument<'a> {
                         VirtualBlock::new(&lines, range)
                     }
                     None => render_node(
-                        live_content.to_string(),
+                        &live_content,
                         node,
                         width,
                         horizontal_offset,

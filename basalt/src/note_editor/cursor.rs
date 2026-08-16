@@ -418,7 +418,7 @@ mod tests {
             .into_iter()
             .flat_map(|node| {
                 render_node(
-                    content.to_string(),
+                    content,
                     &node,
                     80,
                     0,
@@ -664,7 +664,7 @@ mod tests {
             .into_iter()
             .flat_map(|node| {
                 render_node(
-                    content.to_string(),
+                    content,
                     &node,
                     80,
                     0,

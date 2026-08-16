@@ -23,11 +23,12 @@ fn render_highlight(
     buf: &mut Buffer,
     inner_area: Rect,
     viewport: &Viewport,
-    lines: &[VirtualLine],
-    meta_len: usize,
+    meta: &[VirtualLine],
+    doc: &[VirtualLine],
     range: &Range<usize>,
     style: Style,
 ) {
+    let meta_len = meta.len();
     let viewport_top = viewport.top() as usize;
     let horizontal_scroll = viewport.left();
 
@@ -39,8 +40,8 @@ fn render_highlight(
         }
     };
 
-    lines
-        .iter()
+    meta.iter()
+        .chain(doc.iter())
         .enumerate()
         .skip(viewport_top)
         .take(inner_area.height as usize)
@@ -132,20 +133,21 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
 
         state.update_layout();
 
-        let mut lines = state.virtual_document.meta().to_vec();
-        lines.extend(state.virtual_document.lines().to_vec());
+        let meta = state.virtual_document.meta();
+        let doc = state.virtual_document.lines();
+        let meta_lines_count = meta.len();
+        let rendered_lines_count = doc.len();
+        let total_lines = meta_lines_count + rendered_lines_count;
 
-        let visible_lines = lines
+        // Clone only the on-screen window, never the whole document.
+        let visible_lines = meta
             .iter()
+            .chain(doc.iter())
             .skip(state.viewport().top() as usize)
             .take(state.viewport().bottom() as usize)
-            // Cheaper to clone the subset of the lines
             .cloned()
             .map(|visual_line| visual_line.into())
             .collect::<Vec<Line>>();
-
-        let rendered_lines_count = state.virtual_document.lines().len();
-        let meta_lines_count = state.virtual_document.meta().len();
 
         Paragraph::new(visible_lines)
             .scroll((0, state.viewport().left()))
@@ -157,8 +159,8 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
                 buf,
                 inner_area,
                 state.viewport(),
-                &lines,
-                meta_lines_count,
+                meta,
+                doc,
                 &range,
                 SELECTION_STYLE,
             );
@@ -169,8 +171,8 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
                 buf,
                 inner_area,
                 state.viewport(),
-                &lines,
-                meta_lines_count,
+                meta,
+                doc,
                 &range,
                 YANK_FLASH_STYLE,
             );
@@ -187,7 +189,7 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
                 .render(state.viewport().area(), buf, &mut state.cursor);
         }
 
-        if !area.is_empty() && lines.len() as u16 > inner_area.bottom() {
+        if !area.is_empty() && total_lines as u16 > inner_area.bottom() {
             let mut scroll_state =
                 ScrollbarState::new(rendered_lines_count).position(state.cursor.virtual_row());
 
