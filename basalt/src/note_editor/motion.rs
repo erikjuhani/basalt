@@ -92,6 +92,20 @@ pub fn first_nonblank(content: &str, offset: usize) -> usize {
         .map_or(start, |(i, _)| start + i)
 }
 
+pub fn clamp_cursor(content: &str, offset: usize) -> usize {
+    let offset = offset.min(content.len());
+    let offset = if offset == content.len() && content.ends_with('\n') {
+        offset - 1
+    } else {
+        offset
+    };
+    match content[offset..].chars().next() {
+        Some(c) if c != '\n' => offset,
+        _ if line_start(content, offset) == offset => offset,
+        _ => prev_char_offset(content, offset),
+    }
+}
+
 pub fn word_forward(content: &str, offset: usize, big: bool) -> usize {
     let mut chars = chars_from(content, offset).peekable();
     let Some(&(_, first)) = chars.peek() else {
@@ -505,6 +519,17 @@ mod tests {
         assert_eq!(word_forward(text, 4, false), 8); // 'baz'
                                                      // WORD mode skips the punctuation as part of the word.
         assert_eq!(word_forward(text, 0, true), 8); // 'baz'
+    }
+
+    #[test]
+    fn clamp_cursor_pulls_back_from_line_and_buffer_ends() {
+        assert_eq!(clamp_cursor("foo bar baz\n", 12), 10);
+        assert_eq!(clamp_cursor("foo bar baz", 11), 10);
+        assert_eq!(clamp_cursor("foo\nbar", 3), 2);
+        assert_eq!(clamp_cursor("foo\n\nbar", 4), 4);
+        assert_eq!(clamp_cursor("foo\n\n", 5), 4);
+        assert_eq!(clamp_cursor("", 0), 0);
+        assert_eq!(clamp_cursor("foo bar", 4), 4);
     }
 
     #[test]
