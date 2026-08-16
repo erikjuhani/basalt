@@ -6,7 +6,7 @@ use crate::{
     stylized_text::FontStyle,
 };
 
-#[derive(Clone, Debug, PartialEq, Default, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Default, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Preset {
     #[default]

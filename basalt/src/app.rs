@@ -920,7 +920,8 @@ impl<'a> App<'a> {
     ) {
         let border_modal = self.config.symbols.border_modal.into();
         let vault_active = self.config.symbols.vault_active.clone();
-        SplashModal::new(border_modal, vault_active, theme).render(area, buf, state)
+        let preset = self.config.symbols.preset;
+        SplashModal::new(border_modal, vault_active, theme, preset).render(area, buf, state)
     }
 
     fn render_main(&self, area: Rect, buf: &mut Buffer, state: &mut AppState<'a>) {
