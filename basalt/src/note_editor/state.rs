@@ -281,15 +281,39 @@ impl<'a> NoteEditorState<'a> {
         self.text_buffer.as_ref()
     }
 
+    fn block_source_range(&self, block_idx: usize) -> Option<Range<usize>> {
+        let node = self.ast_nodes.get(block_idx)?;
+        let start = if block_idx == 0 {
+            0
+        } else {
+            node.source_range().start
+        };
+        let end = self
+            .ast_nodes
+            .get(block_idx + 1)
+            .map(|next| next.source_range().start)
+            .unwrap_or(self.content.len())
+            .max(node.source_range().end);
+        Some(start..end)
+    }
+
+    fn block_index_for_offset(&self, offset: usize) -> Option<usize> {
+        (!self.ast_nodes.is_empty()).then(|| {
+            self.ast_nodes
+                .iter()
+                .rposition(|node| node.source_range().start <= offset)
+                .unwrap_or(0)
+        })
+    }
+
     pub fn enter_insert(&mut self, block_idx: usize) {
         // Commit any pending edits from the previous block before switching.
         self.commit_text_buffer();
 
         self.editing_block = Some(block_idx);
-        if let Some(node) = self.ast_nodes.get(block_idx) {
-            let source_range = node.source_range();
+        if let Some(source_range) = self.block_source_range(block_idx) {
             if let Some(content) = self.content.get(source_range.clone()) {
-                self.text_buffer = Some(TextBuffer::new(content, source_range.clone()));
+                self.text_buffer = Some(TextBuffer::new(content, source_range));
             }
         } else if self.content.is_empty() {
             // Only create an empty node for genuinely empty files, not when
@@ -950,42 +974,9 @@ impl<'a> NoteEditorState<'a> {
         let offset = cursor::snap_to_char_boundary(&self.content, offset);
 
         if matches!(self.view, View::Edit(..)) {
-            let target_block = self
-                .ast_nodes
-                .iter()
-                .position(|node| node.source_range().contains(&offset))
-                .or_else(|| {
-                    self.ast_nodes
-                        .iter()
-                        .position(|node| node.source_range().start >= offset)
-                })
-                .or_else(|| {
-                    self.ast_nodes
-                        .iter()
-                        .rposition(|node| node.source_range().end <= offset)
-                });
-            if let Some(block) = target_block {
+            if let Some(block) = self.block_index_for_offset(offset) {
                 if self.editing_block != Some(block) {
                     self.enter_insert(block);
-                }
-                // The leading whitespace a change leaves before a block is not
-                // inside any block's range; extend the buffer back over that gap so
-                // inserts land at the cursor. Only bridge whitespace — never block
-                // markers (list bullets, quote glyphs).
-                if let Some(start) = self.text_buffer.as_ref().map(|b| b.source_range.start) {
-                    let end = self
-                        .text_buffer
-                        .as_ref()
-                        .map_or(start, |b| b.source_range.end);
-                    let gap_is_blank = self
-                        .content
-                        .get(offset..start)
-                        .is_some_and(|gap| gap.chars().all(|c| c == ' ' || c == '\t'));
-                    if offset < start && gap_is_blank {
-                        if let Some(text) = self.content.get(offset..end) {
-                            self.text_buffer = Some(TextBuffer::new(text, offset..end));
-                        }
-                    }
                 }
             }
         }
@@ -1016,14 +1007,7 @@ impl<'a> NoteEditorState<'a> {
         if matches!(self.view, View::Edit(..)) && self.text_buffer.is_none() {
             let offset = self.cursor.source_offset();
             let block_idx = self
-                .ast_nodes
-                .iter()
-                .position(|node| node.source_range().contains(&offset))
-                .or_else(|| {
-                    self.ast_nodes
-                        .iter()
-                        .rposition(|node| node.source_range().end <= offset)
-                })
+                .block_index_for_offset(offset)
                 .unwrap_or_else(|| self.current_block_idx());
             self.enter_insert(block_idx);
             self.cursor.update(
@@ -1126,8 +1110,7 @@ impl<'a> NoteEditorState<'a> {
         let moved_up = target_block_idx < prev_block_idx;
         let use_end = adjacent && moved_up;
 
-        let target_offset = self.ast_nodes.get(target_block_idx).map(|node| {
-            let range = node.source_range();
+        let target_offset = self.block_source_range(target_block_idx).map(|range| {
             if use_end {
                 range.end.saturating_sub(1).max(range.start)
             } else {
@@ -1737,6 +1720,34 @@ mod tests {
         state.delete_char();
         state.commit_text_buffer();
         assert_eq!(state.content, "- a\n- b\n");
+    }
+
+    #[test]
+    fn test_blank_line_between_paragraphs_is_reachable() {
+        let mut state = NoteEditorState::new(
+            "para one\n\npara two\n",
+            "test",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.resize_viewport(Size::new(40, 12));
+        state.set_view(View::Edit(EditMode::Source));
+
+        state.cursor_down(1);
+        assert_eq!(state.cursor.source_offset(), 9);
+        assert_eq!(state.current_block_idx(), 0);
+
+        state.cursor_down(1);
+        assert_eq!(state.cursor.source_offset(), 10);
+        assert_eq!(state.current_block_idx(), 1);
+
+        state.cursor_up(1);
+        assert_eq!(state.cursor.source_offset(), 9);
+        assert_eq!(state.current_block_idx(), 0);
+
+        state.delete_char();
+        state.commit_text_buffer();
+        assert_eq!(state.content, "para one\npara two\n");
     }
 
     /// Pressing Enter at the very start of a list item must insert a blank line
