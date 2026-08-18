@@ -52,6 +52,10 @@
 #
 # Note editor commands:
 #
+# note_editor_cursor_up: moves cursor up one line (whole soft-wrapped line)
+# note_editor_cursor_down: moves cursor down one line (whole soft-wrapped line)
+# note_editor_cursor_screen_up: moves cursor up one visible row (Vim gk)
+# note_editor_cursor_screen_down: moves cursor down one visible row (Vim gj)
 # note_editor_scroll_up_one: scrolls up by one
 # note_editor_scroll_down_one: scrolls down by one
 # note_editor_scroll_up_half_page: scrolls up by half page
@@ -221,6 +225,8 @@ key_bindings = [
 key_bindings = [
  { key = "k", command = "note_editor_cursor_up" },
  { key = "j", command = "note_editor_cursor_down" },
+ { key = "gk", command = "note_editor_cursor_screen_up" },
+ { key = "gj", command = "note_editor_cursor_screen_down" },
  { key = "up", command = "note_editor_cursor_up" },
  { key = "down", command = "note_editor_cursor_down" },
  { key = "t", command = "note_editor_toggle_explorer" },

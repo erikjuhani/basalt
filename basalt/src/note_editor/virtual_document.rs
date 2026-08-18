@@ -34,6 +34,12 @@ macro_rules! synthetic_span {
     }};
 }
 
+macro_rules! wrap_marker_span {
+    ($span:expr) => {{
+        VirtualSpan::WrapMarker($span.clone().into())
+    }};
+}
+
 macro_rules! virtual_line {
     ($visual_spans:expr) => {{
         VirtualLine::new(&$visual_spans)
@@ -50,10 +56,12 @@ pub(crate) use content_span;
 pub(crate) use empty_virtual_line;
 pub(crate) use synthetic_span;
 pub(crate) use virtual_line;
+pub(crate) use wrap_marker_span;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum VirtualSpan<'a> {
     Synthetic(Span<'a>),
+    WrapMarker(Span<'a>),
     Content(Span<'a>, SourceRange<usize>),
 }
 
@@ -68,27 +76,29 @@ impl VirtualSpan<'_> {
     pub fn chars(&self) -> Chars<'_> {
         match self {
             Self::Content(span, ..) => span.content.chars(),
-            Self::Synthetic(..) => "".chars(),
+            Self::Synthetic(..) | Self::WrapMarker(..) => "".chars(),
         }
     }
 
     pub fn char_indices(&self) -> CharIndices<'_> {
         match self {
             Self::Content(span, ..) => span.content.char_indices(),
-            Self::Synthetic(..) => "".char_indices(),
+            Self::Synthetic(..) | Self::WrapMarker(..) => "".char_indices(),
         }
     }
 
     pub fn source_range(&self) -> Option<&SourceRange<usize>> {
         match self {
             Self::Content(.., source_range) => Some(source_range),
-            Self::Synthetic(..) => None,
+            Self::Synthetic(..) | Self::WrapMarker(..) => None,
         }
     }
 
     pub fn width(&self) -> usize {
         let span = match self {
-            VirtualSpan::Content(span, ..) | VirtualSpan::Synthetic(span) => span,
+            VirtualSpan::Content(span, ..)
+            | VirtualSpan::Synthetic(span)
+            | VirtualSpan::WrapMarker(span) => span,
         };
         // A tab is one byte but rendered as two columns (expanded at draw time).
         span.content
@@ -98,14 +108,23 @@ impl VirtualSpan<'_> {
     }
 
     pub fn is_synthetic(&self) -> bool {
-        matches!(self, VirtualSpan::Synthetic(..))
+        matches!(
+            self,
+            VirtualSpan::Synthetic(..) | VirtualSpan::WrapMarker(..)
+        )
+    }
+
+    pub fn is_wrap_marker(&self) -> bool {
+        matches!(self, VirtualSpan::WrapMarker(..))
     }
 }
 
 impl<'a> From<VirtualSpan<'a>> for Span<'a> {
     fn from(value: VirtualSpan<'a>) -> Self {
         let span = match value {
-            VirtualSpan::Synthetic(span) | VirtualSpan::Content(span, _) => span,
+            VirtualSpan::Synthetic(span)
+            | VirtualSpan::WrapMarker(span)
+            | VirtualSpan::Content(span, _) => span,
         };
         // Expand tabs so the terminal doesn't break the layout; the cursor maps
         // by byte offset against the un-expanded content (tabs counted as two).
@@ -126,6 +145,10 @@ impl<'a> VirtualLine<'a> {
         VirtualLine {
             spans: spans.to_vec(),
         }
+    }
+
+    pub fn is_wrap_continuation(&self) -> bool {
+        self.spans.iter().any(VirtualSpan::is_wrap_marker)
     }
 
     pub fn spans(self) -> Vec<Span<'a>> {

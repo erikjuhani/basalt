@@ -47,6 +47,8 @@ pub enum Message {
     CursorWordForward,
     CursorWordBackward,
     CursorDown,
+    CursorScreenUp,
+    CursorScreenDown,
     ScrollUp(ScrollAmount),
     ScrollDown(ScrollAmount),
     ScrollToTop,
@@ -339,22 +341,32 @@ pub fn update<'a>(
             state.cursor_down(count);
             return select_at_cursor(state);
         }
+        Message::CursorScreenUp => {
+            let count = state.take_count().unwrap_or(1);
+            state.cursor_up_screen(count);
+            return select_at_cursor(state);
+        }
+        Message::CursorScreenDown => {
+            let count = state.take_count().unwrap_or(1);
+            state.cursor_down_screen(count);
+            return select_at_cursor(state);
+        }
         Message::ScrollUp(scroll_amount) => {
-            state.cursor_up(calc_scroll_amount(
+            state.cursor_up_screen(calc_scroll_amount(
                 &scroll_amount,
                 screen_size.height.into(),
             ));
             return select_at_cursor(state);
         }
         Message::ScrollDown(scroll_amount) => {
-            state.cursor_down(calc_scroll_amount(
+            state.cursor_down_screen(calc_scroll_amount(
                 &scroll_amount,
                 screen_size.height.into(),
             ));
             return select_at_cursor(state);
         }
         Message::ScrollToTop => {
-            state.cursor_up(usize::MAX);
+            state.cursor_up_screen(usize::MAX);
             return select_at_cursor(state);
         }
         Message::ScrollToBottom => {
