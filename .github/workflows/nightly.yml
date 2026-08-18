@@ -1,9 +1,8 @@
 name: Nightly
 
 on:
-  push:
-    branches:
-      - main
+  schedule:
+    - cron: "0 0 * * *" # Daily at 00:00 UTC
   workflow_dispatch:
 
 concurrency:
@@ -13,7 +12,28 @@ concurrency:
 permissions: {}
 
 jobs:
+  check:
+    name: Check for changes
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.check.outputs.changed }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - id: check
+        shell: bash
+        run: |
+          git rev-parse -q --verify refs/tags/nightly >/dev/null \
+            && git diff --quiet nightly HEAD -- basalt basalt-core basalt-widgets Cargo.toml Cargo.lock \
+            && echo "changed=false" >> "$GITHUB_OUTPUT" \
+            || echo "changed=true" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: check
+    if: github.event_name == 'workflow_dispatch' || needs.check.outputs.changed == 'true'
     uses: ./.github/workflows/build.yml
     with:
       version: nightly
