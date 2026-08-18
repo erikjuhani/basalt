@@ -859,6 +859,16 @@ impl<'a> NoteEditorState<'a> {
         Some(range)
     }
 
+    pub fn line_highlight_range(&self) -> Range<usize> {
+        let content = self.live_content();
+        let cursor = self.cursor.source_offset().min(content.len());
+        let start = content[..cursor].rfind('\n').map_or(0, |i| i + 1);
+        let end = content[cursor..]
+            .find('\n')
+            .map_or(content.len(), |i| cursor + i);
+        start..end
+    }
+
     pub fn selected_text(&self) -> Option<String> {
         let range = self.selection_range()?;
         self.live_content().get(range).map(str::to_string)

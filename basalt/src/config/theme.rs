@@ -32,6 +32,7 @@ pub struct Theme {
     pub heading_6: Color,
     /// Background for fenced code blocks.
     pub code_bg: Color,
+    pub line_highlight: Option<Color>,
     /// Block-quote bar and text.
     pub blockquote: Color,
     /// List bullets and ordered-list numbers.
@@ -187,6 +188,7 @@ impl Default for Theme {
             heading_5: Color::Reset,
             heading_6: Color::Reset,
             code_bg: Color::Black,
+            line_highlight: None,
             blockquote: Color::Magenta,
             list_marker: Color::DarkGray,
             task: Color::Magenta,
@@ -248,6 +250,7 @@ struct TomlTheme {
     heading_5: Option<String>,
     heading_6: Option<String>,
     code_bg: Option<String>,
+    line_highlight: Option<String>,
     blockquote: Option<String>,
     list_marker: Option<String>,
     task: Option<String>,
@@ -295,6 +298,16 @@ fn resolve(palette: &HashMap<String, String>, role: Option<String>, fallback: Co
     .unwrap_or(fallback)
 }
 
+fn darken(color: Color) -> Color {
+    match color {
+        Color::Rgb(r, g, b) => {
+            let scale = |channel: u8| (channel as f32 * 0.8) as u8;
+            Color::Rgb(scale(r), scale(g), scale(b))
+        }
+        _ => Color::Black,
+    }
+}
+
 fn resolve_pane(palette: &HashMap<String, String>, toml: TomlPane, default: Pane) -> Pane {
     Pane {
         background: resolve(palette, toml.background, default.background),
@@ -338,6 +351,11 @@ impl From<TomlTheme> for Theme {
             heading_5: color(value.heading_5, default.heading_5),
             heading_6: color(value.heading_6, default.heading_6),
             code_bg: color(value.code_bg, default.code_bg),
+            line_highlight: if value.line_highlight.as_deref() == Some("none") {
+                None
+            } else {
+                Some(color(value.line_highlight, darken(background)))
+            },
             blockquote: color(value.blockquote, default.blockquote),
             list_marker: color(value.list_marker, default.list_marker),
             task: color(value.task, default.task),
