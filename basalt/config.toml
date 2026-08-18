@@ -132,6 +132,8 @@
 experimental_editor = false
 vim_mode = false
 
+wrap = true
+
 # The key that `<leader>` stands for in key bindings, e.g. `{ key =
 # "<leader>f", command = "vault_selector_modal_toggle" }`. Only the leader set
 # in the user config takes effect.

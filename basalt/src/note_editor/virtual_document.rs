@@ -261,6 +261,10 @@ impl<'a> VirtualDocument<'a> {
             self.cache_key = None;
         }
     }
+
+    pub fn set_wrap(&mut self, wrap: bool) {
+        self.symbols.wrap = wrap;
+    }
     pub fn meta(&self) -> &[VirtualLine<'_>] {
         &self.meta
     }

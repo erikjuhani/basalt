@@ -88,6 +88,7 @@ impl fmt::Display for ConfigSection<'_> {
 pub struct Config<'a> {
     pub experimental_editor: bool,
     pub vim_mode: bool,
+    pub wrap: bool,
     pub symbols: Symbols,
     pub theme: Theme,
     pub global: ConfigSection<'a>,
@@ -138,6 +139,7 @@ impl Config<'_> {
             theme: theme::theme_by_name(value.theme.as_deref().unwrap_or("default")),
             experimental_editor: value.experimental_editor,
             vim_mode: value.vim_mode,
+            wrap: value.wrap.unwrap_or(true),
             global: ConfigSection::from_toml(value.global, leader),
             splash: ConfigSection::from_toml(value.splash, leader),
             explorer: ConfigSection::from_toml(value.explorer, leader),
@@ -158,6 +160,7 @@ impl Config<'_> {
         self.theme = config.theme;
         self.experimental_editor = config.experimental_editor;
         self.vim_mode = config.vim_mode;
+        self.wrap = config.wrap;
         self.global.merge_key_bindings(config.global);
         self.explorer.merge_key_bindings(config.explorer);
         self.splash.merge_key_bindings(config.splash);
@@ -267,6 +270,8 @@ struct TomlConfig {
     experimental_editor: bool,
     #[serde(default)]
     vim_mode: bool,
+    #[serde(default)]
+    wrap: Option<bool>,
     #[serde(default)]
     leader: Leader,
     #[serde(default)]
