@@ -42,6 +42,12 @@
 
 ### Fixed
 
+- [8e0fa5a](https://github.com/erikjuhani/basalt/commit/8e0fa5aa5243b23f5b4050b2925c5fba15a17098) Make blank lines between blocks editable in edit mode by @erikjuhani
+
+> The cursor could not reach the blank lines that separate blocks. Blocks
+> now tile the document, so the block above a blank line owns it. The
+> cursor can rest on and edit those blanks.
+
 - [28429e2](https://github.com/erikjuhani/basalt/commit/28429e2440fca596a1470fe6caca9bf424a1ad03) Match title text to the symbol preset by @erikjuhani
 
 > The `⋅𝕭𝖆𝖘𝖆𝖑𝖙⋅` title was hardcoded in the header and the splash modal,
