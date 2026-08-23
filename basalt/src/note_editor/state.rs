@@ -1040,12 +1040,12 @@ impl<'a> NoteEditorState<'a> {
         );
     }
 
-    pub fn cursor_up(&mut self, amount: usize) {
+    fn move_up(&mut self, amount: usize, movement: cursor::LineMovement) {
         let prev_block_idx = self.current_block_idx();
         let prev_row = self.cursor.virtual_row();
 
         self.cursor.update(
-            cursor::Message::MoveUp(amount),
+            cursor::Message::MoveUp(amount, movement),
             self.virtual_document.lines(),
             &self.text_buffer,
         );
@@ -1056,17 +1056,33 @@ impl<'a> NoteEditorState<'a> {
         self.ensure_cursor_visible();
     }
 
-    pub fn cursor_down(&mut self, amount: usize) {
+    fn move_down(&mut self, amount: usize, movement: cursor::LineMovement) {
         let prev_block_idx = self.current_block_idx();
 
         self.cursor.update(
-            cursor::Message::MoveDown(amount),
+            cursor::Message::MoveDown(amount, movement),
             self.virtual_document.lines(),
             &self.text_buffer,
         );
 
         self.relayout_on_block_change(prev_block_idx);
         self.ensure_cursor_visible();
+    }
+
+    pub fn cursor_up(&mut self, amount: usize) {
+        self.move_up(amount, cursor::LineMovement::Logical);
+    }
+
+    pub fn cursor_down(&mut self, amount: usize) {
+        self.move_down(amount, cursor::LineMovement::Logical);
+    }
+
+    pub fn cursor_up_screen(&mut self, amount: usize) {
+        self.move_up(amount, cursor::LineMovement::Visual);
+    }
+
+    pub fn cursor_down_screen(&mut self, amount: usize) {
+        self.move_down(amount, cursor::LineMovement::Visual);
     }
 
     /// Re-layout while editing so the raw (source) line tracks the cursor.

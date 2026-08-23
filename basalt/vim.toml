@@ -2,6 +2,8 @@
 key_bindings = [
   { key = "k", command = "note_editor_cursor_up" },
   { key = "j", command = "note_editor_cursor_down" },
+  { key = "gk", command = "note_editor_cursor_screen_up" },
+  { key = "gj", command = "note_editor_cursor_screen_down" },
   { key = "up", command = "note_editor_cursor_up" },
   { key = "down", command = "note_editor_cursor_down" },
   { key = "tab", command = "note_editor_switch_pane_next" },

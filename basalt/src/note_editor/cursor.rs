@@ -15,13 +15,19 @@ use crate::{
 
 #[derive(Clone, Debug)]
 pub enum Message {
-    MoveUp(usize),
-    MoveDown(usize),
+    MoveUp(usize, LineMovement),
+    MoveDown(usize, LineMovement),
     MoveLeft(usize),
     MoveRight(usize),
     /// Jump the cursor according to the given byte index
     Jump(usize),
     SwitchMode(CursorMode),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LineMovement {
+    Visual,
+    Logical,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -138,6 +144,16 @@ pub fn source_offset_to_virtual_column<'a>(offset: usize, line: &VirtualLine<'a>
     virtual_col.break_value()
 }
 
+fn has_content(lines: &[VirtualLine], idx: usize) -> bool {
+    lines.get(idx).is_some_and(VirtualLine::has_content)
+}
+
+fn is_line_head(lines: &[VirtualLine], idx: usize) -> bool {
+    lines
+        .get(idx)
+        .is_some_and(|line| line.has_content() && !line.is_wrap_continuation())
+}
+
 pub(crate) fn snap_to_char_boundary(text: &str, offset: usize) -> usize {
     let offset = offset.min(text.len());
     (offset..=text.len())
@@ -160,6 +176,61 @@ impl Cursor {
             }
             self.virtual_row = row
         }
+    }
+
+    fn place_on_row(&mut self, idx: usize, lines: &[VirtualLine]) {
+        let Some(line) = lines.get(idx) else { return };
+        self.virtual_row = idx;
+
+        let Some(source_range) = line.source_range() else {
+            return;
+        };
+
+        match self.mode() {
+            CursorMode::Read => self.source_offset = source_range.start,
+            CursorMode::Edit => {
+                if let Some(offset) = virtual_position_to_source_offset(
+                    (self.virtual_row, self.virtual_column),
+                    lines,
+                ) {
+                    self.source_offset = offset;
+                    if let Some(col) = source_offset_to_virtual_column(self.source_offset, line) {
+                        self.virtual_column = col;
+                    }
+                }
+            }
+        }
+    }
+
+    fn place_at_line_start(&mut self, head: usize, lines: &[VirtualLine]) {
+        let Some(line) = lines.get(head) else { return };
+        let Some(source_range) = line.source_range() else {
+            return;
+        };
+        self.virtual_row = head;
+        self.source_offset = source_range.start;
+        self.virtual_column =
+            source_offset_to_virtual_column(source_range.start, line).unwrap_or(0);
+    }
+
+    fn place_at_line_end(&mut self, lines: &[VirtualLine]) {
+        let next_head = (self.virtual_row + 1..lines.len())
+            .find(|&idx| is_line_head(lines, idx))
+            .unwrap_or(lines.len());
+        let last_row = (self.virtual_row..next_head)
+            .rev()
+            .find(|&idx| has_content(lines, idx))
+            .unwrap_or(self.virtual_row);
+
+        let Some(line) = lines.get(last_row) else {
+            return;
+        };
+        let Some(source_range) = line.source_range() else {
+            return;
+        };
+        self.virtual_row = last_row;
+        self.source_offset = source_range.end;
+        self.virtual_column = source_offset_to_virtual_column(source_range.end, line).unwrap_or(0);
     }
 
     pub fn update(
@@ -211,77 +282,62 @@ impl Cursor {
             // TODO: Applies to both cursor_up and cursor_down
             // The cursor should always be fixed to the viewport. This would enable easier implementation
             // for e.g. search feature when navigating between matches
-            MoveUp(amount) => {
+            MoveUp(amount, LineMovement::Visual) => {
                 let current_idx = self.virtual_row;
                 let target_idx = current_idx.saturating_sub(amount);
 
                 // Search downward from target, then upward if no content line found
-                let iter = (0..=target_idx).rev().chain(target_idx + 1..current_idx);
+                let candidate = (0..=target_idx)
+                    .rev()
+                    .chain(target_idx + 1..current_idx)
+                    .find(|&idx| has_content(lines, idx));
 
-                for idx in iter {
-                    if let Some(line) = lines.get(idx).filter(|line| line.has_content()) {
-                        self.virtual_row = idx;
-
-                        if let Some(source_range) = line.source_range() {
-                            match self.mode() {
-                                CursorMode::Read => self.source_offset = source_range.start,
-                                CursorMode::Edit => {
-                                    if let Some(offset) = virtual_position_to_source_offset(
-                                        (self.virtual_row, self.virtual_column),
-                                        lines,
-                                    ) {
-                                        self.source_offset = offset;
-                                        if let Some(col) = source_offset_to_virtual_column(
-                                            self.source_offset,
-                                            line,
-                                        ) {
-                                            self.virtual_column = col;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        return;
-                    }
+                if let Some(idx) = candidate {
+                    self.place_on_row(idx, lines);
                 }
             }
 
             // TODO: Implement scroll offset so that the file scroll offset can be changed by moving
             // cursor downwards when we are at the bottom.
-            MoveDown(amount) => {
+            MoveDown(amount, LineMovement::Visual) => {
                 let current_idx = self.virtual_row;
                 let target_idx = current_idx.saturating_add(amount).min(lines.len());
 
                 // Search forward from target, then backward if no content line found
-                let iter = (target_idx..lines.len()).chain((current_idx + 1..target_idx).rev());
+                let candidate = (target_idx..lines.len())
+                    .chain((current_idx + 1..target_idx).rev())
+                    .find(|&idx| has_content(lines, idx));
 
-                for idx in iter {
-                    if let Some(line) = lines.get(idx).filter(|line| line.has_content()) {
-                        self.virtual_row = idx;
+                if let Some(idx) = candidate {
+                    self.place_on_row(idx, lines);
+                }
+            }
 
-                        if let Some(source_range) = line.source_range() {
-                            match self.mode() {
-                                CursorMode::Read => self.source_offset = source_range.start,
-                                CursorMode::Edit => {
-                                    if let Some(offset) = virtual_position_to_source_offset(
-                                        (self.virtual_row, self.virtual_column),
-                                        lines,
-                                    ) {
-                                        self.source_offset = offset;
-                                        if let Some(col) = source_offset_to_virtual_column(
-                                            self.source_offset,
-                                            line,
-                                        ) {
-                                            self.virtual_column = col;
-                                        }
-                                    }
-                                }
-                            }
-                        }
+            MoveUp(amount, LineMovement::Logical) => {
+                let current_head = (0..=self.virtual_row)
+                    .rev()
+                    .find(|&idx| is_line_head(lines, idx))
+                    .unwrap_or(self.virtual_row);
 
-                        return;
-                    }
+                match (0..current_head)
+                    .rev()
+                    .filter(|&idx| is_line_head(lines, idx))
+                    .take(amount)
+                    .last()
+                {
+                    Some(idx) => self.place_on_row(idx, lines),
+                    None => self.place_at_line_start(current_head, lines),
+                }
+            }
+
+            MoveDown(amount, LineMovement::Logical) => {
+                match (self.virtual_row + 1..lines.len())
+                    .filter(|&idx| is_line_head(lines, idx))
+                    .take(amount)
+                    .last()
+                {
+                    Some(idx) => self.place_on_row(idx, lines),
+                    None => self.place_at_line_end(lines),
                 }
             }
 
@@ -438,7 +494,9 @@ mod tests {
             .virtual_spans()
             .iter()
             .map(|span| match span {
-                VirtualSpan::Content(s, _) | VirtualSpan::Synthetic(s) => s.content.to_string(),
+                VirtualSpan::Content(s, _)
+                | VirtualSpan::Synthetic(s)
+                | VirtualSpan::WrapMarker(s) => s.content.to_string(),
             })
             .collect();
 
@@ -624,13 +682,21 @@ mod tests {
         assert_eq!(cursor.virtual_row, 3);
 
         // Move up to empty line
-        cursor.update(Message::MoveUp(1), &lines, &Some(text_buffer.clone()));
+        cursor.update(
+            Message::MoveUp(1, LineMovement::Visual),
+            &lines,
+            &Some(text_buffer.clone()),
+        );
         assert_eq!(cursor.virtual_row, 2);
         // Source offset should be within empty line's range (14..15)
         assert_eq!(cursor.source_offset, 14);
 
         // Move up to line1
-        cursor.update(Message::MoveUp(1), &lines, &Some(text_buffer));
+        cursor.update(
+            Message::MoveUp(1, LineMovement::Visual),
+            &lines,
+            &Some(text_buffer),
+        );
         assert_eq!(cursor.virtual_row, 1);
     }
 
@@ -646,7 +712,11 @@ mod tests {
         cursor.update_virtual_position(&lines);
         assert_eq!(cursor.virtual_row, 2);
 
-        cursor.update(Message::MoveUp(1), &lines, &Some(text_buffer));
+        cursor.update(
+            Message::MoveUp(1, LineMovement::Visual),
+            &lines,
+            &Some(text_buffer),
+        );
         assert_eq!(cursor.virtual_row, 1);
     }
 
@@ -683,10 +753,119 @@ mod tests {
         cursor.update_virtual_position(&lines);
         assert_eq!(cursor.virtual_row, 3);
 
-        cursor.update(Message::MoveUp(1), &lines, &None);
+        cursor.update(Message::MoveUp(1, LineMovement::Visual), &lines, &None);
         assert_eq!(cursor.virtual_row, 2);
 
-        cursor.update(Message::MoveUp(1), &lines, &None);
+        cursor.update(Message::MoveUp(1, LineMovement::Visual), &lines, &None);
         assert_eq!(cursor.virtual_row, 1);
+    }
+
+    fn render_lines_width(content: &str, width: usize) -> Vec<VirtualLine<'static>> {
+        parser::from_str(content)
+            .into_iter()
+            .flat_map(|node| {
+                render_node(
+                    content,
+                    &node,
+                    width,
+                    0,
+                    Span::default(),
+                    &RenderStyle::Raw,
+                    &Symbols::unicode(),
+                    &Theme::default(),
+                    0,
+                )
+                .lines
+            })
+            .collect()
+    }
+
+    #[test]
+    fn test_logical_movement_skips_wrapped_rows() {
+        let content = "alpha bravo charlie delta echo\nsecond line";
+        let lines = render_lines_width(content, 12);
+
+        assert!(lines.iter().any(VirtualLine::is_wrap_continuation));
+
+        let heads: Vec<usize> = (0..lines.len())
+            .filter(|&idx| is_line_head(&lines, idx))
+            .collect();
+        assert_eq!(heads.len(), 2);
+
+        let mut cursor = Cursor::new(0);
+        cursor.mode = CursorMode::Edit;
+        cursor.update_virtual_position(&lines);
+        assert_eq!(cursor.virtual_row, heads[0]);
+
+        cursor.update(Message::MoveDown(1, LineMovement::Logical), &lines, &None);
+        assert_eq!(cursor.virtual_row, heads[1]);
+
+        cursor.update(Message::MoveUp(1, LineMovement::Logical), &lines, &None);
+        assert_eq!(cursor.virtual_row, heads[0]);
+    }
+
+    #[test]
+    fn test_logical_up_from_continuation_row() {
+        let content = "alpha bravo charlie delta echo\nsecond line";
+        let lines = render_lines_width(content, 12);
+        let heads: Vec<usize> = (0..lines.len())
+            .filter(|&idx| is_line_head(&lines, idx))
+            .collect();
+
+        let continuation = heads[0] + 1;
+        assert!(lines[continuation].is_wrap_continuation());
+
+        let mut cursor = Cursor::new(0);
+        cursor.mode = CursorMode::Edit;
+        cursor.virtual_row = continuation;
+
+        cursor.update(Message::MoveUp(1, LineMovement::Logical), &lines, &None);
+        assert_eq!(cursor.virtual_row, heads[0]);
+    }
+
+    #[test]
+    fn test_logical_up_on_first_line_goes_to_start() {
+        let content = "alpha bravo charlie delta echo\nsecond line";
+        let lines = render_lines_width(content, 12);
+
+        let mut cursor = Cursor::new(6);
+        cursor.mode = CursorMode::Edit;
+        cursor.update_virtual_position(&lines);
+
+        cursor.update(Message::MoveUp(1, LineMovement::Logical), &lines, &None);
+        assert_eq!(cursor.source_offset, 0);
+        assert!(is_line_head(&lines, cursor.virtual_row));
+    }
+
+    #[test]
+    fn test_logical_down_on_last_line_goes_to_end() {
+        let content = "alpha bravo charlie delta echo\nsecond line";
+        let lines = render_lines_width(content, 12);
+
+        let last_line_start = content.find("second").unwrap();
+        let mut cursor = Cursor::new(last_line_start);
+        cursor.mode = CursorMode::Edit;
+        cursor.update_virtual_position(&lines);
+
+        cursor.update(Message::MoveDown(1, LineMovement::Logical), &lines, &None);
+        assert_eq!(cursor.source_offset, content.len());
+    }
+
+    #[test]
+    fn test_visual_movement_steps_one_wrapped_row() {
+        let content = "alpha bravo charlie delta echo\nsecond line";
+        let lines = render_lines_width(content, 12);
+        let heads: Vec<usize> = (0..lines.len())
+            .filter(|&idx| is_line_head(&lines, idx))
+            .collect();
+
+        let mut cursor = Cursor::new(0);
+        cursor.mode = CursorMode::Edit;
+        cursor.update_virtual_position(&lines);
+
+        cursor.update(Message::MoveDown(1, LineMovement::Visual), &lines, &None);
+        assert_eq!(cursor.virtual_row, heads[0] + 1);
+        assert!(lines[cursor.virtual_row].is_wrap_continuation());
+        assert!(cursor.virtual_row < heads[1]);
     }
 }

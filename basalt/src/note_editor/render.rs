@@ -12,8 +12,8 @@ use crate::{
         rich_text::RichText,
         text_wrap::wrap_preserve_trailing,
         virtual_document::{
-            content_span, empty_virtual_line, synthetic_span, virtual_line, VirtualBlock,
-            VirtualLine, VirtualSpan,
+            content_span, empty_virtual_line, synthetic_span, virtual_line, wrap_marker_span,
+            VirtualBlock, VirtualLine, VirtualSpan,
         },
     },
     stylized_text::stylize,
@@ -99,7 +99,7 @@ fn text_wrap_internal<'a>(
                     virtual_line!([
                         synthetic_span!(prefix),
                         synthetic_span!(Span::styled(" ".repeat(marker_padding), prefix.style)),
-                        synthetic_span!(Span::styled(wrap_marker.clone(), Style::new().black())),
+                        wrap_marker_span!(Span::styled(wrap_marker.clone(), Style::new().black())),
                         content_span!(content_span, line_source_range)
                     ])
                 }

@@ -2,6 +2,18 @@
 
 ## [0.13.0](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.13.0) (Unreleased)
 
+### Added
+
+- [7f3e7c3](https://github.com/erikjuhani/basalt/commit/7f3e7c3ec46026672c2f74fc9f59daf62c245cbb) Move note editor cursor by whole lines, add gj/gk for screen rows by @erikjuhani
+
+> j/k now move by whole soft-wrapped lines, matching Vim. On the first line,
+> k goes to line start; on the last line, j goes to line end. New gj/gk
+> motions move by single visible rows. Screen movement drives half-page
+> scroll and jump-to-top so the viewport tracks rows.
+>
+> Wrap continuation is derived from a typed VirtualSpan::WrapMarker span
+> produced only by render, replacing the stored wrap_continuation flag.
+
 ### Changed
 
 - [27bdefa](https://github.com/erikjuhani/basalt/commit/27bdefa3cc2b7d98380ec4577f29d45ecb25029e) Memoize note layout instead of rebuilding it every frame by @erikjuhani
