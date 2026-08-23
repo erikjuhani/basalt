@@ -94,6 +94,8 @@ pub struct Symbols {
     pub title_font_style: Option<FontStyle>,
     pub h5_font_style: Option<FontStyle>,
     pub h6_font_style: Option<FontStyle>,
+    #[serde(skip)]
+    pub wrap: bool,
 }
 
 impl From<TomlSymbols> for Symbols {
@@ -235,6 +237,7 @@ impl Default for Symbols {
             title_font_style: None,
             h5_font_style: None,
             h6_font_style: None,
+            wrap: true,
         }
     }
 }
@@ -302,6 +305,7 @@ impl Symbols {
             title_font_style: Some(FontStyle::BlackBoardBold),
             h5_font_style: Some(FontStyle::Script),
             h6_font_style: Some(FontStyle::Script),
+            wrap: true,
         }
     }
 
@@ -363,6 +367,7 @@ impl Symbols {
             title_font_style: Some(FontStyle::BlackBoardBold),
             h5_font_style: Some(FontStyle::Script),
             h6_font_style: Some(FontStyle::Script),
+            wrap: true,
         }
     }
 

@@ -66,7 +66,8 @@ fn text_wrap_internal<'a>(
     symbols: &Symbols,
 ) -> Vec<VirtualLine<'a>> {
     let wrap_marker = &symbols.wrap_marker;
-    let wrapped_lines = wrap_preserve_trailing(text_content, width, wrap_marker.width() + 1);
+    let wrap_width = if symbols.wrap { width } else { usize::MAX };
+    let wrapped_lines = wrap_preserve_trailing(text_content, wrap_width, wrap_marker.width() + 1);
 
     let mut current_range_start = source_range.start;
 

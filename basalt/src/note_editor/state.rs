@@ -273,6 +273,10 @@ impl<'a> NoteEditorState<'a> {
         self.editor_enabled = enabled;
     }
 
+    pub fn set_wrap(&mut self, wrap: bool) {
+        self.virtual_document.set_wrap(wrap);
+    }
+
     pub fn text_buffer(&self) -> Option<&TextBuffer> {
         self.text_buffer.as_ref()
     }
@@ -853,6 +857,16 @@ impl<'a> NoteEditorState<'a> {
         };
 
         Some(range)
+    }
+
+    pub fn line_highlight_range(&self) -> Range<usize> {
+        let content = self.live_content();
+        let cursor = self.cursor.source_offset().min(content.len());
+        let start = content[..cursor].rfind('\n').map_or(0, |i| i + 1);
+        let end = content[cursor..]
+            .find('\n')
+            .map_or(content.len(), |i| cursor + i);
+        start..end
     }
 
     pub fn selected_text(&self) -> Option<String> {
@@ -1919,6 +1933,30 @@ mod tests {
         state.resize_viewport(Size::new(40, 10));
         state.set_view(View::Edit(EditMode::Source));
         state
+    }
+
+    #[test]
+    fn test_wrap_disabled_keeps_line_on_one_row_and_pans() {
+        let content = "hello world foobar baz qux quux corge grault\n";
+        let mut state =
+            NoteEditorState::new(content, "test", Path::new("test.md"), &Symbols::unicode());
+        state.set_wrap(false);
+        state.resize_viewport(Size::new(12, 20));
+        state.set_view(View::Edit(EditMode::Source));
+
+        assert_eq!(state.viewport().left(), 0, "no scroll at line start");
+
+        state.cursor_right(100);
+        assert_eq!(
+            state.cursor.virtual_row(),
+            0,
+            "with wrap off the line stays on a single row",
+        );
+        assert!(
+            state.viewport().left() > 0,
+            "with wrap off a long line pans horizontally to follow the cursor",
+        );
+        assert_cursor_visible(&state, "at the end of the unwrapped line");
     }
 
     #[test]

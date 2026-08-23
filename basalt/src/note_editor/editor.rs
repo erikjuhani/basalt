@@ -2,7 +2,7 @@ use std::{marker::PhantomData, ops::Range};
 
 use ratatui::{
     buffer::Buffer,
-    layout::{Offset, Position, Rect},
+    layout::{Position, Rect},
     style::{Color, Style, Stylize},
     text::{Line, Span},
     widgets::{
@@ -13,10 +13,7 @@ use ratatui::{
 use unicode_width::UnicodeWidthChar;
 
 use crate::note_editor::{
-    cursor::{CursorMode, CursorWidget},
-    state::NoteEditorState,
-    viewport::Viewport,
-    virtual_document::VirtualLine,
+    cursor::CursorMode, state::NoteEditorState, viewport::Viewport, virtual_document::VirtualLine,
 };
 
 const SELECTION_STYLE: Style = Style::new().reversed();
@@ -81,6 +78,38 @@ fn render_highlight(
                 }
                 col += span.width() as u16;
             }
+        });
+}
+
+fn render_line_highlight(
+    buf: &mut Buffer,
+    inner_area: Rect,
+    viewport: &Viewport,
+    meta: &[VirtualLine],
+    doc: &[VirtualLine],
+    range: &Range<usize>,
+    bg: Color,
+) {
+    let meta_len = meta.len();
+    let viewport_top = viewport.top() as usize;
+    let style = Style::new().bg(bg);
+    // The next logical line starts past `range.end`, so an inclusive test on a
+    // row's source start also catches the one row of an empty line.
+    let line_span = range.start..=range.end;
+    let starts_in_line = |line: &&VirtualLine| {
+        line.source_range()
+            .is_some_and(|source| line_span.contains(&source.start))
+    };
+
+    meta.iter()
+        .chain(doc.iter())
+        .enumerate()
+        .skip(viewport_top)
+        .take(inner_area.height as usize)
+        .filter(|(idx, line)| *idx >= meta_len && starts_in_line(line))
+        .for_each(|(idx, _)| {
+            let y = inner_area.y + (idx - viewport_top) as u16;
+            buf.set_style(Rect::new(inner_area.x, y, inner_area.width, 1), style);
         });
 }
 
@@ -157,6 +186,20 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
             .block(block)
             .render(area, buf);
 
+        if !state.content.is_empty() || state.is_editing() {
+            if let Some(bg) = theme.line_highlight {
+                render_line_highlight(
+                    buf,
+                    inner_area,
+                    state.viewport(),
+                    meta,
+                    doc,
+                    &state.line_highlight_range(),
+                    bg,
+                );
+            }
+        }
+
         if let Some(range) = state.selection_range() {
             render_highlight(
                 buf,
@@ -181,30 +224,20 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
             );
         }
 
+        // Read mode marks the cursor's line with the line-highlight tint, so
+        // only edit mode places a terminal cursor.
         state.terminal_cursor = None;
-        if !state.content.is_empty() || state.is_editing() {
-            match *state.cursor.mode() {
-                CursorMode::Read => CursorWidget::default()
-                    .with_offset(Offset {
-                        x: inner_area.x as i32,
-                        y: inner_area.y as i32,
-                    })
-                    .with_meta_len(meta_lines_count as u16)
-                    .with_theme(&theme)
-                    .render(state.viewport().area(), buf, &mut state.cursor),
-                CursorMode::Edit => {
-                    let scroll = state.viewport().area();
-                    let y = (state.cursor.virtual_row() as u16)
-                        .saturating_add(meta_lines_count as u16)
-                        .saturating_sub(scroll.top())
-                        .saturating_add(inner_area.y);
-                    let x = (state.cursor.virtual_column() as u16)
-                        .saturating_add(inner_area.x)
-                        .saturating_sub(scroll.left());
-                    let position = Position { x, y };
-                    state.terminal_cursor = inner_area.contains(position).then_some(position);
-                }
-            }
+        if let CursorMode::Edit = *state.cursor.mode() {
+            let scroll = state.viewport().area();
+            let y = (state.cursor.virtual_row() as u16)
+                .saturating_add(meta_lines_count as u16)
+                .saturating_sub(scroll.top())
+                .saturating_add(inner_area.y);
+            let x = (state.cursor.virtual_column() as u16)
+                .saturating_add(inner_area.x)
+                .saturating_sub(scroll.left());
+            let position = Position { x, y };
+            state.terminal_cursor = inner_area.contains(position).then_some(position);
         }
 
         if !area.is_empty() && total_lines as u16 > inner_area.bottom() {
@@ -936,6 +969,140 @@ mod tests {
         assert!(
             highlighted,
             "the prettified list marker on a selected line should be highlighted"
+        );
+    }
+
+    #[test]
+    fn test_line_highlight_tints_every_wrapped_row_in_edit_mode() {
+        use crate::config::Theme;
+        use ratatui::layout::Size;
+
+        let tint = Color::Rgb(1, 2, 3);
+        let content =
+            "short first line\nsecond line long enough to wrap across the editor width for sure\nthird\n";
+        let mut state =
+            NoteEditorState::new(content, "", Path::new("test.md"), &Symbols::unicode());
+        let theme = Theme {
+            line_highlight: Some(tint),
+            ..Theme::default()
+        };
+        state.set_theme(&theme);
+        state.set_editor_enabled(true);
+        state.resize_viewport(Size::new(30, 12));
+        state.set_view(View::Edit(EditMode::Source));
+
+        state.cursor_down(1);
+
+        let mut terminal = Terminal::new(TestBackend::new(30, 12)).unwrap();
+        terminal
+            .draw(|frame| {
+                NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut state)
+            })
+            .unwrap();
+
+        let buffer = terminal.backend().buffer();
+        let tinted_rows: std::collections::BTreeSet<u16> = (0..buffer.area.height)
+            .filter(|&y| {
+                (0..buffer.area.width).any(|x| buffer.cell((x, y)).is_some_and(|c| c.bg == tint))
+            })
+            .collect();
+
+        assert!(
+            tinted_rows.len() >= 2,
+            "the wrapped current line should tint each of its rows, got {tinted_rows:?}",
+        );
+        assert!(
+            tinted_rows
+                .iter()
+                .zip(tinted_rows.iter().skip(1))
+                .all(|(a, b)| b - a == 1),
+            "the tinted rows should be contiguous, got {tinted_rows:?}",
+        );
+    }
+
+    #[test]
+    fn test_line_highlight_marks_the_cursor_line_in_read_mode() {
+        use crate::config::Theme;
+        use ratatui::layout::Size;
+
+        let tint = Color::Rgb(4, 5, 6);
+        let mut state = NoteEditorState::new(
+            "first line\nsecond line\nthird line\n",
+            "",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        let theme = Theme {
+            line_highlight: Some(tint),
+            ..Theme::default()
+        };
+        state.set_theme(&theme);
+        state.resize_viewport(Size::new(30, 12));
+        state.cursor_down(1);
+
+        let mut terminal = Terminal::new(TestBackend::new(30, 12)).unwrap();
+        terminal
+            .draw(|frame| {
+                NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut state)
+            })
+            .unwrap();
+
+        let tinted = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .any(|c| c.bg == tint);
+
+        assert!(
+            tinted,
+            "read mode should tint the cursor's line with the line-highlight colour",
+        );
+    }
+
+    #[test]
+    fn test_line_highlight_can_be_disabled() {
+        use crate::config::Theme;
+        use ratatui::layout::Size;
+
+        let mut state = NoteEditorState::new(
+            "alpha\nbeta\n",
+            "",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        let theme = Theme {
+            line_highlight: None,
+            ..Theme::default()
+        };
+        state.set_theme(&theme);
+        state.set_editor_enabled(true);
+        state.resize_viewport(Size::new(30, 8));
+        state.set_view(View::Edit(EditMode::Source));
+
+        let mut terminal = Terminal::new(TestBackend::new(30, 8)).unwrap();
+        terminal
+            .draw(|frame| {
+                NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut state)
+            })
+            .unwrap();
+
+        let default_bg = terminal
+            .backend()
+            .buffer()
+            .cell((0, 0))
+            .map(|c| c.bg)
+            .unwrap();
+        let all_base_bg = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .all(|c| c.bg == default_bg);
+
+        assert!(
+            all_base_bg,
+            "a `none` tint should leave every row on the base background"
         );
     }
 }

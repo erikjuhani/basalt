@@ -18,6 +18,7 @@ heading-5 = "reset"
 heading-6 = "reset"
 
 code-bg = "black"
+line-highlight = "none"
 blockquote = "magenta"
 list-marker = "darkgray"
 task = "magenta"

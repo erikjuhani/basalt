@@ -14,6 +14,18 @@
 > Wrap continuation is derived from a typed VirtualSpan::WrapMarker span
 > produced only by render, replacing the stored wrap_continuation flag.
 
+- [18bc817](https://github.com/erikjuhani/basalt/commit/18bc8171481d8d16b59983ead37b05ba1202ca12) Make note editor line wrapping configurable by @erikjuhani
+
+> Wrapping suits prose, but tables and code read better unwrapped. Add a
+> `wrap` toggle (default on); when off, a long line pans horizontally like
+> code lines already do.
+
+- [8832bc4](https://github.com/erikjuhani/basalt/commit/8832bc4691fd491d8caf50b689d64229a10fd865) Highlight the cursor's line in the note editor by @erikjuhani
+
+> Tracking the cursor across wrapped rows is hard. Tint the whole logical
+> line instead, in read and edit mode, replacing the heavier read-mode
+> reverse bar. The `line-highlight` theme key sets the colour or turns it off.
+
 ### Changed
 
 - [27bdefa](https://github.com/erikjuhani/basalt/commit/27bdefa3cc2b7d98380ec4577f29d45ecb25029e) Memoize note layout instead of rebuilding it every frame by @erikjuhani

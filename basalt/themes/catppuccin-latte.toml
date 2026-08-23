@@ -19,6 +19,7 @@ heading-5 = "green"
 heading-6 = "peach"
 
 code-bg = "surface0"
+line-highlight = "mantle"
 blockquote = "sapphire"
 list-marker = "mauve"
 task = "green"
