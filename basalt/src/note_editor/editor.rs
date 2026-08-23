@@ -599,6 +599,7 @@ mod tests {
                     state.resize_viewport(area.as_size());
                     state.set_view(View::Edit(EditMode::Source));
                     state.cursor_down(1);
+                    state.cursor_down(1);
                     state
                 }),
             ),
@@ -623,6 +624,7 @@ mod tests {
                     );
                     state.resize_viewport(area.as_size());
                     state.set_view(View::Edit(EditMode::Source));
+                    state.cursor_down(1);
                     state.cursor_down(1);
                     state
                 }),
@@ -649,6 +651,7 @@ mod tests {
                     state.resize_viewport(area.as_size());
                     state.set_view(View::Edit(EditMode::Source));
                     // Onto the delimiter row, then delete its second column.
+                    state.cursor_down(1);
                     state.cursor_down(1);
                     state.cursor_down(1);
                     state.cursor_right(40);
@@ -682,6 +685,7 @@ mod tests {
                     state.set_view(View::Edit(EditMode::Source));
                     state.cursor_down(1);
                     state.cursor_down(1);
+                    state.cursor_down(1);
                     state
                 }),
             ),
@@ -704,6 +708,7 @@ mod tests {
                     );
                     state.resize_viewport(area.as_size());
                     state.set_view(View::Edit(EditMode::Source));
+                    state.cursor_down(1);
                     state.cursor_down(1);
                     state.cursor_down(1);
                     state.cursor_down(1);
@@ -731,6 +736,7 @@ mod tests {
                     state.set_view(View::Edit(EditMode::Source));
                     // Enter the list (lands on the first item), then step down to
                     // the "bananas" item.
+                    state.cursor_down(1);
                     state.cursor_down(1);
                     state.cursor_down(1);
                     state
