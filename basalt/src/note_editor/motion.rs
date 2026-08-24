@@ -367,14 +367,14 @@ fn word_object(content: &str, offset: usize, big: bool, around: bool) -> Range<u
 fn quote_object(content: &str, offset: usize, quote: char, around: bool) -> Option<Range<usize>> {
     let start = line_start(content, offset);
     let end = line_end_exclusive(content, offset);
-    let quotes: Vec<usize> = content[start..end]
+    let quotes = content[start..end]
         .char_indices()
-        .filter(|&(_, c)| c == quote)
-        .map(|(i, _)| start + i)
-        .collect();
+        .filter_map(|(i, c)| if c == quote { Some(start + i) } else { None })
+        .collect::<Vec<_>>();
 
-    let (open, close) = quotes
-        .chunks_exact(2)
+    let (chunks, _) = quotes.as_chunks::<2>();
+    let (open, close) = chunks
+        .iter()
         .map(|pair| (pair[0], pair[1]))
         .find(|&(_, close)| offset <= close)?;
 
