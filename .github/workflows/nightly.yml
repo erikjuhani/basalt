@@ -26,10 +26,12 @@ jobs:
       - id: check
         shell: bash
         run: |
-          git rev-parse -q --verify refs/tags/nightly >/dev/null \
-            && git diff --quiet nightly HEAD -- basalt basalt-core basalt-widgets Cargo.toml Cargo.lock \
-            && echo "changed=false" >> "$GITHUB_OUTPUT" \
-            || echo "changed=true" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify refs/tags/nightly >/dev/null \
+            && git diff --quiet nightly HEAD -- basalt basalt-core basalt-widgets Cargo.toml Cargo.lock; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
 
   build:
     needs: check
@@ -76,8 +78,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
-          describe="$(git describe --tags --match 'basalt/v*' --always)"
-          title="Nightly (${describe})"
+          version="$(grep -m1 '^version = ' basalt/Cargo.toml | cut -d'"' -f2)"
+          short_sha="$(git rev-parse --short HEAD)"
+          title="Nightly ${version} (${short_sha})"
           notes="Automated build from the latest \`main\` (\`${GITHUB_SHA}\`). Unstable, for testing only."
 
           if gh release view nightly >/dev/null 2>&1; then
