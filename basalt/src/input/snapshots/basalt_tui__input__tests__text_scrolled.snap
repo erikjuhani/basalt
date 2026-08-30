@@ -3,7 +3,7 @@ source: basalt/src/input/mod.rs
 expression: terminal.backend()
 ---
 "╭ Input: ────────────────────╮"
-"│ er scrolling when rendered │"
+"│ rolling when rendered in t │"
 "╰ Editing ───────────────────╯"
 "                              "
 "                              "

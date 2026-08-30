@@ -4,6 +4,7 @@
 # Global commands:
 #
 # quit: exits the application
+# search_toggle: toggles full-text search across the vault, with results grouped by note
 # vault_selector_modal_toggle: toggles vault selector modal (not available in splash screen)
 # theme_selector_modal_toggle: toggles the theme picker; scrolling previews each theme live
 # help_modal_toggle: toggles help modal
@@ -160,6 +161,7 @@ preset = "unicode"
 key_bindings = [
  { key = "q", command = "quit" },
  { key = "?", command = "help_modal_toggle" },
+ { key = "<leader>s", command = "search_toggle" },
  { key = "<leader>v", command = "vault_selector_modal_toggle" },
  { key = "<leader>d", command = "debug_log_toggle" },
  { key = "<leader>t", command = "theme_selector_modal_toggle" },

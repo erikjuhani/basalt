@@ -119,6 +119,7 @@ pub struct Config<'a> {
     pub input_modal: ConfigSection<'a>,
     pub help_modal: ConfigSection<'a>,
     pub note_editor: ConfigSection<'a>,
+    pub search: ConfigSection<'a>,
     pub vault_selector_modal: ConfigSection<'a>,
     pub debug_log_modal: ConfigSection<'a>,
     pub theme_selector_modal: ConfigSection<'a>,
@@ -174,6 +175,7 @@ impl Config<'_> {
             input_modal: ConfigSection::from_toml(value.input_modal, leader),
             help_modal: ConfigSection::from_toml(value.help_modal, leader),
             note_editor: ConfigSection::from_key_bindings(value.note_editor.key_bindings, leader),
+            search: ConfigSection::from_toml(value.search, leader),
             vault_selector_modal: ConfigSection::from_toml(value.vault_selector_modal, leader),
             debug_log_modal: ConfigSection::from_toml(value.debug_log_modal, leader),
             theme_selector_modal: ConfigSection::from_toml(value.theme_selector_modal, leader),
@@ -196,6 +198,7 @@ impl Config<'_> {
         self.outline.merge_key_bindings(config.outline);
         self.input_modal.merge_key_bindings(config.input_modal);
         self.note_editor.merge_key_bindings(config.note_editor);
+        self.search.merge_key_bindings(config.search);
         self.help_modal.merge_key_bindings(config.help_modal);
         self.vault_selector_modal
             .merge_key_bindings(config.vault_selector_modal);
@@ -215,6 +218,7 @@ impl Config<'_> {
         self.outline.replace_key_bindings(config.outline);
         self.input_modal.replace_key_bindings(config.input_modal);
         self.note_editor.replace_key_bindings(config.note_editor);
+        self.search.replace_key_bindings(config.search);
         self.help_modal.replace_key_bindings(config.help_modal);
         self.vault_selector_modal
             .replace_key_bindings(config.vault_selector_modal);
@@ -328,6 +332,8 @@ struct TomlConfig {
     help_modal: TomlConfigSection,
     #[serde(default)]
     note_editor: TomlNoteEditor,
+    #[serde(default)]
+    search: TomlConfigSection,
     #[serde(default)]
     vault_selector_modal: TomlConfigSection,
     #[serde(default)]

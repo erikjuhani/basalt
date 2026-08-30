@@ -1,7 +1,7 @@
 //! Pure vim-style motions over document text.
 //!
 //! Every function takes a byte `offset` into `content` and returns a new byte
-//! offset; results stay within `0..=content.len()` and always land on a char
+//! offset. A result stays within `0..=content.len()` and always lands on a char
 //! boundary, so a returned offset is safe to slice at. Functions that can fail
 //! to find a target return `Option` instead of clamping.
 

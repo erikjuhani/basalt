@@ -1,0 +1,25 @@
+---
+source: basalt/src/search/search_modal.rs
+assertion_line: 186
+expression: terminal.backend()
+---
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"╭ Search ──────────────────────────────────────────────────────────────────────╮"
+"│> find                                                                        │"
+"│▎ Link notes  1. Type "three" to find the first note you created.             │"
+"│  No prior experience  congratulations on finding Obsidian!                   │"
+"│  Vault is just a local folder  open it with your system explorer or Finder, z│"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"╰───────────────────────────────────────────────────────────────────────── 3/3 ╯"
+"                                                                                "
+"                                                                                "
+"                                                                                "

@@ -87,6 +87,7 @@ INTERFACE
       ‹Tab›       Switch to next pane
       ‹Shift+Tab› Switch to previous pane
 
+      ‹Leader›‹s› Search notes across the vault
       ‹Leader›‹v› Toggle vault selector modal
       ‹Leader›‹t› Toggle theme selector (previews themes live)
       ‹Ctrl+B›    Toggle explorer panel visibility
@@ -118,6 +119,7 @@ INTERFACE
       ‹Shift+Tab› Switch to previous pane
 
       ‹Ctrl+O›    Toggle outline pane visibility
+      ‹Leader›‹s› Search notes across the vault
       ‹Leader›‹v› Toggle vault selector modal
       ‹Leader›‹t› Toggle theme selector (previews themes live)
       ‹Ctrl+B›    Toggle explorer pane visibility
@@ -147,6 +149,7 @@ INTERFACE
         ‹Tab›       Switch to next pane
         ‹Shift+Tab› Switch to previous pane
 
+        ‹Leader›‹s› Search notes across the vault
         ‹Leader›‹v› Toggle vault selector modal
         ‹Ctrl+B›    Toggle explorer panel visibility
         ‹Ctrl+U›    Scroll up half a page

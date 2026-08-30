@@ -38,6 +38,7 @@ use crate::{
         state::{EditMode, Mode, NoteEditorState, View},
     },
     outline::{self, Outline, OutlineState},
+    search::{self, SearchModal, SearchState},
     splash_modal::{self, SplashModal, SplashModalState},
     statusbar::{StatusBar, StatusBarState},
     stylized_text::{self, FontStyle},
@@ -92,6 +93,7 @@ pub struct AppState<'a> {
     input_modal: InputModalState,
     splash_modal: SplashModalState<'a>,
     help_modal: HelpModalState,
+    search: SearchState,
     vault_selector_modal: VaultSelectorModalState<'a>,
     debug_log_modal: DebugLogModalState,
     theme_selector_modal: ThemeSelectorModalState,
@@ -115,6 +117,10 @@ impl<'a> AppState<'a> {
 
         if self.theme_selector_modal.visible {
             return ActivePane::ThemeSelectorModal;
+        }
+
+        if self.search.visible {
+            return ActivePane::SearchModal;
         }
 
         if self.vault_selector_modal.visible {
@@ -154,6 +160,10 @@ pub enum Message<'a> {
     CreateUntitledFolder,
     OpenVault(&'a Vault),
     SelectNote(SelectedNote),
+    JumpToLine {
+        line: usize,
+        column: usize,
+    },
     UpdateSelectedNoteContent((String, Option<Vec<ast::Node>>)),
     TabNext,
     TabPrevious,
@@ -162,6 +172,7 @@ pub enum Message<'a> {
     Batch(Vec<Message<'a>>),
     Toast(toast::Message),
     Input(input::Message),
+    Search(search::Message),
     Splash(splash_modal::Message),
     Explorer(explorer::Message),
     NoteEditor(note_editor::Message),
@@ -183,6 +194,7 @@ pub enum ActivePane {
     Outline,
     Input,
     HelpModal,
+    SearchModal,
     VaultSelectorModal,
     DebugLogModal,
     ThemeSelectorModal,
@@ -197,6 +209,7 @@ impl From<ActivePane> for &str {
             ActivePane::Outline => "Outline",
             ActivePane::Input => "Input",
             ActivePane::HelpModal => "Help",
+            ActivePane::SearchModal => "Search",
             ActivePane::VaultSelectorModal => "Vault Selector",
             ActivePane::DebugLogModal => "Debug Log",
             ActivePane::ThemeSelectorModal => "Theme Selector",
@@ -283,6 +296,7 @@ fn active_config_section<'a>(
         ActivePane::ThemeSelectorModal => &config.theme_selector_modal,
         ActivePane::Input => &config.input_modal,
         ActivePane::NoteEditor => &config.note_editor,
+        ActivePane::SearchModal => &config.search,
         ActivePane::DebugLogModal => &config.debug_log_modal,
     }
 }
@@ -575,6 +589,14 @@ impl<'a> App<'a> {
                     &mut state,
                     Some(Message::Toast(toast::Message::Tick)),
                 );
+                if state.search.visible {
+                    App::update(
+                        self.terminal.get_mut(),
+                        &config,
+                        &mut state,
+                        Some(Message::Search(search::Message::Poll)),
+                    );
+                }
                 last_tick = Instant::now();
             }
         }
@@ -647,6 +669,10 @@ impl<'a> App<'a> {
             ActivePane::Input if state.input_modal.is_editing() => {
                 state.pending_keys.clear();
                 input::handle_editing_event(key_event).map(Message::Input)
+            }
+            ActivePane::SearchModal => {
+                state.pending_keys.clear();
+                search::handle_key_event(key_event).map(Message::Search)
             }
             active => App::handle_pending_keys(
                 Keystroke::from(key_event),
@@ -882,6 +908,11 @@ impl<'a> App<'a> {
                     return Some(Message::Explorer(explorer::Message::HidePane));
                 }
             }
+            Message::JumpToLine { line, column } => {
+                if let Some(editor) = state.tabs.active_editor_mut() {
+                    editor.jump_to_line(line, column);
+                }
+            }
             Message::UpdateSelectedNoteContent((updated_content, nodes)) => {
                 if let Some(selected_note) = state.tabs.active_note_mut() {
                     selected_note.content = updated_content;
@@ -983,6 +1014,14 @@ impl<'a> App<'a> {
             }
             Message::VaultSelectorModal(message) => {
                 return vault_selector_modal::update(&message, &mut state.vault_selector_modal);
+            }
+            Message::Search(message) => {
+                // No vault is loaded behind the splash, so search has nothing
+                // to open over.
+                if state.splash_modal.visible {
+                    return None;
+                }
+                return search::update(message, &mut state.search, &state.vault);
             }
             Message::ThemeSelectorModal(message) => {
                 return theme_selector_modal::update(
@@ -1178,6 +1217,12 @@ impl<'a> App<'a> {
                 buf,
                 &mut state.theme_selector_modal,
             );
+        }
+
+        if state.search.visible {
+            let border_modal = self.config.symbols.border_modal.into();
+            let prompt = self.config.symbols.search_prompt.clone();
+            SearchModal::new(border_modal, theme, prompt).render(area, buf, &mut state.search);
         }
 
         if state.help_modal.visible {
