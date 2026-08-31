@@ -279,6 +279,7 @@ fn operate_lines<'a>(
 }
 
 fn motion_to<'a>(state: &mut NoteEditorState, offset: usize) -> Option<AppMessage<'a>> {
+    let offset = motion::clamp_cursor(&state.content, offset);
     state.jump_to_offset(offset);
     select_at_cursor(state)
 }
@@ -792,6 +793,46 @@ mod tests {
 
         update(Message::CursorWordBackward, size, &mut state);
         assert_eq!(state.cursor.source_offset(), 4, "b lands on start of 'bar'");
+    }
+
+    #[test]
+    fn test_motion_onto_blank_separator_stays_consistent() {
+        // A motion landing on the blank line between two paragraphs must rest on
+        // that line: the cursor's row and the raw (editing) block stay in
+        // agreement instead of stranding the cursor while the next block renders
+        // raw. The blank line's source offset is 11 (the second newline).
+        for message in [Message::CursorWordForward, Message::ParagraphForward] {
+            let mut state = vim_edit_state("first para\n\nsecond para\n");
+            let size = Size::new(40, 10);
+
+            update(Message::CursorLineEnd, size, &mut state);
+            update(message.clone(), size, &mut state);
+
+            assert_eq!(
+                state.cursor.source_offset(),
+                11,
+                "{message:?} rests on the blank separator line"
+            );
+            assert_eq!(
+                state.editing_block(),
+                Some(state.current_block_idx()),
+                "{message:?}: the raw block matches the block the cursor sits in"
+            );
+        }
+    }
+
+    #[test]
+    fn test_word_forward_clamps_at_line_end() {
+        let mut state = vim_edit_state("foo bar baz\n");
+        let size = Size::new(40, 10);
+
+        update(Message::CursorLineEnd, size, &mut state);
+        update(Message::CursorWordForward, size, &mut state);
+        assert_eq!(
+            state.cursor.source_offset(),
+            10,
+            "w on the last word stays on 'z', not past the row"
+        );
     }
 
     #[test]
