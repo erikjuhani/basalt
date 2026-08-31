@@ -1,6 +1,21 @@
 # Changelog
 
-## [0.10.0](https://github.com/erikjuhani/basalt/releases/tag/basalt-core/0.10.0) (Jul, 26 2026)
+## [0.10.0](https://github.com/erikjuhani/basalt/releases/tag/basalt-core/0.10.0) (Sep, 01 2026)
+
+### Added
+
+- [459d9bd](https://github.com/erikjuhani/basalt/commit/459d9bdb0f69fabb216b72e32a3c929daf1f136c) Follow the link under the cursor with gx
+
+> Add a note editor action that resolves whatever link sits under the
+> cursor. A wiki link travels to its note, creating the note first when it
+> does not exist yet. A bare URL or a [label](url) markdown link opens in
+> the platform browser.
+>
+> A single pure scan (motion::link_at) classifies the cursor position into
+> a LinkTarget, which app.rs resolves against the vault (new
+> Vault::find_note) or hands to a cross-platform opener (command::open_url).
+>
+> Bound to gx in the vim config and to enter and gd in the default config.
 
 ### Breaking
 
@@ -26,7 +41,7 @@
 
 ### Fixed
 
-- [7f5a34c](https://github.com/erikjuhani/basalt/commit/7f5a34c4a7efebc84af2aa69866dfb0e0e608c42) Fix build on Android targets
+- [7f5a34c](https://github.com/erikjuhani/basalt/commit/7f5a34c4a7efebc84af2aa69866dfb0e0e608c42) Fix build on Android targets by @erikjuhani
 
 > Rust treats `android` as a `target_os` distinct from `linux`, so the cfg
 > lists in `obsidian_global_config_locations` matched nothing on Android
