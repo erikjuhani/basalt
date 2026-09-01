@@ -438,9 +438,16 @@ impl<'a> VirtualDocument<'a> {
 
                     // Append empty rows so on-screen spacing mirrors the source:
                     // blanks already inside the block, plus blanks in the gap to
-                    // the next block. The last block gets one trailing row.
+                    // the next block.
                     let trailing = match ast_nodes.get(idx + 1) {
-                        None => 1,
+                        None if is_active => 1,
+                        None => {
+                            let tail = live_content.get(end..).unwrap_or("");
+                            let tail_blanks = tail.bytes().filter(|byte| *byte == b'\n').count();
+                            let terminator = !slice.ends_with('\n') as usize;
+                            let eof_line = live_content.ends_with('\n') as usize;
+                            (tail_blanks.saturating_sub(terminator) + eof_line).max(1)
+                        }
                         Some(next) => {
                             let absorbed = if is_active {
                                 0
@@ -458,9 +465,20 @@ impl<'a> VirtualDocument<'a> {
                         }
                     };
 
+                    let final_line = ast_nodes.get(idx + 1).is_none()
+                        && trailing > 0
+                        && live_content.ends_with('\n');
+                    let synthetic = trailing - final_line as usize;
                     block
                         .lines
-                        .extend((0..trailing).map(|_| empty_virtual_line!()));
+                        .extend((0..synthetic).map(|_| empty_virtual_line!()));
+                    if final_line {
+                        let offset = live_content.len();
+                        block.lines.push(virtual_line!([content_span!(
+                            "".to_string(),
+                            offset..offset
+                        )]));
+                    }
                 }
 
                 let block_lines = block.lines.clone();

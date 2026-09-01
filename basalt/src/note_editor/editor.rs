@@ -12,8 +12,12 @@ use ratatui::{
 };
 use unicode_width::UnicodeWidthChar;
 
-use crate::note_editor::{
-    cursor::CursorMode, state::NoteEditorState, viewport::Viewport, virtual_document::VirtualLine,
+use crate::{
+    config::{LineNumbers, Theme},
+    note_editor::{
+        cursor::CursorMode, state::NoteEditorState, viewport::Viewport,
+        virtual_document::VirtualLine,
+    },
 };
 
 const SELECTION_STYLE: Style = Style::new().reversed();
@@ -113,6 +117,93 @@ fn render_line_highlight(
         });
 }
 
+fn gutter_numbers(doc: &[VirtualLine], content: &str) -> Vec<Option<usize>> {
+    let bytes = content.as_bytes();
+    let mut scanned_offset = 0;
+    let mut scanned_lines = 0;
+    let mut line_at = |offset: usize| {
+        if let Some(slice) = bytes.get(scanned_offset..offset) {
+            scanned_lines += slice.iter().filter(|&&byte| byte == b'\n').count();
+            scanned_offset = offset;
+        }
+        scanned_lines
+    };
+
+    fn drain_gap(
+        numbers: &mut [Option<usize>],
+        gap: &mut Vec<usize>,
+        covered: Option<usize>,
+        upto: usize,
+    ) {
+        let first_blank = covered.map_or(0, |line| line + 1);
+        let take = upto.saturating_sub(first_blank).min(gap.len());
+        let base = upto - take;
+        for (offset, &row) in gap[gap.len() - take..].iter().enumerate() {
+            numbers[row] = Some(base + offset);
+        }
+        gap.clear();
+    }
+
+    let mut numbers = vec![None; doc.len()];
+    let mut gap: Vec<usize> = Vec::new();
+    let mut covered: Option<usize> = None;
+
+    for (row, line) in doc.iter().enumerate() {
+        match line.source_range() {
+            Some(range) => {
+                let first = line_at(range.start);
+                if covered.is_none_or(|line| first > line) {
+                    drain_gap(&mut numbers, &mut gap, covered, first);
+                    numbers[row] = Some(first);
+                }
+                let last = line_at(range.end.saturating_sub(1).max(range.start));
+                covered = Some(covered.map_or(last, |line| line.max(last)));
+            }
+            None => gap.push(row),
+        }
+    }
+    drain_gap(&mut numbers, &mut gap, covered, line_at(content.len()) + 1);
+    numbers
+}
+
+#[allow(clippy::too_many_arguments)]
+fn render_gutter(
+    buf: &mut Buffer,
+    area: Rect,
+    meta_len: usize,
+    doc: &[VirtualLine],
+    viewport_top: usize,
+    content: &str,
+    cursor_offset: usize,
+    line_numbers: LineNumbers,
+    theme: &Theme,
+) {
+    let number_width = area.width.saturating_sub(1) as usize;
+    let numbers = gutter_numbers(doc, content);
+    let cursor_line = content.as_bytes().get(..cursor_offset).map_or(0, |slice| {
+        slice.iter().filter(|&&byte| byte == b'\n').count()
+    });
+
+    (0..meta_len + doc.len())
+        .skip(viewport_top)
+        .take(area.height as usize)
+        .filter_map(|index| {
+            let source_line = index.checked_sub(meta_len).and_then(|row| numbers[row])?;
+            Some((index, source_line))
+        })
+        .for_each(|(index, source_line)| {
+            let y = area.y + (index - viewport_top) as u16;
+            let current = source_line == cursor_line;
+            let number = match (line_numbers, current) {
+                (LineNumbers::Relative, false) => source_line.abs_diff(cursor_line),
+                _ => source_line + 1,
+            };
+            let color = if current { theme.text } else { theme.muted };
+            let text = format!("{number:>number_width$} ");
+            buf.set_stringn(area.x, y, text, area.width as usize, Style::new().fg(color));
+        });
+}
+
 #[derive(Default)]
 pub struct NoteEditor<'a>(pub PhantomData<&'a ()>);
 
@@ -158,10 +249,21 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
 
         let inner_area = block.inner(area);
 
+        let gutter_width = state.gutter_width();
+        let gutter_area = Rect {
+            width: gutter_width,
+            ..inner_area
+        };
+        let text_area = Rect {
+            x: inner_area.x + gutter_width,
+            width: inner_area.width.saturating_sub(gutter_width),
+            ..inner_area
+        };
+
         // NOTE: We only reliably know the size of the area for the editor once we arrive at this point.
         // Calling the resize_width will cause the visual blocks to be populated in the state.
         // If width or height is not changed between frames, the resize_width is a noop.
-        state.resize_viewport(inner_area.as_size());
+        state.resize_viewport(text_area.as_size());
 
         state.update_layout();
 
@@ -181,10 +283,26 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
             .map(|visual_line| visual_line.into())
             .collect::<Vec<Line>>();
 
+        block.render(area, buf);
+
         Paragraph::new(visible_lines)
             .scroll((0, state.viewport().left()))
-            .block(block)
-            .render(area, buf);
+            .render(text_area, buf);
+
+        if gutter_width > 0 {
+            let content = state.live_content();
+            render_gutter(
+                buf,
+                gutter_area,
+                meta.len(),
+                doc,
+                state.viewport().top() as usize,
+                &content,
+                state.cursor.source_offset(),
+                state.line_numbers(),
+                &theme,
+            );
+        }
 
         if !state.content.is_empty() || state.is_editing() {
             if let Some(bg) = theme.line_highlight {
@@ -203,7 +321,7 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
         if let Some(range) = state.selection_range() {
             render_highlight(
                 buf,
-                inner_area,
+                text_area,
                 state.viewport(),
                 meta,
                 doc,
@@ -215,7 +333,7 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
         if let Some(range) = state.yank_flash_range() {
             render_highlight(
                 buf,
-                inner_area,
+                text_area,
                 state.viewport(),
                 meta,
                 doc,
@@ -232,12 +350,12 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
             let y = (state.cursor.virtual_row() as u16)
                 .saturating_add(meta_lines_count as u16)
                 .saturating_sub(scroll.top())
-                .saturating_add(inner_area.y);
+                .saturating_add(text_area.y);
             let x = (state.cursor.virtual_column() as u16)
-                .saturating_add(inner_area.x)
+                .saturating_add(text_area.x)
                 .saturating_sub(scroll.left());
             let position = Position { x, y };
-            state.terminal_cursor = inner_area.contains(position).then_some(position);
+            state.terminal_cursor = text_area.contains(position).then_some(position);
         }
 
         if !area.is_empty() && total_lines as u16 > inner_area.bottom() {
@@ -1110,5 +1228,125 @@ mod tests {
             all_base_bg,
             "a `none` tint should leave every row on the base background"
         );
+    }
+
+    fn rendered_rows(state: &mut NoteEditorState, width: u16, height: u16) -> Vec<String> {
+        use ratatui::layout::Size;
+
+        state.resize_viewport(Size::new(width - 2, height - 2));
+        let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+        terminal
+            .draw(|frame| {
+                NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut *state)
+            })
+            .unwrap();
+
+        let buffer = terminal.backend().buffer().clone();
+        (1..height - 1)
+            .map(|y| {
+                (1..width - 1)
+                    .map(|x| buffer.cell((x, y)).unwrap().symbol())
+                    .collect::<String>()
+                    .trim_end()
+                    .to_string()
+            })
+            .collect()
+    }
+
+    fn edit_state(content: &str) -> NoteEditorState<'static> {
+        let mut state =
+            NoteEditorState::new(content, "test", Path::new("test.md"), &Symbols::unicode());
+        state.set_editor_enabled(true);
+        state.set_view(View::Edit(EditMode::Source));
+        state
+    }
+
+    #[test]
+    fn test_gutter_absolute_numbers_source_lines() {
+        let mut state = edit_state("alpha\nbeta\ngamma\n");
+        let rows = rendered_rows(&mut state, 30, 10);
+
+        assert!(rows.iter().any(|row| row.contains(" 1 alpha")));
+        assert!(rows.iter().any(|row| row.contains(" 2 beta")));
+        assert!(rows.iter().any(|row| row.contains(" 3 gamma")));
+    }
+
+    #[test]
+    fn test_gutter_relative_numbers_from_cursor() {
+        let mut state = edit_state("alpha\nbeta\ngamma\n");
+        state.set_line_numbers(LineNumbers::Relative);
+        let rows = rendered_rows(&mut state, 30, 10);
+
+        assert!(rows.iter().any(|row| row.contains(" 1 alpha")));
+        assert!(rows.iter().any(|row| row.contains(" 1 beta")));
+        assert!(rows.iter().any(|row| row.contains(" 2 gamma")));
+    }
+
+    #[test]
+    fn test_gutter_off_hides_numbers() {
+        let mut state = edit_state("alpha\nbeta\ngamma\n");
+        state.set_line_numbers(LineNumbers::Off);
+        let rows = rendered_rows(&mut state, 30, 10);
+
+        assert_eq!(state.gutter_width(), 0);
+        assert!(rows.iter().any(|row| row.trim_start() == "alpha"));
+    }
+
+    #[test]
+    fn test_gutter_width_scales_with_line_count() {
+        assert_eq!(edit_state("alpha\nbeta\n").gutter_width(), 3);
+        assert_eq!(edit_state(&"x\n".repeat(1200)).gutter_width(), 5);
+    }
+
+    #[test]
+    fn test_gutter_numbers_blank_line_between_blocks() {
+        let mut state = edit_state("first\n\nthird\n");
+        let rows = rendered_rows(&mut state, 30, 10);
+
+        assert!(rows.iter().any(|row| row.contains(" 1 first")));
+        assert!(rows.iter().any(|row| row.trim_end().ends_with(" 2")));
+        assert!(rows.iter().any(|row| row.contains(" 3 third")));
+    }
+
+    #[test]
+    fn test_gutter_numbers_prettified_code_block() {
+        let mut state = edit_state("para\n\n```markdown\n> [!INFO]\n> line\n```\nafter\n");
+        state.resize_viewport(ratatui::layout::Size::new(42, 20));
+        state.jump_to_offset(state.content.len() - 1);
+        let rows = rendered_rows(&mut state, 44, 22);
+
+        assert!(rows.iter().any(|row| row.contains(" 1 para")));
+        assert!(rows.iter().any(|row| row.contains(" 4  > [!INFO]")));
+        assert!(rows.iter().any(|row| row.contains(" 5  > line")));
+        assert!(rows.iter().any(|row| row.contains(" 7 after")));
+    }
+
+    #[test]
+    fn test_gutter_keeps_appended_blank_lines_after_moving_up() {
+        let mut state = edit_state("first\nlast\n");
+        state.jump_to_offset(10);
+        state.insert_char('\n');
+        state.insert_char('\n');
+        state.cursor_up(usize::MAX);
+
+        let rows = rendered_rows(&mut state, 30, 12);
+
+        assert!(rows.iter().any(|row| row.contains(" 1 first")));
+        assert!(rows.iter().any(|row| row.contains(" 2 last")));
+        assert!(rows.iter().any(|row| row.trim_end().ends_with(" 3")));
+        assert!(rows.iter().any(|row| row.trim_end().ends_with(" 4")));
+        assert!(rows.iter().any(|row| row.trim_end().ends_with(" 5")));
+    }
+
+    #[test]
+    fn test_gutter_numbers_trailing_blanks_of_inactive_last_block() {
+        let mut state = edit_state("head\n\ntext\n\n");
+        let rows = rendered_rows(&mut state, 30, 12);
+
+        assert!(rows.iter().any(|row| row.contains(" 1 head")));
+        assert!(rows.iter().any(|row| row.trim_end().ends_with(" 2")));
+        assert!(rows.iter().any(|row| row.contains(" 3 text")));
+        assert!(rows.iter().any(|row| row.trim_end().ends_with(" 4")));
+        assert!(rows.iter().any(|row| row.trim_end().ends_with(" 5")));
     }
 }

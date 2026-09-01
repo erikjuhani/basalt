@@ -476,8 +476,7 @@ pub fn line_up(content: &str, offset: usize, n: usize) -> usize {
 }
 
 pub fn doc_end(content: &str) -> usize {
-    let trimmed = content.trim_end_matches('\n');
-    let last_line = line_start(content, trimmed.len());
+    let last_line = content.rfind('\n').map_or(0, |index| index + 1);
     first_nonblank(content, last_line)
 }
 
@@ -668,8 +667,9 @@ mod tests {
     #[test]
     fn doc_motions() {
         let text = "  first\nmid\n  last\n";
-        assert_eq!(doc_start(text), 2); // 'f'
-        assert_eq!(doc_end(text), 14); // 'l' of "last"
+        assert_eq!(doc_start(text), 2);
+        assert_eq!(doc_end(text), 19);
+        assert_eq!(doc_end("  first\nmid\n  last"), 14);
     }
 
     #[test]

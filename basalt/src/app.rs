@@ -805,6 +805,7 @@ impl<'a> App<'a> {
                         &config.symbols,
                     );
                     editor.set_vim_mode(config.vim_mode);
+                    editor.set_line_numbers(config.line_numbers);
                     editor.set_editor_enabled(config.experimental_editor);
                     editor.set_wrap(config.wrap);
                     if config.experimental_editor && config.vim_mode {
