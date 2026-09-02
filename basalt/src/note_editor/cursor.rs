@@ -680,9 +680,7 @@ mod tests {
         let content = "```rust\nline1\n\nline3\n```";
         let lines = render_lines_visual(content);
 
-        // In visual mode: line 0 = padding, line 1 = line1, line 2 = empty, line 3 = line3
-        // Source ranges: line1 = 0..6, empty = 6..7, line3 = 7..13
-        let mut cursor = Cursor::new(7); // Start of line3 in visual source ranges
+        let mut cursor = Cursor::new(15);
         cursor.mode = CursorMode::Read;
         cursor.update_virtual_position(&lines);
         assert_eq!(cursor.virtual_row, 3);

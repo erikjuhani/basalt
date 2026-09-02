@@ -763,7 +763,9 @@ pub fn code_block<'a>(
                     .bg(code_bg))
             ]);
 
-            let mut current_range_start = source_range.start;
+            let raw = content.get(source_range.clone()).unwrap_or("");
+            let after_fence = raw.find('\n').map_or(0, |index| index + 1);
+            let mut current_range_start = source_range.start + after_fence;
 
             let mut lines = vec![padding_line.clone()];
             lines.extend(text.lines().map(|line| {

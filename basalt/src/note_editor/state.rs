@@ -14,7 +14,7 @@ use ratatui::{
 };
 
 use crate::{
-    config::{Symbols, Theme},
+    config::{LineNumbers, Symbols, Theme},
     note_editor::{
         ast::{self},
         cursor::{self, Cursor},
@@ -170,6 +170,7 @@ pub struct NoteEditorState<'a> {
     active: bool,
     insert_mode: bool,
     vim_mode: bool,
+    line_numbers: LineNumbers,
     editor_enabled: bool,
     modified: bool,
     viewport: Viewport,
@@ -209,6 +210,7 @@ impl<'a> NoteEditorState<'a> {
             active: false,
             insert_mode: false,
             vim_mode: false,
+            line_numbers: LineNumbers::default(),
             editor_enabled: false,
             modified: false,
             selection: None,
@@ -263,6 +265,24 @@ impl<'a> NoteEditorState<'a> {
 
     pub fn set_vim_mode(&mut self, mode: bool) {
         self.vim_mode = mode;
+    }
+
+    pub fn line_numbers(&self) -> LineNumbers {
+        self.line_numbers
+    }
+
+    pub fn set_line_numbers(&mut self, line_numbers: LineNumbers) {
+        self.line_numbers = line_numbers;
+    }
+
+    pub fn gutter_width(&self) -> u16 {
+        if !self.is_editing() || self.line_numbers == LineNumbers::Off {
+            return 0;
+        }
+        let content = self.live_content();
+        let source_lines = content.bytes().filter(|&byte| byte == b'\n').count() + 1;
+        let digits = source_lines.to_string().len().max(2) as u16;
+        digits + 1
     }
 
     pub fn editor_enabled(&self) -> bool {
@@ -849,7 +869,7 @@ impl<'a> NoteEditorState<'a> {
     }
 
     /// Source content as currently displayed, accounting for unsaved edits.
-    fn live_content(&self) -> Cow<'_, str> {
+    pub(crate) fn live_content(&self) -> Cow<'_, str> {
         self.text_buffer
             .as_ref()
             .filter(|buffer| buffer.modified)
@@ -1525,6 +1545,31 @@ mod tests {
         );
         state.commit_text_buffer();
         assert_eq!(state.content, "- item one\nsecond paragraph\n");
+    }
+
+    #[test]
+    fn test_cursor_reaches_empty_last_line() {
+        let mut state = NoteEditorState::new(
+            "first\nsecond\n",
+            "test",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.resize_viewport(Size::new(40, 12));
+        state.set_view(View::Edit(EditMode::Source));
+
+        state.cursor_down(usize::MAX);
+
+        assert_eq!(
+            state.cursor.source_offset(),
+            state.content.len(),
+            "the cursor should rest at the start of the empty final line",
+        );
+        assert_eq!(
+            state.cursor.virtual_row(),
+            state.virtual_document.lines().len() - 1,
+            "the empty final line should be its own, last navigable row",
+        );
     }
 
     /// An empty list item (`- ` with no text) must still render its marker row

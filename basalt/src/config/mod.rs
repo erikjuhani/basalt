@@ -84,11 +84,21 @@ impl fmt::Display for ConfigSection<'_> {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LineNumbers {
+    #[default]
+    Absolute,
+    Relative,
+    Off,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Config<'a> {
     pub experimental_editor: bool,
     pub vim_mode: bool,
     pub wrap: bool,
+    pub line_numbers: LineNumbers,
     pub symbols: Symbols,
     pub theme: Theme,
     pub global: ConfigSection<'a>,
@@ -140,6 +150,7 @@ impl Config<'_> {
             experimental_editor: value.experimental_editor,
             vim_mode: value.vim_mode,
             wrap: value.wrap.unwrap_or(true),
+            line_numbers: value.line_numbers,
             global: ConfigSection::from_toml(value.global, leader),
             splash: ConfigSection::from_toml(value.splash, leader),
             explorer: ConfigSection::from_toml(value.explorer, leader),
@@ -161,6 +172,7 @@ impl Config<'_> {
         self.experimental_editor = config.experimental_editor;
         self.vim_mode = config.vim_mode;
         self.wrap = config.wrap;
+        self.line_numbers = config.line_numbers;
         self.global.merge_key_bindings(config.global);
         self.explorer.merge_key_bindings(config.explorer);
         self.splash.merge_key_bindings(config.splash);
@@ -272,6 +284,8 @@ struct TomlConfig {
     vim_mode: bool,
     #[serde(default)]
     wrap: Option<bool>,
+    #[serde(default)]
+    line_numbers: LineNumbers,
     #[serde(default)]
     leader: Leader,
     #[serde(default)]
