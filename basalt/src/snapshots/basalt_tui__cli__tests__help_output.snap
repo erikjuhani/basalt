@@ -2,7 +2,10 @@
 source: basalt/src/cli.rs
 expression: help
 ---
-Usage: basalt [OPTIONS]
+Usage: basalt [OPTIONS] [FILE]
+
+Arguments:
+  [FILE]  Open a single markdown file instead of a vault. The file is created if it does not exist
 
 Options:
       --debug                  Open the debug log overlay on startup

@@ -1,4 +1,5 @@
 use clap::Parser;
+use std::path::PathBuf;
 
 use crate::{debug_log::LogLevel, version};
 
@@ -7,6 +8,10 @@ const VERSION_INFO: version::VersionInfo = version::VersionInfo::from_env();
 #[derive(Parser)]
 #[command(name = "basalt", version = VERSION_INFO.to_string())]
 pub struct Cli {
+    /// Open a single markdown file instead of a vault. The file is created if it does not exist
+    #[arg(value_name = "FILE")]
+    pub path: Option<PathBuf>,
+
     /// Open the debug log overlay on startup
     #[arg(long)]
     pub debug: bool,

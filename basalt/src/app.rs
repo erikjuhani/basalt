@@ -67,9 +67,17 @@ pub fn calc_scroll_amount(scroll_amount: &ScrollAmount, height: usize) -> usize 
     }
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub enum Workspace {
+    #[default]
+    Vault,
+    File,
+}
+
 #[derive(Default, Clone)]
 pub struct AppState<'a> {
     vault: Vault,
+    workspace: Workspace,
     screen_size: Size,
     is_running: bool,
     pending_keys: Vec<Keystroke>,
@@ -306,6 +314,33 @@ fn cursor_style(state: &AppState) -> SetCursorStyle {
     }
 }
 
+fn open_note(state: &mut AppState, config: &Config, selected_note: SelectedNote) {
+    if state.tabs.open_or_focus(selected_note.path()) {
+        return;
+    }
+
+    let mut editor = NoteEditorState::new(
+        &selected_note.content,
+        &selected_note.name,
+        selected_note.path(),
+        &config.symbols,
+    );
+    editor.set_vim_mode(config.vim_mode);
+    editor.set_line_numbers(config.line_numbers);
+    editor.set_editor_enabled(config.experimental_editor);
+    editor.set_wrap(config.wrap);
+    editor.set_view(if config.experimental_editor && config.vim_mode {
+        View::Edit(EditMode::Source)
+    } else {
+        View::Read
+    });
+
+    state.tabs.open(Tab {
+        note: selected_note,
+        editor,
+    });
+}
+
 fn rebuild_outline(state: &mut AppState, config: &Config) {
     let is_open = state.outline.is_open();
     let was_active = state.outline.active;
@@ -413,6 +448,7 @@ impl<'a> App<'a> {
         terminal: DefaultTerminal,
         vaults: Vec<&Vault>,
         initial_vault: Option<Vault>,
+        initial_file: Option<PathBuf>,
         debug: bool,
         log_level: LogLevel,
         theme_override: Option<String>,
@@ -425,19 +461,27 @@ impl<'a> App<'a> {
             config.theme = config::theme::theme_by_name(name);
         }
 
+        let workspace = if initial_file.is_some() {
+            Workspace::File
+        } else {
+            Workspace::Vault
+        };
+        let show_splash = initial_vault.is_none() && initial_file.is_none();
+
         let vault = initial_vault.clone().unwrap_or_default();
         let explorer = match &initial_vault {
             Some(v) => ExplorerState::new(&v.name, v.entries(), &config.symbols),
             None => ExplorerState::default(),
         };
-        let active_pane = if initial_vault.is_some() {
-            ActivePane::Explorer
-        } else {
-            ActivePane::default()
+        let active_pane = match workspace {
+            Workspace::File => ActivePane::NoteEditor,
+            Workspace::Vault if initial_vault.is_some() => ActivePane::Explorer,
+            Workspace::Vault => ActivePane::default(),
         };
 
         let mut state = AppState {
             vault,
+            workspace,
             explorer,
             active_pane,
             theme: config.theme,
@@ -445,7 +489,7 @@ impl<'a> App<'a> {
             help_modal: HelpModalState::new(&help_text(&version)),
             vault_selector_modal: VaultSelectorModalState::new(vaults.clone()),
             theme_selector_modal: ThemeSelectorModalState::new(config::theme::load_themes()),
-            splash_modal: SplashModalState::new(&version, vaults, initial_vault.is_none()),
+            splash_modal: SplashModalState::new(&version, vaults, show_splash),
             outline: OutlineState {
                 symbols: config.symbols.clone(),
                 ..Default::default()
@@ -464,6 +508,23 @@ impl<'a> App<'a> {
                 .collect(),
             ..Default::default()
         };
+
+        if let Some(path) = initial_file {
+            let name = path
+                .file_stem()
+                .and_then(|stem| stem.to_str())
+                .unwrap_or_default();
+            let content = fs::read_to_string(&path).unwrap_or_default();
+            open_note(
+                &mut state,
+                &config,
+                SelectedNote::new(name, &path, &content),
+            );
+            if let Some(editor) = state.tabs.active_editor_mut() {
+                editor.set_active(true);
+            }
+            rebuild_outline(&mut state, &config);
+        }
 
         apply_theme(&mut state, config.theme);
 
@@ -755,34 +816,44 @@ impl<'a> App<'a> {
                     }
                 }
             }
-            Message::SetActivePane(active_pane) => match active_pane {
-                ActivePane::Explorer => {
-                    state.active_pane = active_pane;
-                    // TODO: use event/message
-                    state.explorer.set_active(true);
-                }
-                ActivePane::NoteEditor => {
-                    state.active_pane = active_pane;
-                    // TODO: use event/message
-                    if let Some(editor) = state.tabs.active_editor_mut() {
-                        editor.set_active(true);
+            Message::SetActivePane(active_pane) => {
+                let active_pane = match (state.workspace, active_pane) {
+                    (Workspace::File, ActivePane::Explorer) => match state.active_pane {
+                        ActivePane::NoteEditor => ActivePane::Outline,
+                        _ => ActivePane::NoteEditor,
+                    },
+                    _ => active_pane,
+                };
+                match active_pane {
+                    ActivePane::Explorer => {
+                        state.active_pane = active_pane;
+                        // TODO: use event/message
+                        state.explorer.set_active(true);
                     }
-                    if state.explorer.visibility == Visibility::FullWidth {
-                        return Some(Message::Explorer(explorer::Message::HidePane));
+                    ActivePane::NoteEditor => {
+                        state.active_pane = active_pane;
+                        // TODO: use event/message
+                        if let Some(editor) = state.tabs.active_editor_mut() {
+                            editor.set_active(true);
+                        }
+                        if state.explorer.visibility == Visibility::FullWidth {
+                            return Some(Message::Explorer(explorer::Message::HidePane));
+                        }
                     }
+                    ActivePane::Outline => {
+                        state.active_pane = active_pane;
+                        // TODO: use event/message
+                        state.outline.set_active(true);
+                    }
+                    ActivePane::Input => {
+                        state.active_pane = active_pane;
+                    }
+                    _ => {}
                 }
-                ActivePane::Outline => {
-                    state.active_pane = active_pane;
-                    // TODO: use event/message
-                    state.outline.set_active(true);
-                }
-                ActivePane::Input => {
-                    state.active_pane = active_pane;
-                }
-                _ => {}
-            },
+            }
             Message::OpenVault(vault) => {
                 info!(vault = %vault.name, "opened vault");
+                state.workspace = Workspace::Vault;
                 state.vault = vault.clone();
                 state.explorer = ExplorerState::new(&vault.name, vault.entries(), &config.symbols);
                 state.tabs = Tabs::default();
@@ -797,27 +868,7 @@ impl<'a> App<'a> {
                     .active_note()
                     .is_some_and(|note| note.content != selected_note.content);
 
-                if !state.tabs.open_or_focus(selected_note.path()) {
-                    let mut editor = NoteEditorState::new(
-                        &selected_note.content,
-                        &selected_note.name,
-                        &selected_note.path,
-                        &config.symbols,
-                    );
-                    editor.set_vim_mode(config.vim_mode);
-                    editor.set_line_numbers(config.line_numbers);
-                    editor.set_editor_enabled(config.experimental_editor);
-                    editor.set_wrap(config.wrap);
-                    if config.experimental_editor && config.vim_mode {
-                        editor.set_view(View::Edit(EditMode::Source));
-                    } else {
-                        editor.set_view(View::Read);
-                    }
-                    state.tabs.open(Tab {
-                        note: selected_note,
-                        editor,
-                    });
-                }
+                open_note(state, config, selected_note);
 
                 rebuild_outline(state, config);
 
@@ -1016,26 +1067,38 @@ impl<'a> App<'a> {
 
         Header::new(&self.config.symbols, &state.theme, &state.tabs).render(header, buf);
 
-        let (left, right) = match state.explorer.visibility {
-            Visibility::Hidden => (Constraint::Length(4), Constraint::Fill(1)),
-            Visibility::Visible => (Constraint::Length(35), Constraint::Fill(1)),
-            Visibility::FullWidth => (Constraint::Fill(1), Constraint::Length(0)),
+        let outline_pane = if state.outline.is_open() {
+            Constraint::Length(35)
+        } else {
+            Constraint::Length(4)
         };
 
-        let [explorer_pane, note, outline] = Layout::horizontal([
-            left,
-            right,
-            if state.outline.is_open() {
-                Constraint::Length(35)
-            } else {
-                Constraint::Length(4)
-            },
-        ])
-        .areas(content);
+        let (explorer_pane, note, outline) = match state.workspace {
+            Workspace::Vault => {
+                let (left, right) = match state.explorer.visibility {
+                    Visibility::Hidden => (Constraint::Length(4), Constraint::Fill(1)),
+                    Visibility::Visible => (Constraint::Length(35), Constraint::Fill(1)),
+                    Visibility::FullWidth => (Constraint::Fill(1), Constraint::Length(0)),
+                };
+                let [explorer_pane, note, outline] =
+                    Layout::horizontal([left, right, outline_pane]).areas(content);
+                (Some(explorer_pane), note, outline)
+            }
+            Workspace::File => {
+                let [note, outline] =
+                    Layout::horizontal([Constraint::Fill(1), outline_pane]).areas(content);
+                (None, note, outline)
+            }
+        };
 
         let theme = state.theme;
 
-        Explorer::new().render(explorer_pane, buf, &mut state.explorer);
+        if let Some(explorer_pane) = explorer_pane {
+            Explorer::new().render(explorer_pane, buf, &mut state.explorer);
+            let border_modal = self.config.symbols.border_modal.into();
+            Input::new(border_modal, theme).render(explorer_pane, buf, &mut state.input_modal);
+        }
+
         match state.tabs.active_editor_mut() {
             Some(editor) => NoteEditor::default().render(note, buf, editor),
             None => {
@@ -1046,8 +1109,6 @@ impl<'a> App<'a> {
             }
         }
         Outline.render(outline, buf, &mut state.outline);
-        let border_modal = self.config.symbols.border_modal.into();
-        Input::new(border_modal, theme).render(explorer_pane, buf, &mut state.input_modal);
 
         let (word_count, char_count) = state
             .tabs
