@@ -36,7 +36,7 @@ jobs:
   build:
     needs: check
     if: github.event_name == 'workflow_dispatch' || needs.check.outputs.changed == 'true'
-    uses: ./.github/workflows/build.yml
+    uses: ./.github/workflows/build.yml # zizmor: ignore[self-repository]
     with:
       version: nightly
       channel: nightly
