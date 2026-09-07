@@ -23,16 +23,16 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           sparse-checkout: |
             .github/workflows
 
       - name: actionlint
-        uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7 # v2.2.0
+        uses: kjanat/actionlint@b092abdc8be085e4b367b2ab084c075f1bed0516 # v1.15.1
         with:
-          flags: "-ignore SC2153" # Possible misspelling false flags
+          ignore: SC2153 # Possible misspelling false flags
 
       - name: Pinact
         uses: suzuki-shunsuke/pinact-action@896d595f299e71d65b9d28349d6956abe144390a # v3.0.0
@@ -45,7 +45,7 @@ jobs:
           annotations: true
           advanced-security: false
           persona: "pedantic"
-          version: 1.29.0
+          version: 1.30.0
           min-severity: "low"
           inputs: |
               .github/workflows/
