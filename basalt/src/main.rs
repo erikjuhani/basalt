@@ -31,12 +31,29 @@ fn main() -> Result<(), Error> {
         Err(_) => None,
     };
 
+    let initial_file = match cli.path {
+        Some(path) => {
+            if !path.exists() {
+                if let Some(parent) = path
+                    .parent()
+                    .filter(|parent| !parent.as_os_str().is_empty())
+                {
+                    std::fs::create_dir_all(parent)?;
+                }
+                std::fs::write(&path, "")?;
+            }
+            Some(path.canonicalize()?)
+        }
+        _ => None,
+    };
+
     let terminal = ratatui::init();
 
     let result = App::start(
         terminal,
         vaults,
         initial_vault,
+        initial_file,
         cli.debug,
         cli.log_level,
         cli.theme,

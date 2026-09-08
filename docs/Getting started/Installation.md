@@ -60,6 +60,14 @@ basalt
 
 ![[vault-selector.gif]]
 
+[[Basalt]] can also open a single markdown file. Pass the file path to skip the vault and open the file directly:
+
+```
+basalt path/to/note.md
+```
+
+See [[Files and Folders]] for how single-file mode works.
+
 ## Navigating a vault
 
 Once inside a vault, the interface is divided into three panes:

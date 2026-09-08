@@ -41,6 +41,22 @@ When renaming a note, all wiki-links referencing that note are automatically upd
 
 ![[rename.gif]]
 
+## Opening a single file
+
+You can open one markdown file without a vault. Pass the file path to [[Basalt]]:
+
+```
+basalt path/to/note.md
+```
+
+[[Basalt]] opens the file in a focused view with only the [[Note editor]] and the [[Outline]]. This view has no [[Explorer]] pane. Press `Tab` and `Shift+Tab` to move focus between the editor and the outline.
+
+If the file does not exist, [[Basalt]] creates it as an empty file. A file path takes precedence over any vault.
+
+To return to a vault, press `Space` then `v` and select a vault. The [[Explorer]] then appears.
+
+![[file-mode.gif]]
+
 ## Current limitations
 
 The following file operations are not yet supported:

@@ -26,6 +26,41 @@
 > line instead, in read and edit mode, replacing the heavier read-mode
 > reverse bar. The `line-highlight` theme key sets the colour or turns it off.
 
+- [459d9bd](https://github.com/erikjuhani/basalt/commit/459d9bdb0f69fabb216b72e32a3c929daf1f136c) Follow the link under the cursor with gx by @erikjuhani
+
+> Add a note editor action that resolves whatever link sits under the
+> cursor. A wiki link travels to its note, creating the note first when it
+> does not exist yet. A bare URL or a [label](url) markdown link opens in
+> the platform browser.
+>
+> A single pure scan (motion::link_at) classifies the cursor position into
+> a LinkTarget, which app.rs resolves against the vault (new
+> Vault::find_note) or hands to a cross-platform opener (command::open_url).
+>
+> Bound to gx in the vim config and to enter and gd in the default config.
+
+- [2954f5a](https://github.com/erikjuhani/basalt/commit/2954f5a99994f71476f9d6c26e72e334111b653e) Add a configurable line-number gutter to the note editor by @erikjuhani
+
+> Show line numbers while editing a note. The `line_numbers` config
+> accepts "absolute", "relative", or "off" (default "absolute").
+
+- [3f6b8e2](https://github.com/erikjuhani/basalt/commit/3f6b8e2492db7c4f0ee1f8106c161b425fba5147) Add single-file mode for opening a markdown file
+
+> Pass a file path to open one markdown file without a vault:
+>
+> ```
+> basalt path/to/note.md
+> ```
+>
+> The file opens in a focused view with only the note editor and the
+> outline. This view has no explorer pane, and the focus cycle wraps
+> between the editor and the outline. Basalt creates the file if it does
+> not exist, and a file path takes precedence over any configured vault.
+> Opening a vault from the selector switches back to the vault view.
+>
+> Documented the mode in the Files and Folders and Installation pages, and
+> added a VHS tape to showcase it.
+
 ### Changed
 
 - [27bdefa](https://github.com/erikjuhani/basalt/commit/27bdefa3cc2b7d98380ec4577f29d45ecb25029e) Memoize note layout instead of rebuilding it every frame by @erikjuhani
@@ -40,13 +75,25 @@
 >
 > Also borrow content in render_node instead of cloning it per block.
 
-### Fixed
+- [cb6ea18](https://github.com/erikjuhani/basalt/commit/cb6ea1804e85360357d4d41a30c1ff5a065bb22c) Use the real terminal cursor for text editing by @erikjuhani
+
+> Replace the painted reversed-cell cursor in the note editor and the input
+> modal with the terminal's own cursor, placed via the frame. The editor keeps
+> its full-line highlight in read view; edit view exposes a screen position that
+> the app sets on the frame.
+>
+> Shape the cursor to the focused mode: a narrow bar while inserting text, a
+> block otherwise. Show it only for the focused component, and restore the
+> terminal's default shape on exit.
 
 - [8e0fa5a](https://github.com/erikjuhani/basalt/commit/8e0fa5aa5243b23f5b4050b2925c5fba15a17098) Make blank lines between blocks editable in edit mode by @erikjuhani
 
-> The cursor could not reach the blank lines that separate blocks. Blocks
-> now tile the document, so the block above a blank line owns it. The
-> cursor can rest on and edit those blanks.
+> Blocks now tile the document: each block's editable span runs from its
+> start to the next block's start, so the preceding block owns the blank
+> lines that follow it. The cursor can rest on and edit those blanks,
+> which previously fell in an unreachable gap between block source ranges.
+
+### Fixed
 
 - [28429e2](https://github.com/erikjuhani/basalt/commit/28429e2440fca596a1470fe6caca9bf424a1ad03) Match title text to the symbol preset by @erikjuhani
 
