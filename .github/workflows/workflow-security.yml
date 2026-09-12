@@ -30,7 +30,7 @@ jobs:
             .github/workflows
 
       - name: actionlint
-        uses: kjanat/actionlint@b092abdc8be085e4b367b2ab084c075f1bed0516 # v1.15.1
+        uses: kjanat/actionlint@2e3446470986f5ad794c43b1899e01e7361a7ef0 # v1.16.0
         with:
           ignore: SC2153 # Possible misspelling false flags
 
