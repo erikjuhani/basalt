@@ -35,6 +35,11 @@ jobs:
     - name: Toolchain
       run: rustup toolchain install
 
+    - name: Install nextest
+      uses: taiki-e/install-action@fa23953489c080190314742a9b907f8e97c6767c # v2.87.10
+      with:
+        tool: nextest
+
     - name: Cache
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
@@ -54,7 +59,10 @@ jobs:
       run: cargo clippy --profile ci --workspace --all-targets -- -D warnings
 
     - name: Test
-      run: cargo test --profile ci --workspace --all-targets
+      run: cargo nextest run --cargo-profile ci --workspace --all-targets
+
+    - name: Doc tests
+      run: cargo test --profile ci --workspace --doc
 
     - name: Build and Package
       run: |
