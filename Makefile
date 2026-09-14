@@ -28,7 +28,8 @@ check:
 	@if command -v pinact >/dev/null 2>&1; then find .github/workflows -name '*.yml' -print0 | xargs -0 pinact run --check ; fi
 	cargo check --locked --profile ci --workspace --all-targets
 	cargo clippy --profile ci --workspace --all-targets -- -D warnings
-	cargo test --profile ci --workspace --all-targets
+	cargo nextest run --cargo-profile ci --workspace --all-targets
+	cargo test --profile ci --workspace --doc
 	cargo build --profile ci --workspace --all-targets
 	cargo package --no-verify --allow-dirty
 

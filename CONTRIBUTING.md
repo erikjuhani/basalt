@@ -62,6 +62,12 @@ cargo build
 
 The project uses Rust 1.92.0 (specified in `rust-toolchain.toml`). Rustup will automatically use the correct version.
 
+Install [cargo-nextest](https://nexte.st/) to run the test suite:
+
+```sh
+cargo install cargo-nextest --locked
+```
+
 ### Running Locally
 
 ```sh
@@ -147,7 +153,8 @@ The primary CI workflow runs on every pull request and push to main:
 | **Format check** | Verifies code formatting with `make fmt-check` |
 | **Cargo check** | Validates the code compiles without errors |
 | **Clippy** | Runs the Rust linter with warnings treated as errors |
-| **Tests** | Executes the full test suite across the workspace |
+| **Tests** | Runs the workspace test suite with cargo-nextest |
+| **Doc tests** | Runs the doc tests, which cargo-nextest does not support |
 | **Build & Package** | Builds the binary and verifies it can be packaged |
 
 ### Workflow Security (`workflow-security.yml`)
