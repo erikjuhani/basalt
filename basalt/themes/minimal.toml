@@ -41,6 +41,14 @@ border-edges = "left"
 background = "bg-soft"
 foreground = "fg"
 
+[syntax]
+keyword = "blue"
+string = "green"
+comment = "gray"
+function = "cyan"
+type = "yellow"
+constant = "red"
+
 [palette]
 fg = "#d4d4d4"
 fg-dim = "#a0a0a0"

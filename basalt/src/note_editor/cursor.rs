@@ -389,28 +389,36 @@ mod tests {
         config::{Symbols, Theme},
         note_editor::{
             parser,
-            render::{render_node, RenderStyle},
+            render::{render_node, RenderContext, RenderStyle},
             text_buffer::TextBuffer,
+            virtual_document::CodeCache,
         },
     };
 
     fn render_lines(content: &str) -> Vec<VirtualLine<'static>> {
+        render_lines_with(content, 80, &RenderStyle::Raw)
+    }
+
+    fn render_lines_with(
+        content: &str,
+        width: usize,
+        option: &RenderStyle,
+    ) -> Vec<VirtualLine<'static>> {
+        let symbols = Symbols::unicode();
+        let theme = Theme::default();
+        let mut code_cache = CodeCache::default();
+        let mut context = RenderContext {
+            content,
+            max_width: width,
+            horizontal_offset: 0,
+            option,
+            symbols: &symbols,
+            theme: &theme,
+            code_cache: &mut code_cache,
+        };
         parser::from_str(content)
             .into_iter()
-            .flat_map(|node| {
-                render_node(
-                    content,
-                    &node,
-                    80,
-                    0,
-                    Span::default(),
-                    &RenderStyle::Raw,
-                    &Symbols::unicode(),
-                    &Theme::default(),
-                    0,
-                )
-                .lines
-            })
+            .flat_map(|node| render_node(&node, Span::default(), 0, &mut context).lines)
             .collect()
     }
 
@@ -655,23 +663,7 @@ mod tests {
     }
 
     fn render_lines_visual(content: &str) -> Vec<VirtualLine<'static>> {
-        parser::from_str(content)
-            .into_iter()
-            .flat_map(|node| {
-                render_node(
-                    content,
-                    &node,
-                    80,
-                    0,
-                    Span::default(),
-                    &RenderStyle::Reader,
-                    &Symbols::unicode(),
-                    &Theme::default(),
-                    0,
-                )
-                .lines
-            })
-            .collect()
+        render_lines_with(content, 80, &RenderStyle::Reader)
     }
 
     #[test]
@@ -693,23 +685,7 @@ mod tests {
     }
 
     fn render_lines_width(content: &str, width: usize) -> Vec<VirtualLine<'static>> {
-        parser::from_str(content)
-            .into_iter()
-            .flat_map(|node| {
-                render_node(
-                    content,
-                    &node,
-                    width,
-                    0,
-                    Span::default(),
-                    &RenderStyle::Raw,
-                    &Symbols::unicode(),
-                    &Theme::default(),
-                    0,
-                )
-                .lines
-            })
-            .collect()
+        render_lines_with(content, width, &RenderStyle::Raw)
     }
 
     #[test]

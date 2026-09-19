@@ -1185,6 +1185,41 @@ mod tests {
     }
 
     #[test]
+    fn test_code_block_tokens_take_syntax_colours() {
+        use crate::config::Theme;
+        use ratatui::layout::Size;
+
+        let mut state = NoteEditorState::new(
+            "```js\nconst x = 1;\n```\n",
+            "",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.resize_viewport(Size::new(30, 8));
+
+        let mut terminal = Terminal::new(TestBackend::new(30, 8)).unwrap();
+        terminal
+            .draw(|frame| {
+                NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut state)
+            })
+            .unwrap();
+
+        let cells = &terminal.backend().buffer().content;
+        let text_in = |color: Color| -> String {
+            cells
+                .iter()
+                .filter(|cell| cell.fg == color)
+                .map(|cell| cell.symbol())
+                .collect()
+        };
+        let theme = Theme::default();
+        assert_eq!(text_in(theme.syntax.keyword), "const");
+        assert_eq!(text_in(theme.syntax.constant), "1");
+        let plain = cells.iter().find(|cell| cell.symbol() == "x").unwrap();
+        assert_eq!(plain.fg, Color::Reset, "plain code keeps the text colour");
+    }
+
+    #[test]
     fn test_line_highlight_can_be_disabled() {
         use crate::config::Theme;
         use ratatui::layout::Size;
@@ -1309,6 +1344,22 @@ mod tests {
     }
 
     #[test]
+    fn test_gutter_numbers_a_blank_line_inside_the_active_code_block() {
+        use ratatui::layout::Size;
+
+        let content = "```js\nconst x = 1;\n\n```\nafter\n";
+        let mut state = edit_state(content);
+        state.resize_viewport(Size::new(28, 8));
+        state.jump_to_offset(content.find("const x").unwrap());
+        let rows = rendered_rows(&mut state, 30, 10);
+
+        assert!(rows.iter().any(|row| row.contains(" 2  const x = 1;")));
+        assert!(rows.iter().any(|row| row.trim_end().ends_with(" 3")));
+        assert!(rows.iter().any(|row| row.contains(" 4  ```")));
+        assert!(rows.iter().any(|row| row.contains(" 5 after")));
+    }
+
+    #[test]
     fn test_gutter_numbers_prettified_code_block() {
         let mut state = edit_state("para\n\n```markdown\n> [!INFO]\n> line\n```\nafter\n");
         state.resize_viewport(ratatui::layout::Size::new(42, 20));
@@ -1348,5 +1399,92 @@ mod tests {
         assert!(rows.iter().any(|row| row.contains(" 3 text")));
         assert!(rows.iter().any(|row| row.trim_end().ends_with(" 4")));
         assert!(rows.iter().any(|row| row.trim_end().ends_with(" 5")));
+    }
+
+    /// Typing in one block must not disturb the highlighted colours of an
+    /// unrelated, unchanged code block elsewhere in the document. This guards
+    /// against the code-block cache serving stale or mismatched token ranges
+    /// for a block it did not recompute.
+    #[test]
+    fn test_editing_one_block_keeps_other_code_blocks_highlighted() {
+        use crate::config::Theme;
+        use ratatui::layout::Size;
+
+        let mut state = edit_state("para\n\n```js\nconst x = 1;\n```\n\nafter\n");
+        state.resize_viewport(Size::new(40, 12));
+        state.jump_to_offset(0);
+
+        let keyword_text = |state: &mut NoteEditorState| -> String {
+            let mut terminal = Terminal::new(TestBackend::new(42, 14)).unwrap();
+            terminal
+                .draw(|frame| NoteEditor::default().render(frame.area(), frame.buffer_mut(), state))
+                .unwrap();
+            let theme = Theme::default();
+            terminal
+                .backend()
+                .buffer()
+                .content
+                .iter()
+                .filter(|cell| cell.fg == theme.syntax.keyword)
+                .map(|cell| cell.symbol())
+                .collect()
+        };
+
+        assert_eq!(keyword_text(&mut state), "const");
+
+        state.insert_char('!');
+        assert_eq!(keyword_text(&mut state), "const");
+    }
+
+    /// Typing near the middle of a large code block must not corrupt
+    /// highlighting for lines the edit never touched.
+    #[test]
+    fn test_typing_inside_large_code_block_keeps_highlighting_correct() {
+        use crate::config::Theme;
+        use ratatui::layout::Size;
+
+        let lines = (0..800)
+            .map(|i| format!("const value_{i} = {i};"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let content = format!("```js\n{lines}\n```\n");
+
+        let mut state = edit_state(&content);
+        state.resize_viewport(Size::new(60, 20));
+        let mid_offset = content.find("value_400").unwrap();
+        state.jump_to_offset(mid_offset);
+
+        let render = |state: &mut NoteEditorState| -> ratatui::buffer::Buffer {
+            let mut terminal = Terminal::new(TestBackend::new(62, 22)).unwrap();
+            terminal
+                .draw(|frame| NoteEditor::default().render(frame.area(), frame.buffer_mut(), state))
+                .unwrap();
+            terminal.backend().buffer().clone()
+        };
+
+        let theme = Theme::default();
+        let keyword_count = |buffer: &ratatui::buffer::Buffer| -> usize {
+            buffer
+                .content
+                .iter()
+                .filter(|cell| cell.fg == theme.syntax.keyword)
+                .count()
+        };
+
+        let before = render(&mut state);
+        assert!(before.content.iter().any(|cell| cell.symbol() == "4"));
+        let keywords_before = keyword_count(&before);
+        assert!(keywords_before > 0);
+
+        for _ in 0..5 {
+            state.insert_char('x');
+        }
+
+        let after = render(&mut state);
+        let keywords_after = keyword_count(&after);
+        assert_eq!(
+            keywords_before, keywords_after,
+            "typing should not change how many keyword-coloured cells are on screen"
+        );
     }
 }

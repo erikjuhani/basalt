@@ -27,3 +27,11 @@ success = "green"
 info = "blue"
 warning = "yellow"
 error = "red"
+
+[syntax]
+keyword = "magenta"
+string = "green"
+comment = "darkgray"
+function = "blue"
+type = "yellow"
+constant = "red"

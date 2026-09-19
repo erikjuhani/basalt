@@ -1,4 +1,5 @@
 use std::{
+    collections::{hash_map::Entry, HashMap},
     hash::{DefaultHasher, Hash, Hasher},
     iter,
     str::{CharIndices, Chars},
@@ -13,8 +14,10 @@ use crate::{
     config::{Symbols, Theme},
     note_editor::{
         ast::{self, SourceRange},
+        highlight,
         render::{
-            edit_lines, edit_table, render_node, text_wrap, trailing_empty_lines, RenderStyle,
+            edit_lines, edit_table, render_node, text_wrap, trailing_empty_lines, RenderContext,
+            RenderStyle,
         },
         state::View,
         text_buffer::TextBuffer,
@@ -207,16 +210,70 @@ impl<'a> VirtualBlock<'a> {
             source_range: source_range.clone(),
         }
     }
-
-    pub fn source_range(&self) -> &SourceRange<usize> {
-        &self.source_range
-    }
 }
 
 fn hash_str(value: &str) -> u64 {
     let mut hasher = DefaultHasher::new();
     value.hash(&mut hasher);
     hasher.finish()
+}
+
+type CodeTokens = Vec<highlight::LineTokens>;
+
+fn code_cache_key(language: &str, text: &str) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    language.hash(&mut hasher);
+    text.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// Highlighted token ranges for fenced code blocks, reused across a layout
+/// pass. The key is a hash of the block's language and text, so a block with
+/// unchanged text skips the syntax grammar entirely. A hash collision would
+/// serve another block's tokens, which is accepted at 64 bits. Colours come
+/// from tokens at render time, so a theme change does not invalidate this
+/// cache.
+///
+/// Each pass takes the previous generation from `VirtualDocument::code_cache`
+/// and hands back the next one. A block not read during the pass is dropped:
+/// for example a deleted or renamed block, or one simply not visited. This
+/// lets the cache clean itself with no size cap.
+#[derive(Debug, Default)]
+pub struct CodeCache {
+    previous: HashMap<u64, CodeTokens>,
+    next: HashMap<u64, CodeTokens>,
+}
+
+impl CodeCache {
+    pub fn new(previous: HashMap<u64, CodeTokens>) -> Self {
+        Self {
+            previous,
+            next: HashMap::new(),
+        }
+    }
+
+    /// Token ranges for one code block. `None` when no grammar matches
+    /// `language`. A hit moves the tokens from the previous generation into
+    /// this one, so an unchanged block costs a map lookup and no copy.
+    pub fn get_or_compute(&mut self, language: &str, text: &str) -> Option<&CodeTokens> {
+        let key = code_cache_key(language, text);
+        let tokens = match self.next.entry(key) {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => {
+                let tokens = match self.previous.remove(&key) {
+                    Some(tokens) => tokens,
+                    None => highlight::block_tokens(language, text)?,
+                };
+                entry.insert(tokens)
+            }
+        };
+        Some(tokens)
+    }
+
+    /// The entries read during this pass, which seed the next one.
+    pub fn into_next(self) -> HashMap<u64, CodeTokens> {
+        self.next
+    }
 }
 
 /// Fingerprint of every input that shapes a layout, so a frame whose inputs are
@@ -241,10 +298,11 @@ pub struct VirtualDocument<'a> {
     symbols: Symbols,
     theme: Theme,
     meta: Vec<VirtualLine<'a>>,
-    blocks: Vec<VirtualBlock<'a>>,
+    block_ranges: Vec<SourceRange<usize>>,
     lines: Vec<VirtualLine<'a>>,
     line_to_block: Vec<usize>,
     cache_key: Option<LayoutKey>,
+    code_cache: HashMap<u64, CodeTokens>,
 }
 
 impl<'a> VirtualDocument<'a> {
@@ -269,8 +327,8 @@ impl<'a> VirtualDocument<'a> {
         &self.meta
     }
 
-    pub fn blocks(&self) -> &[VirtualBlock<'_>] {
-        &self.blocks
+    pub fn block_ranges(&self) -> &[SourceRange<usize>] {
+        &self.block_ranges
     }
 
     pub fn lines(&self) -> &[VirtualLine<'_>] {
@@ -279,10 +337,6 @@ impl<'a> VirtualDocument<'a> {
 
     pub fn line_to_block_idx(&self, line: usize) -> usize {
         self.line_to_block.get(line).cloned().unwrap_or(0)
-    }
-
-    pub fn get_block(&self, block_idx: usize) -> Option<(usize, &VirtualBlock<'_>)> {
-        self.blocks().get(block_idx).map(|block| (block_idx, block))
     }
 
     // FIXME: Refactor. Too many arguments.
@@ -324,6 +378,7 @@ impl<'a> VirtualDocument<'a> {
             return;
         }
         self.cache_key = Some(key);
+        let mut code_cache = CodeCache::new(std::mem::take(&mut self.code_cache));
 
         if !note_name.is_empty() {
             let note_name = match self.symbols.title_font_style {
@@ -359,10 +414,19 @@ impl<'a> VirtualDocument<'a> {
             .filter(|tb| tb.modified)
             .map(|tb| Cow::Owned(tb.write(content)))
             .unwrap_or(Cow::Borrowed(content));
+        let mut context = RenderContext {
+            content: &live_content,
+            max_width: width,
+            horizontal_offset,
+            option: &styled,
+            symbols: &self.symbols,
+            theme: &self.theme,
+            code_cache: &mut code_cache,
+        };
 
-        let (blocks, lines, line_to_block) = ast_nodes.iter().enumerate().fold(
+        let (block_ranges, lines, line_to_block) = ast_nodes.iter().enumerate().fold(
             (vec![], vec![], vec![]),
-            |(mut blocks, mut lines, mut line_to_block), (idx, node)| {
+            |(mut block_ranges, mut lines, mut line_to_block), (idx, node)| {
                 let is_active = current_block_idx == Some(idx) && matches!(view, View::Edit(..));
 
                 // The active block reads from the edit buffer, which may not yet
@@ -410,17 +474,7 @@ impl<'a> VirtualDocument<'a> {
                         };
                         VirtualBlock::new(&lines, range)
                     }
-                    None => render_node(
-                        &live_content,
-                        node,
-                        width,
-                        horizontal_offset,
-                        Span::default(),
-                        &styled,
-                        &self.symbols,
-                        &self.theme,
-                        0,
-                    ),
+                    None => render_node(node, Span::default(), 0, &mut context),
                 };
 
                 if matches!(styled, RenderStyle::Visual) {
@@ -481,19 +535,60 @@ impl<'a> VirtualDocument<'a> {
                     }
                 }
 
-                let block_lines = block.lines.clone();
-                let line_count = block_lines.len();
+                line_to_block.extend(iter::repeat_n(idx, block.lines.len()));
+                lines.append(&mut block.lines);
+                block_ranges.push(block.source_range);
 
-                blocks.push(block);
-                lines.extend(block_lines);
-                line_to_block.extend(iter::repeat_n(idx, line_count));
-
-                (blocks, lines, line_to_block)
+                (block_ranges, lines, line_to_block)
             },
         );
 
-        self.blocks = blocks;
+        self.block_ranges = block_ranges;
         self.lines = lines;
         self.line_to_block = line_to_block;
+        self.code_cache = code_cache.into_next();
+    }
+}
+
+#[cfg(test)]
+mod code_cache_tests {
+    use super::*;
+
+    #[test]
+    fn reuses_cached_ranges_for_unchanged_text() {
+        let mut cache = CodeCache::default();
+        let first = cache.get_or_compute("js", "const x = 1;").unwrap().clone();
+        let mut cache = CodeCache::new(cache.into_next());
+        let second = cache.get_or_compute("js", "const x = 1;").unwrap();
+        assert_eq!(&first, second);
+    }
+
+    #[test]
+    fn a_block_not_read_in_a_pass_is_dropped() {
+        let mut cache = CodeCache::default();
+        cache.get_or_compute("js", "const x = 1;");
+        let store = cache.into_next();
+        assert_eq!(store.len(), 1);
+
+        // A pass that reads a different block never touches the old key, so
+        // it does not carry over to the next generation.
+        let mut cache = CodeCache::new(store);
+        cache.get_or_compute("js", "const y = 2;");
+        assert_eq!(cache.into_next().len(), 1);
+    }
+
+    #[test]
+    fn a_block_repeated_in_one_pass_keeps_one_entry() {
+        let mut cache = CodeCache::default();
+        cache.get_or_compute("js", "const x = 1;");
+        cache.get_or_compute("js", "const x = 1;");
+        assert_eq!(cache.into_next().len(), 1);
+    }
+
+    #[test]
+    fn unknown_language_returns_none() {
+        assert!(CodeCache::default()
+            .get_or_compute("no-such-language", "x")
+            .is_none());
     }
 }

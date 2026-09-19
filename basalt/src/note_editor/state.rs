@@ -964,7 +964,7 @@ impl<'a> NoteEditorState<'a> {
     }
 
     pub fn cursor_to_end(&mut self) {
-        let last_block = self.virtual_document.blocks().len().saturating_sub(1);
+        let last_block = self.virtual_document.block_ranges().len().saturating_sub(1);
         self.cursor_jump(last_block);
         // After jumping to the last block (which lands on its first line),
         // move down to reach the actual last line within that block.
@@ -974,9 +974,9 @@ impl<'a> NoteEditorState<'a> {
     pub fn cursor_jump(&mut self, idx: usize) {
         let prev_block_idx = self.current_block_idx();
 
-        if let Some(block) = self.virtual_document.blocks().get(idx) {
+        if let Some(block) = self.virtual_document.block_ranges().get(idx) {
             self.cursor.update(
-                cursor::Message::Jump(block.source_range.start),
+                cursor::Message::Jump(block.start),
                 self.virtual_document.lines(),
                 &self.text_buffer,
             );
@@ -1865,9 +1865,9 @@ mod tests {
         let target_offset = content.find("# Target").unwrap();
         let target_block = state
             .virtual_document
-            .blocks()
+            .block_ranges()
             .iter()
-            .position(|block| block.source_range().contains(&target_offset))
+            .position(|block| block.contains(&target_offset))
             .unwrap();
 
         state.cursor_jump(target_block);
@@ -1877,6 +1877,52 @@ mod tests {
             state.viewport().top() as i32,
             "heading should sit at the top of the viewport",
         );
+    }
+
+    /// A highlighted code line is several content spans; the cursor must still
+    /// walk it by source offset and its tokens must carry the theme colours.
+    #[test]
+    fn test_cursor_walks_highlighted_code_line_when_editing() {
+        let content = "```rust\nlet x = \"hi\";\n```\n";
+        let mut state =
+            NoteEditorState::new(content, "test", Path::new("test.md"), &Symbols::unicode());
+        state.resize_viewport(Size::new(40, 10));
+        state.set_view(View::Edit(EditMode::Source));
+
+        let line_start = "```rust\n".len();
+        state.cursor_down(1);
+        assert_eq!(state.cursor.source_offset(), line_start);
+        state.cursor_right(8);
+        assert_eq!(
+            state.cursor.source_offset(),
+            line_start + 8,
+            "the opening quote"
+        );
+        state.cursor_right(4);
+        assert_eq!(
+            state.cursor.source_offset(),
+            line_start + 12,
+            "the semicolon"
+        );
+
+        let theme = state.theme();
+        let spans: Vec<_> = state
+            .virtual_document
+            .lines()
+            .iter()
+            .flat_map(|line| line.clone().spans())
+            .collect();
+        let color_of = |content: &str| {
+            spans
+                .iter()
+                .find(|span| span.content == content)
+                .unwrap_or_else(|| panic!("no span {content:?} in {spans:?}"))
+                .style
+                .fg
+        };
+        assert_eq!(color_of("let"), Some(theme.syntax.keyword));
+        assert_eq!(color_of("\"hi\""), Some(theme.syntax.string));
+        assert_eq!(color_of(" x = "), None);
     }
 
     #[test]

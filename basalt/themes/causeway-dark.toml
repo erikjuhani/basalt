@@ -32,6 +32,14 @@ error = "red"
 background = "surface"
 foreground = "fg"
 
+[syntax]
+keyword = "magenta"
+string = "green"
+comment = "gray"
+function = "blue"
+type = "yellow"
+constant = "cyan"
+
 [palette]
 bg = "#1a1d21"
 fg = "#c4bfb6"
