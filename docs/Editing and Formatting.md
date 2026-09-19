@@ -59,6 +59,8 @@ While editing, the table stays rendered and only the row under the cursor reveal
 
 ## Code blocks
 
+![[syntax-highlighting.gif]]
+
 Fenced code blocks are rendered with a distinct background. When the fence names a language, the code gets syntax highlighting:
 
 ````markdown
