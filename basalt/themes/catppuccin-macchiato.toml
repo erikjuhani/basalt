@@ -33,6 +33,14 @@ error = "red"
 background = "mantle"
 foreground = "text"
 
+[syntax]
+keyword = "mauve"
+string = "green"
+comment = "overlay1"
+function = "blue"
+type = "yellow"
+constant = "peach"
+
 [palette]
 text = "#cad3f5"
 overlay1 = "#8087a2"

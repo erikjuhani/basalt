@@ -9,11 +9,12 @@ use crate::{
     config::{Symbols, Theme},
     note_editor::{
         ast::{self, SourceRange},
+        highlight::{self, Token},
         rich_text::RichText,
         text_wrap::wrap_preserve_trailing,
         virtual_document::{
             content_span, empty_virtual_line, synthetic_span, virtual_line, wrap_marker_span,
-            VirtualBlock, VirtualLine, VirtualSpan,
+            CodeCache, VirtualBlock, VirtualLine, VirtualSpan,
         },
     },
     stylized_text::stylize,
@@ -161,22 +162,39 @@ pub fn edit_lines<'a>(
 
     let mut lines = Vec::new();
     let mut start = base;
-    // Lines inside a fenced code block are literal — never decorated as markdown.
-    let mut in_code = false;
+    // The info string of the open fenced code block. Its lines are literal,
+    // never decorated as markdown.
+    let mut code: Option<&str> = None;
     // A quote's first line fixes the accent its body lines inherit.
     let mut quote: Option<QuoteStyle> = None;
+
+    // Code lines accumulate here so the whole run is highlighted in one parse,
+    // instead of one grammar parse per line.
+    let mut run: Vec<(&str, SourceRange<usize>)> = Vec::new();
 
     for line in content.split_inclusive('\n') {
         let line_range = start..start + line.len();
         start = line_range.end;
         let text = line.strip_suffix('\n').unwrap_or(line);
-        let fence = is_code_fence(text);
+        let fence = fence_info(text);
 
-        if in_code || fence {
+        if code.is_some() || fence.is_some() {
             quote = None;
-            lines.push(code_line(text, &line_range, fill_width, theme));
-            // A fence toggles the block: the opener enters it, the next closes it.
-            in_code ^= fence;
+            match fence {
+                Some(info) => {
+                    lines.extend(code_run_lines(
+                        content,
+                        base,
+                        std::mem::take(&mut run),
+                        code,
+                        fill_width,
+                        theme,
+                    ));
+                    lines.push(code_line(text, &line_range, fill_width, None, theme));
+                    code = code.is_none().then_some(info);
+                }
+                None => run.push((text, line_range)),
+            }
         } else {
             let rest = text.trim_start();
             quote = quote_prefix(rest).map(|(prefix_len, _)| {
@@ -194,7 +212,42 @@ pub fn edit_lines<'a>(
             ));
         }
     }
+    lines.extend(code_run_lines(content, base, run, code, fill_width, theme));
+
     lines
+}
+
+/// Renders a run of consecutive code lines of `content`, highlighted in one
+/// grammar parse when `language` names a grammar. `base` is the source offset
+/// of `content`.
+fn code_run_lines<'a>(
+    content: &str,
+    base: usize,
+    run: Vec<(&str, SourceRange<usize>)>,
+    language: Option<&str>,
+    fill_width: usize,
+    theme: &Theme,
+) -> Vec<VirtualLine<'a>> {
+    let text = match (run.first(), run.last()) {
+        (Some((_, first)), Some((last_text, last))) => {
+            &content[first.start - base..last.start - base + last_text.len()]
+        }
+        _ => "",
+    };
+    let tokens = language.and_then(|language| highlight::block_tokens(language, text));
+    run.into_iter()
+        .enumerate()
+        .map(|(index, (text, line_range))| {
+            let line_tokens = tokens.as_ref().and_then(|lines| lines.get(index));
+            code_line(
+                text,
+                &line_range,
+                fill_width,
+                line_tokens.map(Vec::as_slice),
+                theme,
+            )
+        })
+        .collect()
 }
 
 /// Renders a single non-code source line for edit mode.
@@ -240,30 +293,68 @@ fn edit_line<'a>(
     decorate_line(text, line_range, max_width, quote, symbols, theme)
 }
 
-/// True if the line opens or closes a fenced code block (``` ``` ``` or `~~~`).
-fn is_code_fence(text: &str) -> bool {
+/// The info string of a line that opens or closes a fenced code block
+/// (``` ``` ``` or `~~~`), or `None` for any other line.
+fn fence_info(text: &str) -> Option<&str> {
     let trimmed = text.trim_start();
-    trimmed.starts_with("```") || trimmed.starts_with("~~~")
+    trimmed
+        .strip_prefix("```")
+        .or_else(|| trimmed.strip_prefix("~~~"))
+        .map(|info| info.trim_start_matches(['`', '~']))
 }
 
-/// Renders a code-block line literally, with the code background, so its content
-/// is never interpreted as markdown.
+/// Renders a code-block line literally, with the code background. Its content
+/// is never interpreted as markdown. `tokens` is `None` for a fence line or
+/// when no grammar matches the language.
 fn code_line<'a>(
     text: &str,
     line_range: &SourceRange<usize>,
     fill_width: usize,
+    tokens: Option<&[Token]>,
     theme: &Theme,
 ) -> VirtualLine<'a> {
     let code_bg = Style::new().bg(theme.code_bg);
     let pad = fill_width.saturating_sub(display_width(text) + 1);
-    virtual_line!([
-        synthetic_span!(Span::styled(" ", code_bg)),
-        content_span!(
-            Span::raw(text.to_string()).bg(theme.code_bg),
-            line_range.clone()
-        ),
-        synthetic_span!(Span::styled(" ".repeat(pad), code_bg))
-    ])
+    let mut spans = vec![synthetic_span!(Span::styled(" ", code_bg))];
+    spans.extend(code_spans(text, line_range, tokens, theme));
+    spans.push(synthetic_span!(Span::styled(" ".repeat(pad), code_bg)));
+    VirtualLine::new(&spans)
+}
+
+/// Content spans for one code line, one per token. The last span runs to the
+/// end of `line_range` so it owns the newline byte and the cursor can rest at
+/// the end of the line. `tokens` is `None` for plain code (no grammar matched
+/// the language).
+fn code_spans<'a>(
+    line: &str,
+    line_range: &SourceRange<usize>,
+    tokens: Option<&[Token]>,
+    theme: &Theme,
+) -> Vec<VirtualSpan<'a>> {
+    let code_bg = Style::new().bg(theme.code_bg);
+    let plain = [Token {
+        range: 0..line.len(),
+        kind: None,
+    }];
+    let tokens = tokens.filter(|tokens| !tokens.is_empty()).unwrap_or(&plain);
+    let last = tokens.len() - 1;
+    tokens
+        .iter()
+        .enumerate()
+        .map(|(index, token)| {
+            let end = match index == last {
+                true => line_range.end,
+                false => line_range.start + token.range.end,
+            };
+            let style = token
+                .kind
+                .map_or(code_bg, |kind| code_bg.fg(kind.color(&theme.syntax)));
+            content_span!(
+                Span::styled(line[token.range.clone()].to_string(), style),
+                line_range.start + token.range.start..end
+            )
+        })
+        .collect()
 }
 
 /// Renders a heading line for edit mode: the `#` markers are kept (dimmed) so
@@ -673,11 +764,10 @@ pub fn paragraph<'a>(
     let lines = match option {
         RenderStyle::Raw => render_raw(content, source_range, max_width, prefix, symbols),
         RenderStyle::Visual | RenderStyle::Reader => {
-            let text = text.to_string();
+            let text = text.plain_text();
             let mut current_range_start = source_range.start;
 
             let mut lines = text
-                .to_string()
                 .lines()
                 .flat_map(|line| {
                     let line_range = line_range(current_range_start, line.len(), true);
@@ -706,21 +796,33 @@ pub fn paragraph<'a>(
     VirtualBlock::new(&lines, source_range)
 }
 
-// FIXME: Use options struct or similar
-#[allow(clippy::too_many_arguments)]
+/// Inputs that stay fixed for a whole layout pass, threaded through every
+/// block renderer instead of being repeated in each signature.
+pub struct RenderContext<'c> {
+    pub content: &'c str,
+    pub max_width: usize,
+    pub horizontal_offset: usize,
+    pub option: &'c RenderStyle,
+    pub symbols: &'c Symbols,
+    pub theme: &'c Theme,
+    pub code_cache: &'c mut CodeCache,
+}
+
 pub fn code_block<'a>(
-    content: &str,
     prefix: Span<'static>,
-    // TODO: Add lang support
-    // Ref: https://github.com/erikjuhani/basalt/issues/96
-    _lang: &Option<String>,
+    lang: Option<&str>,
     text: &RichText,
     source_range: &SourceRange<usize>,
-    max_width: usize,
-    horizontal_offset: usize,
-    option: &RenderStyle,
-    theme: &Theme,
+    context: &mut RenderContext<'_>,
 ) -> VirtualBlock<'a> {
+    let RenderContext {
+        content,
+        max_width,
+        horizontal_offset,
+        option,
+        theme,
+        ..
+    } = *context;
     // Extend the background by the horizontal scroll so it still spans the viewport when panned.
     let fill_width = max_width + horizontal_offset;
     let code_bg = theme.code_bg;
@@ -754,7 +856,7 @@ pub fn code_block<'a>(
             lines
         }
         RenderStyle::Visual | RenderStyle::Reader => {
-            let text = text.to_string();
+            let text = text.plain_text();
 
             let padding_line = virtual_line!([
                 synthetic_span!(prefix.clone()),
@@ -767,23 +869,34 @@ pub fn code_block<'a>(
             let after_fence = raw.find('\n').map_or(0, |index| index + 1);
             let mut current_range_start = source_range.start + after_fence;
 
+            // A whole-block parse, cached by (language, text), so an unrelated
+            // edit elsewhere in the document does not re-run the syntax grammar
+            // on every unchanged code block.
+            let block_tokens =
+                lang.and_then(|language| context.code_cache.get_or_compute(language, &text));
+
             let mut lines = vec![padding_line.clone()];
-            lines.extend(text.lines().map(|line| {
+            lines.extend(text.lines().enumerate().map(|(index, line)| {
                 let source_range = line_range(current_range_start, line.len(), true);
                 current_range_start = source_range.end;
 
-                virtual_line!([
+                let mut spans = vec![
                     synthetic_span!(prefix.clone()),
                     synthetic_span!(Span::styled(" ", Style::new().bg(code_bg))),
-                    content_span!(line.to_string().bg(code_bg), source_range),
-                    synthetic_span!(" "
-                        .repeat(
-                            fill_width
-                                .saturating_sub(prefix.width() + line.chars().count())
-                                .saturating_sub(1)
-                        )
-                        .bg(code_bg)),
-                ])
+                ];
+                let ranges = block_tokens
+                    .as_ref()
+                    .and_then(|lines| lines.get(index))
+                    .map(Vec::as_slice);
+                spans.extend(code_spans(line, &source_range, ranges, theme));
+                spans.push(synthetic_span!(" "
+                    .repeat(
+                        fill_width
+                            .saturating_sub(prefix.width() + line.chars().count())
+                            .saturating_sub(1)
+                    )
+                    .bg(code_bg)));
+                VirtualLine::new(&spans)
             }));
             lines.extend([padding_line]);
             lines.extend([empty_virtual_line!()]);
@@ -794,20 +907,20 @@ pub fn code_block<'a>(
     VirtualBlock::new(&lines, source_range)
 }
 
-// FIXME: Use options struct or similar
-#[allow(clippy::too_many_arguments)]
 pub fn list<'a>(
-    content: &str,
     prefix: Span<'static>,
     nodes: &[ast::Node],
     source_range: &SourceRange<usize>,
-    max_width: usize,
-    horizontal_offset: usize,
-    option: &RenderStyle,
-    symbols: &Symbols,
-    theme: &Theme,
     list_depth: usize,
+    context: &mut RenderContext<'_>,
 ) -> VirtualBlock<'a> {
+    let RenderContext {
+        content,
+        max_width,
+        option,
+        symbols,
+        ..
+    } = *context;
     let lines = match option {
         RenderStyle::Raw => render_raw(content, source_range, max_width, prefix, symbols),
         RenderStyle::Visual | RenderStyle::Reader => {
@@ -828,20 +941,7 @@ pub fn list<'a>(
                         );
                     }
 
-                    lines.extend(
-                        render_node(
-                            content,
-                            node,
-                            max_width,
-                            horizontal_offset,
-                            prefix.clone(),
-                            option,
-                            symbols,
-                            theme,
-                            list_depth,
-                        )
-                        .lines,
-                    );
+                    lines.extend(render_node(node, prefix.clone(), list_depth, context).lines);
                     lines
                 })
                 .collect();
@@ -865,21 +965,22 @@ pub(crate) fn trailing_empty_lines(slice: &str) -> usize {
         .count()
 }
 
-// FIXME: Use options struct or similar
-#[allow(clippy::too_many_arguments)]
 pub fn task<'a>(
-    content: &str,
     prefix: Span<'static>,
     kind: &ast::TaskKind,
     nodes: &[ast::Node],
     source_range: &SourceRange<usize>,
-    max_width: usize,
-    horizontal_offset: usize,
-    option: &RenderStyle,
-    symbols: &Symbols,
-    theme: &Theme,
     list_depth: usize,
+    context: &mut RenderContext<'_>,
 ) -> VirtualBlock<'a> {
+    let RenderContext {
+        content,
+        max_width,
+        option,
+        symbols,
+        theme,
+        ..
+    } = *context;
     let lines = match option {
         RenderStyle::Raw => render_raw(content, source_range, max_width, prefix, symbols),
         RenderStyle::Visual | RenderStyle::Reader => {
@@ -917,18 +1018,7 @@ pub fn task<'a>(
             );
 
             lines.extend(rest.iter().flat_map(|node| {
-                render_node(
-                    content,
-                    node,
-                    max_width,
-                    horizontal_offset,
-                    prefix.merge("  ".into()),
-                    option,
-                    symbols,
-                    theme,
-                    list_depth + 1,
-                )
-                .lines
+                render_node(node, prefix.merge("  ".into()), list_depth + 1, context).lines
             }));
 
             lines
@@ -938,21 +1028,22 @@ pub fn task<'a>(
     VirtualBlock::new(&lines, source_range)
 }
 
-// FIXME: Use options struct or similar
-#[allow(clippy::too_many_arguments)]
 pub fn item<'a>(
-    content: &str,
     prefix: Span<'static>,
     kind: &ast::ItemKind,
     nodes: &[ast::Node],
     source_range: &SourceRange<usize>,
-    max_width: usize,
-    horizontal_offset: usize,
-    option: &RenderStyle,
-    symbols: &Symbols,
-    theme: &Theme,
     list_depth: usize,
+    context: &mut RenderContext<'_>,
 ) -> VirtualBlock<'a> {
+    let RenderContext {
+        content,
+        max_width,
+        option,
+        symbols,
+        theme,
+        ..
+    } = *context;
     let lines = match option {
         RenderStyle::Raw => render_raw(content, source_range, max_width, prefix, symbols),
         RenderStyle::Visual | RenderStyle::Reader => {
@@ -989,18 +1080,7 @@ pub fn item<'a>(
             );
 
             lines.extend(rest.iter().flat_map(|node| {
-                render_node(
-                    content,
-                    node,
-                    max_width,
-                    horizontal_offset,
-                    prefix.merge("  ".into()),
-                    option,
-                    symbols,
-                    theme,
-                    list_depth + 1,
-                )
-                .lines
+                render_node(node, prefix.merge("  ".into()), list_depth + 1, context).lines
             }));
 
             lines
@@ -1113,21 +1193,22 @@ fn callout_symbol<'a>(kind: &ast::BlockQuoteKind, symbols: &'a Symbols) -> &'a s
     }
 }
 
-// FIXME: Use options struct or similar
-#[allow(clippy::too_many_arguments)]
 pub fn block_quote<'a>(
-    content: &str,
     prefix: Span<'static>,
     kind: &Option<ast::BlockQuoteKind>,
     title: &Option<String>,
     nodes: &[ast::Node],
     source_range: &SourceRange<usize>,
-    max_width: usize,
-    horizontal_offset: usize,
-    option: &RenderStyle,
-    symbols: &Symbols,
-    theme: &Theme,
+    context: &mut RenderContext<'_>,
 ) -> VirtualBlock<'a> {
+    let RenderContext {
+        content,
+        max_width,
+        option,
+        symbols,
+        theme,
+        ..
+    } = *context;
     let color = callout_color(kind, theme);
     let bar = if kind.is_some() {
         CALLOUT_BAR
@@ -1157,20 +1238,7 @@ pub fn block_quote<'a>(
                 .collect();
 
             for (i, node) in nodes.iter().enumerate() {
-                lines.extend(
-                    render_node(
-                        content,
-                        node,
-                        max_width,
-                        horizontal_offset,
-                        bar_prefix(),
-                        option,
-                        symbols,
-                        theme,
-                        0,
-                    )
-                    .lines,
-                );
+                lines.extend(render_node(node, bar_prefix(), 0, context).lines);
                 if is_root && i != nodes.len() - 1 {
                     lines.push(virtual_line!([synthetic_span!(bar_prefix())]));
                 }
@@ -1633,20 +1701,22 @@ fn table_border<'a>(text: &str) -> Span<'a> {
     Span::raw(text.to_string()).dark_gray()
 }
 
-// FIXME: Use options struct or similar
-#[allow(clippy::too_many_arguments)]
 pub fn render_node<'a>(
-    content: &str,
     node: &ast::Node,
-    max_width: usize,
-    horizontal_offset: usize,
     prefix: Span<'static>,
-    option: &RenderStyle,
-    symbols: &Symbols,
-    theme: &Theme,
     list_depth: usize,
+    context: &mut RenderContext<'_>,
 ) -> VirtualBlock<'a> {
     use ast::Node::*;
+    let RenderContext {
+        content,
+        max_width,
+        horizontal_offset,
+        option,
+        symbols,
+        theme,
+        ..
+    } = *context;
     match node {
         Heading {
             level,
@@ -1677,84 +1747,27 @@ pub fn render_node<'a>(
             lang,
             text,
             source_range,
-        } => code_block(
-            content,
-            prefix,
-            lang,
-            text,
-            source_range,
-            max_width,
-            horizontal_offset,
-            option,
-            theme,
-        ),
+        } => code_block(prefix, lang.as_deref(), text, source_range, context),
         List {
             nodes,
             source_range,
-        } => list(
-            content,
-            prefix,
-            nodes,
-            source_range,
-            max_width,
-            horizontal_offset,
-            option,
-            symbols,
-            theme,
-            list_depth,
-        ),
+        } => list(prefix, nodes, source_range, list_depth, context),
         Item {
             kind,
             nodes,
             source_range,
-        } => item(
-            content,
-            prefix,
-            kind,
-            nodes,
-            source_range,
-            max_width,
-            horizontal_offset,
-            option,
-            symbols,
-            theme,
-            list_depth,
-        ),
+        } => item(prefix, kind, nodes, source_range, list_depth, context),
         Task {
             kind,
             nodes,
             source_range,
-        } => task(
-            content,
-            prefix,
-            kind,
-            nodes,
-            source_range,
-            max_width,
-            horizontal_offset,
-            option,
-            symbols,
-            theme,
-            list_depth,
-        ),
+        } => task(prefix, kind, nodes, source_range, list_depth, context),
         BlockQuote {
             kind,
             title,
             nodes,
             source_range,
-        } => block_quote(
-            content,
-            prefix,
-            kind,
-            title,
-            nodes,
-            source_range,
-            max_width,
-            horizontal_offset,
-            option,
-            symbols,
-            theme,
-        ),
+        } => block_quote(prefix, kind, title, nodes, source_range, context),
         Table {
             alignments,
             head,

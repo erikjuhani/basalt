@@ -1,6 +1,7 @@
 pub mod ast;
 mod cursor;
 pub mod editor;
+mod highlight;
 mod motion;
 pub mod parser;
 mod render;

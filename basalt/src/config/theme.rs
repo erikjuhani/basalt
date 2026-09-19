@@ -54,6 +54,20 @@ pub struct Theme {
     pub note_editor: Pane,
     pub outline: Pane,
     pub status_bar: StatusBar,
+    /// Token colours for highlighted code blocks.
+    pub syntax: Syntax,
+}
+
+/// Colours for the token classes of a highlighted code block. Plain code keeps
+/// the theme's [`text`](Theme::text) colour.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Syntax {
+    pub keyword: Color,
+    pub string: Color,
+    pub comment: Color,
+    pub function: Color,
+    pub type_name: Color,
+    pub constant: Color,
 }
 
 /// Background and border styling for a single bordered pane. Colours default to
@@ -206,6 +220,14 @@ impl Default for Theme {
                 background: Color::Reset,
                 foreground: Color::Reset,
             },
+            syntax: Syntax {
+                keyword: Color::Magenta,
+                string: Color::Green,
+                comment: Color::DarkGray,
+                function: Color::Blue,
+                type_name: Color::Yellow,
+                constant: Color::Red,
+            },
         }
     }
 }
@@ -269,6 +291,20 @@ struct TomlTheme {
     outline: TomlPane,
     #[serde(default)]
     status_bar: TomlStatusBar,
+    #[serde(default)]
+    syntax: TomlSyntax,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+struct TomlSyntax {
+    keyword: Option<String>,
+    string: Option<String>,
+    comment: Option<String>,
+    function: Option<String>,
+    #[serde(rename = "type")]
+    type_name: Option<String>,
+    constant: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -376,6 +412,14 @@ impl From<TomlTheme> for Theme {
                     value.status_bar.foreground,
                     default.status_bar.foreground,
                 ),
+            },
+            syntax: Syntax {
+                keyword: color(value.syntax.keyword, default.syntax.keyword),
+                string: color(value.syntax.string, default.syntax.string),
+                comment: color(value.syntax.comment, default.syntax.comment),
+                function: color(value.syntax.function, default.syntax.function),
+                type_name: color(value.syntax.type_name, default.syntax.type_name),
+                constant: color(value.syntax.constant, default.syntax.constant),
             },
         }
     }
@@ -622,6 +666,23 @@ mod tests {
         );
         assert_eq!(theme.status_bar.background, Color::Rgb(0x22, 0x22, 0x22));
         assert_eq!(theme.status_bar.foreground, Color::Rgb(0xee, 0xee, 0xee));
+    }
+
+    #[test]
+    fn syntax_section() {
+        let theme = parse_theme(
+            r##"
+            [syntax]
+            keyword = "iris"
+            type = "#123456"
+
+            [palette]
+            iris = "#c4a7e7"
+        "##,
+        );
+        assert_eq!(theme.syntax.keyword, Color::Rgb(0xc4, 0xa7, 0xe7));
+        assert_eq!(theme.syntax.type_name, Color::Rgb(0x12, 0x34, 0x56));
+        assert_eq!(theme.syntax.string, Theme::default().syntax.string);
     }
 
     #[test]

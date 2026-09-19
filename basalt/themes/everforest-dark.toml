@@ -32,6 +32,14 @@ error = "red"
 background = "bg1"
 foreground = "fg"
 
+[syntax]
+keyword = "red"
+string = "green"
+comment = "grey1"
+function = "aqua"
+type = "yellow"
+constant = "purple"
+
 [palette]
 bg = "#2d353b"
 bg1 = "#343f44"

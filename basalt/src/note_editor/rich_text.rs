@@ -1,4 +1,4 @@
-use std::{fmt, vec::IntoIter};
+use std::{borrow::Cow, fmt, vec::IntoIter};
 
 use pulldown_cmark::CowStr;
 
@@ -105,15 +105,9 @@ impl IntoIterator for RichText {
 
 impl fmt::Display for RichText {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            self.segments
-                .iter()
-                .map(|segment| segment.to_string())
-                .collect::<Vec<_>>()
-                .join("")
-        )
+        self.segments
+            .iter()
+            .try_for_each(|segment| write!(f, "{segment}"))
     }
 }
 
@@ -128,6 +122,15 @@ impl RichText {
 
     pub fn segments(&self) -> &[TextSegment] {
         &self.segments
+    }
+
+    /// The text with all styling dropped. Borrows when the text is exactly one
+    /// segment, and joins the segments otherwise.
+    pub fn plain_text(&self) -> Cow<'_, str> {
+        match self.segments.as_slice() {
+            [segment] => Cow::Borrowed(&segment.content),
+            _ => Cow::Owned(self.to_string()),
+        }
     }
 }
 

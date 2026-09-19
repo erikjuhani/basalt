@@ -32,6 +32,14 @@ error = "red"
 background = "polar1"
 foreground = "snow"
 
+[syntax]
+keyword = "frost-blue"
+string = "green"
+comment = "polar3"
+function = "frost-cyan"
+type = "frost-teal"
+constant = "purple"
+
 [palette]
 snow = "#d8dee9"
 polar0 = "#2e3440"

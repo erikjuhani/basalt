@@ -59,7 +59,7 @@ While editing, the table stays rendered and only the row under the cursor reveal
 
 ## Code blocks
 
-Fenced code blocks are rendered with a distinct background:
+Fenced code blocks are rendered with a distinct background. When the fence names a language, the code gets syntax highlighting:
 
 ````markdown
 ```rust
@@ -69,9 +69,7 @@ fn main() {
 ```
 ````
 
-> [!NOTE]
->
-> Syntax highlighting is not yet implemented. Code blocks display with uniform styling regardless of language.
+The language is the first word after the opening fence, as a name (`rust`, `python`) or a file extension (`rs`, `py`). Basalt highlights Rust, TOML, JSON, Bash, JavaScript, TypeScript, Python, Go, YAML and C. A fence without a language, or with a language outside this list, renders as plain code. The token colours come from the `[syntax]` table of the active [[Themes|theme]].
 
 ## Callouts
 

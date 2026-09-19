@@ -4,15 +4,14 @@ This page documents current limitations and features not yet implemented.
 
 - Images are not rendered
 - Horizontal rules are not rendered
-- Syntax highlighting is not supported
 - Inline text styles (bold, italic, strikethrough) are parsed but not styled
 - Math blocks (`$...$`, `$$...$$`) are not supported
 - Footnotes are not supported
 - HTML content is not supported
 - External links are not clickable
-- Code blocks are rendered without syntax highlighting
 - Callout folding (`> [!note]-`) is not interactive; folds render expanded
 - Task items `- [ ]` and `- [x]` work; `- [?]` is not supported
+- Code block syntax highlighting covers Rust, TOML, JSON, Bash, JavaScript, TypeScript, Python, Go, YAML and C; a fence naming another language renders as plain code
 
 ## File operations
 

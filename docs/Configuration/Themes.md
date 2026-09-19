@@ -93,6 +93,29 @@ gold = "#f6c177"
 
 Mode-block text picks whichever of `background` / `text` is more legible over the mode colour, so any mode colour stays readable.
 
+### Syntax highlighting
+
+The `[syntax]` table colours the tokens of a fenced code block that names a language. Plain code, such as variable names and operators, keeps the `text` colour. Any role you leave out keeps the `default` theme's value.
+
+| `[syntax]` role | Used for |
+| --- | --- |
+| `keyword` | Keywords, storage modifiers and HTML tags |
+| `string` | String literals |
+| `comment` | Comments |
+| `function` | Function and method names |
+| `type` | Type, class, struct and trait names |
+| `constant` | Numbers, booleans, `null` and escape sequences |
+
+```toml
+[syntax]
+keyword = "iris"
+string = "pine"
+comment = "muted"
+function = "foam"
+type = "gold"
+constant = "rose"
+```
+
 ### Borders
 
 `border`, `border-active` and `border-type` set the default border for every pane. `border-type` is one of:

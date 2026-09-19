@@ -14,6 +14,10 @@ brew install erikjuhani/tap/basalt
 cargo install basalt-tui
 ```
 
+> [!NOTE]
+>
+> Building from source needs a C compiler. Basalt's syntax highlighting uses tree-sitter, which compiles a small C grammar per supported language.
+
 ### aqua
 
 ```

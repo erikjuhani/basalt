@@ -32,6 +32,14 @@ error = "clay"
 background = "surface"
 foreground = "ink"
 
+[syntax]
+keyword = "heather"
+string = "seaweed"
+comment = "stone"
+function = "tide"
+type = "gold"
+constant = "clay"
+
 [palette]
 paper = "#f2eee3"
 surface = "#e8e3d5"
