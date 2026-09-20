@@ -6,7 +6,7 @@ expression: terminal.backend()
 "│ 𝕋𝕖𝕤𝕥                                                                         │"
 "│ ════════════════════════════════════════════════════════════════════════════ │"
 "│                                                                              │"
-"│ Callout Blocks                                                               │"
+"│▎Callout Blocks                                                               │"
 "│ ──────────────────────────────────────────────────────────────────────────── │"
 "│ ▋ ☆ Tip                                                                      │"
 "│ ▋ You can turn your quote into a callout by adding [!info] as the first line │"

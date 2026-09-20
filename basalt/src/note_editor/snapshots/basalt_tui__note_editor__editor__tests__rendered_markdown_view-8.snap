@@ -6,7 +6,7 @@ expression: terminal.backend()
 "│ 𝕋𝕖𝕤𝕥                                                                         │"
 "│ ════════════════════════════════════════════════════════════════════════════ │"
 "│                                                                              │"
-"│ Code blocks                                                                  │"
+"│▎Code blocks                                                                  │"
 "│ ──────────────────────────────────────────────────────────────────────────── │"
 "│ To format a block of code, surround the code with triple backticks.          │"
 "│                                                                              │"

@@ -6,7 +6,7 @@ expression: terminal.backend()
 "│ 𝕋𝕖𝕤𝕥                                                                         │"
 "│ ════════════════════════════════════════════════════════════════════════════ │"
 "│                                                                              │"
-"│ Task lists                                                                   │"
+"│▎Task lists                                                                   │"
 "│ ──────────────────────────────────────────────────────────────────────────── │"
 "│ To create a task list, start each list item with a hyphen and space          │"
 "│ ⤷ followed by [ ].                                                           │"

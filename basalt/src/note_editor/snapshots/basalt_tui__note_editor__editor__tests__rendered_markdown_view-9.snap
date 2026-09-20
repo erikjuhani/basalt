@@ -6,7 +6,7 @@ expression: terminal.backend()
 "│ 𝕋𝕖𝕤𝕥                                                                         │"
 "│ ════════════════════════════════════════════════════════════════════════════ │"
 "│                                                                              │"
-"│ Code blocks                                                                  │"
+"│▎Code blocks                                                                  │"
 "│ ──────────────────────────────────────────────────────────────────────────── │"
 "│ You can add syntax highlighting to a code block, by adding a language code   │"
 "│ ⤷ after the first set of backticks.                                          │"

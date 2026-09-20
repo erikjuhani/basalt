@@ -6,7 +6,7 @@ expression: terminal.backend()
 "│ 𝕟𝕖𝕤𝕥𝕚𝕟𝕘_𝕝𝕚𝕤𝕥𝕤                                                                │"
 "│ ════════════════════════════════════════════════════════════════════════════ │"
 "│                                                                              │"
-"│ Nesting lists                                                                │"
+"│▎Nesting lists                                                                │"
 "│ ──────────────────────────────────────────────────────────────────────────── │"
 "│ You can nest any type of list—ordered, unordered, or task lists—under any    │"
 "│ ⤷ other type of list.                                                        │"

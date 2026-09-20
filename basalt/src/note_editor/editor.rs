@@ -342,20 +342,34 @@ impl<'a> StatefulWidget for NoteEditor<'a> {
             );
         }
 
-        // Read mode marks the cursor's line with the line-highlight tint, so
-        // only edit mode places a terminal cursor.
+        // The line-highlight tint marks the active line in both views. Read
+        // view also tags it with a slim gutter glyph and shows no terminal
+        // cursor; edit view places the terminal cursor instead.
         state.terminal_cursor = None;
-        if let CursorMode::Edit = *state.cursor.mode() {
-            let scroll = state.viewport().area();
-            let y = (state.cursor.virtual_row() as u16)
-                .saturating_add(meta_lines_count as u16)
-                .saturating_sub(scroll.top())
-                .saturating_add(text_area.y);
-            let x = (state.cursor.virtual_column() as u16)
-                .saturating_add(text_area.x)
-                .saturating_sub(scroll.left());
-            let position = Position { x, y };
-            state.terminal_cursor = text_area.contains(position).then_some(position);
+        let scroll = state.viewport().area();
+        let cursor_y = (state.cursor.virtual_row() as u16)
+            .saturating_add(meta_lines_count as u16)
+            .saturating_sub(scroll.top())
+            .saturating_add(text_area.y);
+
+        match *state.cursor.mode() {
+            CursorMode::Read if !state.content.is_empty() => {
+                let gutter_x = text_area.x.saturating_sub(1);
+                if (text_area.y..text_area.bottom()).contains(&cursor_y) {
+                    if let Some(cell) = buf.cell_mut((gutter_x, cursor_y)) {
+                        cell.set_symbol(&state.symbols.read_cursor)
+                            .set_fg(theme.accent);
+                    }
+                }
+            }
+            CursorMode::Edit => {
+                let x = (state.cursor.virtual_column() as u16)
+                    .saturating_add(text_area.x)
+                    .saturating_sub(scroll.left());
+                let position = Position { x, y: cursor_y };
+                state.terminal_cursor = text_area.contains(position).then_some(position);
+            }
+            _ => {}
         }
 
         if !area.is_empty() && total_lines as u16 > inner_area.bottom() {
@@ -1205,10 +1219,12 @@ mod tests {
             .unwrap();
 
         let cells = &terminal.backend().buffer().content;
+        // Skip the read-cursor gutter glyph, which shares the accent colour.
+        let read_cursor = &Symbols::unicode().read_cursor;
         let text_in = |color: Color| -> String {
             cells
                 .iter()
-                .filter(|cell| cell.fg == color)
+                .filter(|cell| cell.fg == color && cell.symbol() != read_cursor)
                 .map(|cell| cell.symbol())
                 .collect()
         };

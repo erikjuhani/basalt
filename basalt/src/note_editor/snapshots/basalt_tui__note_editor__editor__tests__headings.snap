@@ -6,7 +6,7 @@ expression: terminal.backend()
 "│ 𝕙𝕖𝕒𝕕𝕚𝕟𝕘𝕤                                                                     █"
 "│ ════════════════════════════════════════════════════════════════════════════ █"
 "│                                                                              █"
-"│ Headings                                                                     █"
+"│▎Headings                                                                     █"
 "│ ──────────────────────────────────────────────────────────────────────────── █"
 "│ To create a heading, add up to six # symbols before your heading text. The   █"
 "│ ⤷ number of # symbols determines the size of the heading.                    █"
