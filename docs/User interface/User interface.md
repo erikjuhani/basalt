@@ -49,6 +49,12 @@ Press `?` to open the help modal. It shows the available key mappings for the cu
 
 ![[help-modal.gif]]
 
+### Search modal
+
+Press `Space` then `s` (the [[Key mappings|leader]] followed by `s`) to open the [[Search]] modal. It fuzzy-matches note content across the whole vault line by line. Type a query to search, use `Ctrl+n`/`Ctrl+p` or arrow keys to move the selection, `Enter` to open the note at the matched line, and `Esc` to close.
+
+![[search.gif]]
+
 ### Vault selector modal
 
 Press `Space` then `v` (the [[Key mappings|leader]] followed by `v`) to open the vault selector. It lists all your Obsidian vaults and lets you switch between them. Use `j`/`k` or arrow keys to navigate, `Enter` to open, and `Esc` to close.

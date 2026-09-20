@@ -44,7 +44,7 @@
 > Show line numbers while editing a note. The `line_numbers` config
 > accepts "absolute", "relative", or "off" (default "absolute").
 
-- [3f6b8e2](https://github.com/erikjuhani/basalt/commit/3f6b8e2492db7c4f0ee1f8106c161b425fba5147) Add single-file mode for opening a markdown file
+- [3f6b8e2](https://github.com/erikjuhani/basalt/commit/3f6b8e2492db7c4f0ee1f8106c161b425fba5147) Add single-file mode for opening a markdown file by @erikjuhani
 
 > Pass a file path to open one markdown file without a vault:
 >
@@ -60,6 +60,59 @@
 >
 > Documented the mode in the Files and Folders and Installation pages, and
 > added a VHS tape to showcase it.
+
+- [07c6c34](https://github.com/erikjuhani/basalt/commit/07c6c34f8df2aa309b6ef45ccd7f1f71c76dbff9) Add syntax highlighting to fenced code blocks by @erikjuhani
+
+> Fenced code blocks that name a language now get token colours. The
+> language is the first word of the info string, as a name or a file
+> extension. The highlighting comes from tree-sitter with the highlight
+> queries of ten grammars: Rust, TOML, JSON, Bash, JavaScript,
+> TypeScript, Python, Go, YAML and C. A fence without a known language
+> renders as plain code, as before.
+>
+> Every theme gets a [syntax] table with a colour for keywords, strings,
+> comments, functions, types and constants. The bundled themes set the
+> six colours to fit their palette.
+>
+> In edit mode the cursor's line keeps its colours while it shows the
+> raw text, and a run of adjacent code lines is parsed once per
+> keystroke. In read view the tokens of each block are cached by
+> language and text, so an unchanged block is not parsed again on the
+> next layout pass.
+
+- [9ab21ae](https://github.com/erikjuhani/basalt/commit/9ab21ae865533218ff6ec254aff2d0935ebe86c7) Tag the active READ line with a gutter marker and doc motions by @erikjuhani
+
+> READ mode now marks the active line with a slim left-gutter symbol (the
+> new `read_cursor` glyph) on top of the line-highlight tint, instead of
+> relying on the tint alone. It also respects the `gg`/`G` document
+> motions, and Esc or Shift+R leave READ back to the source edit view.
+
+- [188281d](https://github.com/erikjuhani/basalt/commit/188281d9d5997e952005fd9f06477c4f0e5c0766) Add fuzzy full-text search across vault notes
+
+> Open a search modal that fuzzy-matches note content line by line with
+> frizbee. Ranking runs in two phases: score every line cheaply, then
+> compute highlight indices for the top results only.
+>
+> The index builds in the background in batches, so results stream in
+> while indexing runs instead of waiting for the whole vault. Reads and
+> line splitting run in parallel with rayon. Selecting a result opens the
+> note at the matched line and column.
+>
+> Move the word and character motions into a shared crate::motion module
+> so the search input reuses them for query editing.
+
+### Breaking
+
+- [f4cd7f2](https://github.com/erikjuhani/basalt/commit/f4cd7f2ade6fcf62a8fe1e5ecb0a4c561de15df8) Nest editor settings under the [note_editor] table by @erikjuhani
+
+> Group the editor settings under the `[note_editor]` TOML table:
+> `experimental` (was `experimental_editor`), `vim_mode`, and the new
+> `default_mode` ("read" or "edit") that picks the view a note opens in.
+> Edit needs the experimental editor; without it the note opens in Read.
+> The runtime Config stays flat; only the parsed TOML shape nests.
+>
+> The top-level `experimental_editor` and `vim_mode` keys no longer take
+> effect and must move under `[note_editor]`.
 
 ### Changed
 

@@ -14,7 +14,7 @@ use crate::{
     debug_log, explorer, help_modal, input, note_editor,
     note_editor::state::Operator,
     note_editor::Direction,
-    outline, splash_modal, theme_selector_modal, toast, vault_selector_modal,
+    outline, search, splash_modal, theme_selector_modal, toast, vault_selector_modal,
 };
 
 trait ReplaceVar {
@@ -141,6 +141,8 @@ pub(crate) enum Command {
     VaultSelectorModalClose,
     VaultSelectorModalOpen,
     VaultSelectorModalToggle,
+
+    SearchToggle,
 
     DebugLogToggle,
     DebugLogClose,
@@ -299,6 +301,8 @@ fn str_to_command(s: &str) -> Option<Command> {
         "vault_selector_modal_close" => Some(Command::VaultSelectorModalClose),
         "vault_selector_modal_open" => Some(Command::VaultSelectorModalOpen),
         "vault_selector_modal_toggle" => Some(Command::VaultSelectorModalToggle),
+
+        "search_toggle" => Some(Command::SearchToggle),
 
         "debug_log_toggle" => Some(Command::DebugLogToggle),
         "debug_log_close" => Some(Command::DebugLogClose),
@@ -610,6 +614,8 @@ impl From<Command> for Message<'_> {
             Command::VaultSelectorModalOpen => {
                 Message::VaultSelectorModal(vault_selector_modal::Message::Select)
             }
+
+            Command::SearchToggle => Message::Search(search::Message::Toggle),
 
             Command::DebugLogToggle => Message::DebugLog(debug_log::Message::Toggle),
             Command::DebugLogClose => Message::DebugLog(debug_log::Message::Close),

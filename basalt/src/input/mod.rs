@@ -10,6 +10,123 @@ use ratatui::{
 
 use crate::app::{ActivePane, Message as AppMessage};
 use crate::config::Theme;
+use crate::motion;
+
+#[derive(Clone, Default, Debug, PartialEq)]
+pub struct TextInput {
+    value: String,
+    cursor: usize,
+}
+
+impl TextInput {
+    pub fn new(value: &str) -> Self {
+        Self {
+            value: value.to_string(),
+            cursor: value.chars().count(),
+        }
+    }
+
+    pub fn value(&self) -> &str {
+        &self.value
+    }
+
+    pub fn cursor(&self) -> usize {
+        self.cursor
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.value.is_empty()
+    }
+
+    pub fn set_value(&mut self, value: &str) {
+        self.value = value.to_string();
+        self.cursor = value.chars().count();
+    }
+
+    pub fn insert_char(&mut self, character: char) {
+        self.value.insert(self.byte_index(), character);
+        self.cursor_right(1);
+    }
+
+    pub fn delete_char(&mut self) {
+        if self.cursor == 0 {
+            return;
+        }
+        if let Some((byte, _)) = self.value.char_indices().nth(self.cursor - 1) {
+            self.value.remove(byte);
+            self.cursor_left(1);
+        }
+    }
+
+    pub fn delete_char_forward(&mut self) {
+        let byte = self.byte_index();
+        if byte < self.value.len() {
+            self.value.remove(byte);
+        }
+    }
+
+    pub fn delete_word(&mut self) {
+        let end = self.byte_index();
+        let start = motion::word_backward(&self.value, end, false);
+        self.value.replace_range(start..end, "");
+        self.cursor = self.char_index(start);
+    }
+
+    pub fn delete_word_forward(&mut self) {
+        let start = self.byte_index();
+        let end = motion::word_forward(&self.value, start, false);
+        self.value.replace_range(start..end, "");
+    }
+
+    pub fn delete_to_line_start(&mut self) {
+        self.value.replace_range(..self.byte_index(), "");
+        self.cursor = 0;
+    }
+
+    pub fn delete_to_line_end(&mut self) {
+        self.value.truncate(self.byte_index());
+    }
+
+    pub fn cursor_left(&mut self, amount: usize) {
+        self.cursor = self.clamp(self.cursor.saturating_sub(amount));
+    }
+
+    pub fn cursor_right(&mut self, amount: usize) {
+        self.cursor = self.clamp(self.cursor.saturating_add(amount));
+    }
+
+    pub fn cursor_line_start(&mut self) {
+        self.cursor = 0;
+    }
+
+    pub fn cursor_line_end(&mut self) {
+        self.cursor = self.value.chars().count();
+    }
+
+    pub fn cursor_word_backward(&mut self) {
+        self.cursor = self.char_index(motion::word_backward(&self.value, self.byte_index(), false));
+    }
+
+    pub fn cursor_word_forward(&mut self) {
+        self.cursor = self.char_index(motion::word_forward(&self.value, self.byte_index(), false));
+    }
+
+    fn byte_index(&self) -> usize {
+        self.value
+            .char_indices()
+            .map(|(byte, _)| byte)
+            .nth(self.cursor)
+            .unwrap_or(self.value.len())
+    }
+
+    fn char_index(&self, byte: usize) -> usize {
+        self.value[..byte].chars().count()
+    }
+
+    fn clamp(&self, cursor: usize) -> usize {
+        cursor.min(self.value.chars().count())
+    }
+}
 
 #[derive(Clone, Default, Debug, PartialEq)]
 enum InputMode {
@@ -26,13 +143,11 @@ pub enum Callback {
 
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct InputModalState {
-    input: String,
+    text: TextInput,
     input_original: String,
-    cursor_col: usize,
     cursor_row: usize,
     input_mode: InputMode,
     scroll: usize,
-    modified: bool,
     visible: bool,
     label: String,
     offset_x: usize,
@@ -43,14 +158,12 @@ pub struct InputModalState {
 impl InputModalState {
     pub fn new(value: &str, row: usize, visible: bool) -> Self {
         Self {
-            input: value.to_string(),
+            text: TextInput::new(value),
             input_original: value.to_string(),
-            cursor_col: value.chars().count(),
             cursor_row: row,
             input_mode: InputMode::Editing,
             scroll: 0,
             offset_x: 0,
-            modified: false,
             visible,
             label: String::from("Input"),
             callback: None,
@@ -59,10 +172,9 @@ impl InputModalState {
     }
 
     pub fn set_input(&mut self, value: &str) {
-        self.input = value.to_string();
+        self.text.set_value(value);
         self.input_original = value.to_string();
         self.scroll = 0;
-        self.cursor_col = value.chars().count();
         self.input_mode = InputMode::Editing;
     }
 
@@ -88,13 +200,13 @@ impl InputModalState {
             match callback {
                 Callback::RenameNote(note) => {
                     let original_path = note.path().to_path_buf();
-                    rename_note(note.clone(), &self.input)
+                    rename_note(note.clone(), self.text.value())
                         .ok()
                         .map(|n| (original_path, n.path().to_path_buf()))
                 }
                 Callback::RenameDir(directory) => {
                     let original_path = directory.path().to_path_buf();
-                    rename_dir(directory.clone(), &self.input)
+                    rename_dir(directory.clone(), self.text.value())
                         .ok()
                         .map(|d| (original_path, d.path().to_path_buf()))
                 }
@@ -115,71 +227,16 @@ impl InputModalState {
         matches!(self.input_mode, InputMode::Editing)
     }
 
-    fn cursor_left(&mut self, amount: usize) {
-        let new_cursor_pos = self.cursor_col.saturating_sub(amount);
-        self.cursor_col = self.clamp_cursor(new_cursor_pos);
-    }
-
-    fn cursor_word_backward(&mut self) {
-        let remainder = &self.input[..self.byte_index()];
-
-        let offset = remainder
-            .chars()
-            .rev()
-            .skip_while(|c| c == &' ')
-            .skip_while(|c| c != &' ')
-            .count();
-
-        self.cursor_col -= remainder.chars().count() - offset;
-    }
-
-    fn cursor_word_forward(&mut self) {
-        let remainder = &self.input[self.byte_index()..];
-
-        let offset = remainder
-            .chars()
-            .skip_while(|c| c != &' ')
-            .skip_while(|c| c == &' ')
-            .count();
-
-        self.cursor_col += remainder.chars().count() - offset;
-    }
-
-    fn cursor_right(&mut self, amount: usize) {
-        let new_cursor_pos = self.cursor_col.saturating_add(amount);
-        self.cursor_col = self.clamp_cursor(new_cursor_pos);
+    pub fn modified(&self) -> bool {
+        self.text.value() != self.input_original
     }
 
     pub fn insert_char(&mut self, char: char) {
-        let index = self.byte_index();
-        self.input.insert(index, char);
-        self.modified = self.input != self.input_original;
-        self.cursor_right(1);
+        self.text.insert_char(char);
     }
 
     pub fn delete_char(&mut self) {
-        let index = self.byte_index();
-        if index == 0 {
-            return;
-        }
-
-        if let Some((byte_index, _)) = self.input.char_indices().nth(self.cursor_col - 1) {
-            self.input.remove(byte_index);
-            self.modified = self.input != self.input_original;
-            self.cursor_left(1);
-        }
-    }
-
-    fn byte_index(&self) -> usize {
-        self.input
-            .char_indices()
-            .map(|(i, _)| i)
-            .nth(self.cursor_col)
-            .unwrap_or(self.input.len())
-    }
-
-    fn clamp_cursor(&self, cursor_pos: usize) -> usize {
-        cursor_pos.clamp(0, self.input.chars().count())
+        self.text.delete_char();
     }
 }
 
@@ -195,11 +252,18 @@ pub struct InputModalConfig {
 pub enum Message {
     CursorLeft,
     CursorRight,
+    CursorLineStart,
+    CursorLineEnd,
     CursorWordForward,
     CursorWordBackward,
     Open(InputModalConfig),
     Accept,
     Delete,
+    DeleteForward,
+    DeleteWord,
+    DeleteWordForward,
+    DeleteToLineStart,
+    DeleteToLineEnd,
     KeyEvent(KeyEvent),
     Cancel,
     EditMode,
@@ -208,22 +272,32 @@ pub enum Message {
 pub fn update<'a>(message: Message, state: &mut InputModalState) -> Option<AppMessage<'a>> {
     match message {
         Message::CursorLeft => {
-            state.cursor_left(1);
+            state.text.cursor_left(1);
         }
         Message::CursorRight => {
-            state.cursor_right(1);
+            state.text.cursor_right(1);
+        }
+        Message::CursorLineStart => {
+            state.text.cursor_line_start();
+        }
+        Message::CursorLineEnd => {
+            state.text.cursor_line_end();
         }
         Message::CursorWordForward => {
-            state.cursor_word_forward();
+            state.text.cursor_word_forward();
         }
         Message::CursorWordBackward => {
-            state.cursor_word_backward();
+            state.text.cursor_word_backward();
         }
+        Message::DeleteForward => state.text.delete_char_forward(),
+        Message::DeleteWord => state.text.delete_word(),
+        Message::DeleteWordForward => state.text.delete_word_forward(),
+        Message::DeleteToLineStart => state.text.delete_to_line_start(),
+        Message::DeleteToLineEnd => state.text.delete_to_line_end(),
         Message::Cancel => match state.input_mode {
             InputMode::Editing => state.input_mode = InputMode::Normal,
             InputMode::Normal => {
                 state.toggle_visibility();
-                state.modified = false;
                 return Some(AppMessage::SetActivePane(ActivePane::Explorer));
             }
         },
@@ -235,11 +309,10 @@ pub fn update<'a>(message: Message, state: &mut InputModalState) -> Option<AppMe
                 state.insert_char(c);
             }
             KeyCode::Enter => {
-                if state.modified {
+                if state.modified() {
                     let rename = state.run_callback();
                     state.input_mode = InputMode::Normal;
                     state.toggle_visibility();
-                    state.modified = false;
                     let select = rename.as_ref().map(|(_, new)| new.clone());
                     return Some(AppMessage::RefreshVault { rename, select });
                 } else {
@@ -271,17 +344,31 @@ pub fn update<'a>(message: Message, state: &mut InputModalState) -> Option<AppMe
 }
 
 pub fn handle_editing_event(key: KeyEvent) -> Option<Message> {
+    let control = key.modifiers.contains(KeyModifiers::CONTROL);
+    let alt = key.modifiers.contains(KeyModifiers::ALT);
     match key.code {
-        KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::ALT) => {
-            Some(Message::CursorWordForward)
-        }
-        KeyCode::Char('b') if key.modifiers.contains(KeyModifiers::ALT) => {
-            Some(Message::CursorWordBackward)
-        }
+        KeyCode::Esc => Some(Message::Cancel),
+
+        KeyCode::Left if control => Some(Message::CursorWordBackward),
+        KeyCode::Right if control => Some(Message::CursorWordForward),
         KeyCode::Left => Some(Message::CursorLeft),
         KeyCode::Right => Some(Message::CursorRight),
-        KeyCode::Esc => Some(Message::Cancel),
+        KeyCode::Home => Some(Message::CursorLineStart),
+        KeyCode::End => Some(Message::CursorLineEnd),
+        KeyCode::Char('a') if control => Some(Message::CursorLineStart),
+        KeyCode::Char('e') if control => Some(Message::CursorLineEnd),
+        KeyCode::Char('b') if alt => Some(Message::CursorWordBackward),
+        KeyCode::Char('f') if alt => Some(Message::CursorWordForward),
+
+        KeyCode::Backspace if alt => Some(Message::DeleteWord),
         KeyCode::Backspace => Some(Message::Delete),
+        KeyCode::Delete => Some(Message::DeleteForward),
+        KeyCode::Char('d') if control => Some(Message::DeleteForward),
+        KeyCode::Char('w') if control => Some(Message::DeleteWord),
+        KeyCode::Char('d') if alt => Some(Message::DeleteWordForward),
+        KeyCode::Char('u') if control => Some(Message::DeleteToLineStart),
+        KeyCode::Char('k') if control => Some(Message::DeleteToLineEnd),
+
         _ => Some(Message::KeyEvent(key)),
     }
 }
@@ -337,15 +424,35 @@ impl StatefulWidget for Input {
         Clear.render(area, buf);
 
         let row = area.top();
-        let col = state.cursor_col as u16 + area.left();
+        let cursor = state.text.cursor();
+        let col = cursor as u16 + area.left();
 
-        if state.cursor_col > state.scroll + width as usize {
-            state.scroll = state.cursor_col.saturating_sub(width as usize);
-        } else if state.cursor_col < state.scroll {
-            state.scroll = state.cursor_col;
+        // The block borders and horizontal padding take two columns on each
+        // side, so the text fits in `area.width - 4` columns.
+        let text_width = area.width.saturating_sub(4) as usize;
+
+        if cursor >= state.scroll + text_width {
+            state.scroll = cursor + 1 - text_width;
+        } else if cursor < state.scroll {
+            state.scroll = cursor;
         }
 
-        let input = &state.input[state.scroll..];
+        // A deletion or a shrunk area can leave the scroll offset past the text,
+        // leaving empty space at the right. Pull the window left so the text
+        // stays filled, and never past the last character.
+        let value_len = state.text.value().chars().count();
+        state.scroll = state
+            .scroll
+            .min((value_len + 1).saturating_sub(text_width))
+            .min(value_len);
+
+        let start = state
+            .text
+            .value()
+            .char_indices()
+            .nth(state.scroll)
+            .map_or(state.text.value().len(), |(byte, _)| byte);
+        let input = &state.text.value()[start..];
 
         let mode_color = match state.input_mode {
             InputMode::Editing => self.theme.success,
@@ -357,7 +464,7 @@ impl StatefulWidget for Input {
             .bold()
             .italic();
 
-        let edited_marker = if state.modified {
+        let edited_marker = if state.modified() {
             "*".bold().italic()
         } else {
             "".into()
@@ -423,9 +530,9 @@ mod tests {
                 "delete",
                 Box::new(|| {
                     let mut state = InputModalState::new("Basalt", 0, true);
-                    state.cursor_left(2);
+                    state.text.cursor_left(2);
                     state.delete_char();
-                    state.cursor_left(1);
+                    state.text.cursor_left(1);
                     state.delete_char();
                     state
                 }),
@@ -443,7 +550,7 @@ mod tests {
                         true
                     );
                     // Move cursor to trigger scrolling
-                    state.cursor_left(10);
+                    state.text.cursor_left(10);
                     state
                 }),
             ),
@@ -473,5 +580,66 @@ mod tests {
                 .unwrap();
             assert_snapshot!(name, terminal.backend());
         });
+    }
+
+    /// A `TextInput` holding `value` with the cursor moved `left` chars back
+    /// from the end.
+    fn at(value: &str, left: usize) -> TextInput {
+        let mut text = TextInput::new(value);
+        text.cursor_left(left);
+        text
+    }
+
+    #[test]
+    fn cursor_line_motions_jump_to_the_ends() {
+        let mut text = at("hello world", 3);
+        text.cursor_line_start();
+        assert_eq!(text.cursor(), 0);
+        text.cursor_line_end();
+        assert_eq!(text.cursor(), 11);
+    }
+
+    #[test]
+    fn word_motions_stop_at_vim_boundaries() {
+        let mut text = TextInput::new("foo-bar baz");
+        text.cursor_word_backward();
+        assert_eq!(text.cursor(), 8);
+        text.cursor_word_backward();
+        assert_eq!(text.cursor(), 4);
+    }
+
+    #[test]
+    fn delete_char_forward_removes_the_char_under_the_cursor() {
+        let mut text = at("abc", 3);
+        text.delete_char_forward();
+        assert_eq!(text.value(), "bc");
+        assert_eq!(text.cursor(), 0);
+    }
+
+    #[test]
+    fn delete_word_forward_removes_to_the_next_word() {
+        let mut text = at("foo bar", 7);
+        text.delete_word_forward();
+        assert_eq!(text.value(), "bar");
+        assert_eq!(text.cursor(), 0);
+    }
+
+    #[test]
+    fn delete_to_line_start_and_end_cut_around_the_cursor() {
+        let mut text = at("hello world", 5);
+        text.delete_to_line_start();
+        assert_eq!(text.value(), "world");
+        assert_eq!(text.cursor(), 0);
+
+        let mut text = at("hello world", 6);
+        text.delete_to_line_end();
+        assert_eq!(text.value(), "hello");
+    }
+
+    #[test]
+    fn deletes_respect_char_boundaries() {
+        let mut text = at("café 世界", 2);
+        text.delete_word_forward();
+        assert_eq!(text.value(), "café ");
     }
 }

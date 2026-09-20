@@ -15,10 +15,10 @@ use ratatui::{
 
 use crate::{
     config::{LineNumbers, Symbols, Theme},
+    motion::{Direction, TextObjectKind},
     note_editor::{
         ast::{self},
         cursor::{self, Cursor},
-        motion::{Direction, TextObjectKind},
         parser,
         rich_text::RichText,
         text_buffer::TextBuffer,
@@ -1008,6 +1008,18 @@ impl<'a> NoteEditorState<'a> {
         );
         self.update_layout();
         self.ensure_cursor_visible();
+    }
+
+    /// Moves the cursor to a 0-based source line and byte column. A line past
+    /// the end lands at the end of the content.
+    pub fn jump_to_line(&mut self, line: usize, column: usize) {
+        let line_start: usize = self
+            .content
+            .split_inclusive('\n')
+            .take(line)
+            .map(str::len)
+            .sum();
+        self.jump_to_offset(line_start + column);
     }
 
     pub fn update_layout(&mut self) {

@@ -2,7 +2,6 @@ pub mod ast;
 mod cursor;
 pub mod editor;
 mod highlight;
-mod motion;
 pub mod parser;
 mod render;
 mod rich_text;
@@ -14,9 +13,10 @@ mod virtual_document;
 
 // `Direction` is part of the public `Message::FindChar` API, so re-export it
 // for callers (command dispatch) that construct find messages.
-pub use motion::Direction;
+use crate::motion;
+pub use crate::motion::Direction;
 // `LinkTarget` is carried by `AppMessage::FollowLink`, resolved in `app.rs`.
-pub use motion::LinkTarget;
+pub use crate::motion::LinkTarget;
 
 use std::time::Duration;
 

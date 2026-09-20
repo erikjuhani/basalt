@@ -70,6 +70,7 @@ turns `Space v` into `,v`, `Space d` into `,d`, and binds `,f` on top.
 
 | Default binding | Command                       |
 | --------------- | ----------------------------- |
+| `<leader>s`     | Toggle full-text search       |
 | `<leader>v`     | Toggle vault selector modal   |
 | `<leader>d`     | Toggle debug log overlay      |
 | `<leader>e`     | Open the note in `vi`         |
@@ -87,6 +88,7 @@ error.
 | Command                       | Description                          |
 | ----------------------------- | ------------------------------------ |
 | `quit`                        | Exit the application                 |
+| `search_toggle`               | Toggle full-text search              |
 | `vault_selector_modal_toggle` | Toggle vault selector modal          |
 | `help_modal_toggle`           | Toggle help modal                    |
 | `tab_next`                    | Focus the next open note tab         |
