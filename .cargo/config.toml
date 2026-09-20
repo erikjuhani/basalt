@@ -7,3 +7,7 @@ linker = "aarch64-linux-gnu-gcc"
 [target.aarch64-unknown-linux-musl]
 linker = "rust-lld"
 rustflags = ["-C", "target-feature=+crt-static"]
+
+[env]
+CC_aarch64_unknown_linux_musl = "aarch64-linux-gnu-gcc"
+CFLAGS_aarch64_unknown_linux_musl = "-U_FORTIFY_SOURCE"
