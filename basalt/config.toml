@@ -130,10 +130,6 @@
 # theme_selector_modal_open: keeps the highlighted theme and closes the picker
 # theme_selector_modal_toggle: toggles the theme picker
 
-# Editor is experimental
-experimental_editor = false
-vim_mode = false
-
 wrap = true
 
 # Line-number gutter shown while editing a note. "absolute" numbers each line,
@@ -231,6 +227,12 @@ key_bindings = [
 ]
 
 [note_editor]
+# The editor is experimental
+experimental = false
+vim_mode = false
+# The view a note opens in: "read" or "edit". "edit" needs the experimental
+# editor; without it the note opens in "read".
+default_mode = "read"
 key_bindings = [
  { key = "k", command = "note_editor_cursor_up" },
  { key = "j", command = "note_editor_cursor_down" },

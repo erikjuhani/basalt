@@ -5,7 +5,8 @@
 To enable the experimental editor, add the following to your [[Configuration]] file:
 
 ```toml
-experimental_editor = true
+[note_editor]
+experimental = true
 ```
 
 ![[note-editor.gif]]

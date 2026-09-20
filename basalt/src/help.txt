@@ -242,7 +242,8 @@ CONFIGURATION
   applies to all panes and is evaluated first.
 
   The experimental editor feature is disabled by default. To enable editor
-  functionality, set `experimental_editor = true` in your configuration file.
+  functionality, set `experimental = true` in the `[note_editor]` table of
+  your configuration file.
 
   Available commands are organized by pane:
 

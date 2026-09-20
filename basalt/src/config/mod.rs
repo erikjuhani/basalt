@@ -93,12 +93,23 @@ pub enum LineNumbers {
     Off,
 }
 
+/// The view a note opens in. Honored only when [`Config::experimental_editor`]
+/// is set, since Edit needs the editor enabled.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum NoteEditorMode {
+    #[default]
+    Read,
+    Edit,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Config<'a> {
     pub experimental_editor: bool,
     pub vim_mode: bool,
     pub wrap: bool,
     pub line_numbers: LineNumbers,
+    pub default_note_editor_mode: NoteEditorMode,
     pub symbols: Symbols,
     pub theme: Theme,
     pub global: ConfigSection<'a>,
@@ -130,7 +141,7 @@ impl From<TomlConfig> for Config<'_> {
 }
 
 impl ConfigSection<'_> {
-    fn from_toml(TomlConfigSection { key_bindings }: TomlConfigSection, leader: &Leader) -> Self {
+    fn from_key_bindings(key_bindings: KeyBindings, leader: &Leader) -> Self {
         Self {
             key_bindings: key_bindings
                 .into_iter()
@@ -140,6 +151,10 @@ impl ConfigSection<'_> {
                 .collect(),
         }
     }
+
+    fn from_toml(section: TomlConfigSection, leader: &Leader) -> Self {
+        Self::from_key_bindings(section.key_bindings, leader)
+    }
 }
 
 impl Config<'_> {
@@ -147,8 +162,9 @@ impl Config<'_> {
         Self {
             symbols: value.symbols.into(),
             theme: theme::theme_by_name(value.theme.as_deref().unwrap_or("default")),
-            experimental_editor: value.experimental_editor,
-            vim_mode: value.vim_mode,
+            experimental_editor: value.note_editor.experimental,
+            vim_mode: value.note_editor.vim_mode,
+            default_note_editor_mode: value.note_editor.default_mode,
             wrap: value.wrap.unwrap_or(true),
             line_numbers: value.line_numbers,
             global: ConfigSection::from_toml(value.global, leader),
@@ -157,7 +173,7 @@ impl Config<'_> {
             outline: ConfigSection::from_toml(value.outline, leader),
             input_modal: ConfigSection::from_toml(value.input_modal, leader),
             help_modal: ConfigSection::from_toml(value.help_modal, leader),
-            note_editor: ConfigSection::from_toml(value.note_editor, leader),
+            note_editor: ConfigSection::from_key_bindings(value.note_editor.key_bindings, leader),
             vault_selector_modal: ConfigSection::from_toml(value.vault_selector_modal, leader),
             debug_log_modal: ConfigSection::from_toml(value.debug_log_modal, leader),
             theme_selector_modal: ConfigSection::from_toml(value.theme_selector_modal, leader),
@@ -173,6 +189,7 @@ impl Config<'_> {
         self.vim_mode = config.vim_mode;
         self.wrap = config.wrap;
         self.line_numbers = config.line_numbers;
+        self.default_note_editor_mode = config.default_note_editor_mode;
         self.global.merge_key_bindings(config.global);
         self.explorer.merge_key_bindings(config.explorer);
         self.splash.merge_key_bindings(config.splash);
@@ -243,6 +260,19 @@ struct TomlConfigSection {
     key_bindings: KeyBindings,
 }
 
+/// The `[note_editor]` table: the editor settings plus its key bindings.
+#[derive(Clone, Debug, PartialEq, Deserialize, Default)]
+struct TomlNoteEditor {
+    #[serde(default)]
+    experimental: bool,
+    #[serde(default)]
+    vim_mode: bool,
+    #[serde(default)]
+    default_mode: NoteEditorMode,
+    #[serde(default)]
+    key_bindings: KeyBindings,
+}
+
 #[derive(Clone, Debug, PartialEq, Deserialize, Default)]
 struct KeyBindings(Vec<KeyBinding>);
 
@@ -279,10 +309,6 @@ struct TomlConfig {
     #[serde(default)]
     theme: Option<String>,
     #[serde(default)]
-    experimental_editor: bool,
-    #[serde(default)]
-    vim_mode: bool,
-    #[serde(default)]
     wrap: Option<bool>,
     #[serde(default)]
     line_numbers: LineNumbers,
@@ -301,7 +327,7 @@ struct TomlConfig {
     #[serde(default)]
     help_modal: TomlConfigSection,
     #[serde(default)]
-    note_editor: TomlConfigSection,
+    note_editor: TomlNoteEditor,
     #[serde(default)]
     vault_selector_modal: TomlConfigSection,
     #[serde(default)]
@@ -423,7 +449,10 @@ pub fn load<'a>() -> Result<(Config<'a>, Vec<String>), ConfigError> {
         config.symbols.preset = symbol::detect_preset(env::SystemEnv)
     }
 
-    if user_config.as_ref().is_some_and(|user| user.vim_mode) {
+    if user_config
+        .as_ref()
+        .is_some_and(|user| user.note_editor.vim_mode)
+    {
         let vim_config = toml::from_str::<TomlConfig>(VIM_CONFIGURATION_STR)
             .map_err(ConfigError::from)
             .map(|vim| Config::from_toml(vim, &leader))?;
@@ -520,6 +549,20 @@ mod tests {
         toml::from_str::<TomlConfig>(VIM_CONFIGURATION_STR)
             .map(Config::from)
             .expect("bundled vim.toml should parse");
+    }
+
+    #[test]
+    fn default_note_editor_mode_defaults_to_read() {
+        let config = Config::from(toml::from_str::<TomlConfig>("").unwrap());
+        assert_eq!(config.default_note_editor_mode, NoteEditorMode::Read);
+    }
+
+    #[test]
+    fn default_note_editor_mode_parses_edit() {
+        let config = Config::from(
+            toml::from_str::<TomlConfig>("[note_editor]\ndefault_mode = \"edit\"").unwrap(),
+        );
+        assert_eq!(config.default_note_editor_mode, NoteEditorMode::Edit);
     }
 
     #[test]
