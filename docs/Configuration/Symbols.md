@@ -68,6 +68,7 @@ task_unchecked = "[ ]"
 | `task_unchecked`     | Unchecked task marker             | `□`      | `[ ]`    | (checkbox-blank icon)  |
 | `task_checked`       | Checked task marker               | `■`      | `[x]`    | (checkbox-marked icon) |
 | `blockquote_border`  | Border character for block quotes | `┃`      | `\|`     | `┃`                    |
+| `read_cursor`        | Active line marker in read view   | `▎`      | `\|`     | `▎`                    |
 | `callout_note`       | Icon for `note` callouts          | `✎`      | `(i)`    | (info icon)            |
 | `callout_abstract`   | Icon for `abstract` callouts      | `▤`      | `[=]`    | (file icon)            |
 | `callout_info`       | Icon for `info` callouts          | `ⓘ`      | `(i)`    | (info icon)            |

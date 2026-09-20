@@ -6,7 +6,7 @@ expression: terminal.backend()
 "│ 𝕔𝕠𝕕𝕖_𝕤𝕪𝕟𝕥𝕒𝕩_𝕙𝕚𝕘𝕙𝕝𝕚𝕘𝕙𝕥𝕚𝕟𝕘_𝕚𝕟_𝕓𝕝𝕠𝕔𝕜𝕤                                           │"
 "│ ════════════════════════════════════════════════════════════════════════════ │"
 "│                                                                              │"
-"│ Code syntax highlighting in blocks                                           │"
+"│▎Code syntax highlighting in blocks                                           │"
 "│ ──────────────────────────────────────────────────────────────────────────── │"
 "│ You can add syntax highlighting to a code block, by adding a language code   │"
 "│ ⤷ after the first set of backticks.                                          │"

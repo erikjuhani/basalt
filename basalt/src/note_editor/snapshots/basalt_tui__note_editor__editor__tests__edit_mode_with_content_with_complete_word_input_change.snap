@@ -10,7 +10,7 @@ expression: terminal.backend()
 "│ ──────────────────────────────────────────────────────────────────────────── │"
 "│ Basalt                                                                       │"
 "│                                                                              │"
-"│ You can have deeper levels of quotes by adding a > symbols before the text   │"
+"│▎You can have deeper levels of quotes by adding a > symbols before the text   │"
 "│ ⤷ inside the block quote.                                                    │"
 "│                                                                              │"
 "│ ┃ Regular thoughts                                                           │"

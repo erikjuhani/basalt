@@ -154,7 +154,8 @@ key_bindings = [
 Enable the built-in experimental editor in your configuration:
 
 ```toml
-experimental_editor = true
+[note_editor]
+experimental = true
 ```
 
 See [[Editor (experimental)]] for details on the built-in editing capabilities and its [[Known Limitations|limitations]].

@@ -686,14 +686,21 @@ pub fn update<'a>(
             message => return shared_message(state, message),
         },
         View::Read => match message {
-            Message::ToggleView if state.editor_enabled() => {
+            Message::ToggleView | Message::ReadView | Message::Exit if state.editor_enabled() => {
                 state.set_view(View::Edit(EditMode::Source))
             }
             Message::EditView | Message::InsertMode if state.editor_enabled() => {
                 state.set_view(View::Edit(EditMode::Source));
                 state.set_insert_mode(true);
             }
-            Message::ReadView => state.set_view(View::Read),
+            Message::CursorDocStart => {
+                state.cursor_up(usize::MAX);
+                return select_at_cursor(state);
+            }
+            Message::CursorDocEnd => {
+                state.cursor_to_end();
+                return select_at_cursor(state);
+            }
             message => return shared_message(state, message),
         },
     }
@@ -847,6 +854,53 @@ mod tests {
             "gg returns to the first block"
         );
         assert_eq!(state.current_block_idx(), 0);
+    }
+
+    #[test]
+    fn test_read_mode_doc_motions() {
+        let mut state = NoteEditorState::new(
+            "# Title\n\nsecond paragraph\n",
+            "test",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.set_vim_mode(true);
+        state.resize_viewport(Size::new(40, 12));
+        assert!(matches!(state.view, View::Read));
+        let size = Size::new(40, 12);
+
+        update(Message::CursorDocEnd, size, &mut state);
+        assert!(state.current_block_idx() >= 1, "G reaches a later block");
+
+        update(Message::CursorDocStart, size, &mut state);
+        assert_eq!(
+            state.current_block_idx(),
+            0,
+            "gg returns to the first block"
+        );
+    }
+
+    #[test]
+    fn test_read_mode_exits_on_esc_and_read_view() {
+        let size = Size::new(40, 12);
+        for message in [Message::Exit, Message::ReadView, Message::ToggleView] {
+            let mut state = NoteEditorState::new(
+                "# Title\n",
+                "test",
+                Path::new("test.md"),
+                &Symbols::unicode(),
+            );
+            state.set_vim_mode(true);
+            state.set_editor_enabled(true);
+            state.resize_viewport(size);
+            assert!(matches!(state.view, View::Read));
+
+            update(message, size, &mut state);
+            assert!(
+                matches!(state.view, View::Edit(EditMode::Source)),
+                "read view leaves to the source edit view"
+            );
+        }
     }
 
     #[test]

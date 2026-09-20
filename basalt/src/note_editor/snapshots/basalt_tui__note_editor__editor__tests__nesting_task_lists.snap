@@ -6,7 +6,7 @@ expression: terminal.backend()
 "│ 𝕟𝕖𝕤𝕥𝕚𝕟𝕘_𝕥𝕒𝕤𝕜_𝕝𝕚𝕤𝕥𝕤                                                           │"
 "│ ════════════════════════════════════════════════════════════════════════════ │"
 "│                                                                              │"
-"│ Nesting task lists                                                           │"
+"│▎Nesting task lists                                                           │"
 "│ ──────────────────────────────────────────────────────────────────────────── │"
 "│ Similarly, you can create a nested task list by indenting one or more list   │"
 "│ ⤷ items:                                                                     │"

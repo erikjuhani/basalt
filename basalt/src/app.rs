@@ -26,7 +26,7 @@ use std::{
 
 use crate::{
     command,
-    config::{self, Config, Keystroke, Theme},
+    config::{self, Config, Keystroke, NoteEditorMode, Theme},
     debug_log::{self, DebugLogModal, DebugLogModalState, LogLevel},
     explorer::{self, Explorer, ExplorerState, Item, Visibility},
     header::Header,
@@ -329,7 +329,11 @@ fn open_note(state: &mut AppState, config: &Config, selected_note: SelectedNote)
     editor.set_line_numbers(config.line_numbers);
     editor.set_editor_enabled(config.experimental_editor);
     editor.set_wrap(config.wrap);
-    editor.set_view(if config.experimental_editor && config.vim_mode {
+    // Edit needs the experimental editor; fall back to Read when it is off so
+    // the note stays navigable.
+    let start_in_edit =
+        config.experimental_editor && config.default_note_editor_mode == NoteEditorMode::Edit;
+    editor.set_view(if start_in_edit {
         View::Edit(EditMode::Source)
     } else {
         View::Read

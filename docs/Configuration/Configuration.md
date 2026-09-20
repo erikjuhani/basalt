@@ -43,11 +43,28 @@ leader = ","
 
 See [[Key mappings]] for the binding syntax.
 
-## Vim mode
+## Note editor
 
-Setting `vim_mode = true` enables a built-in keybinding preset modelled after vim. For each section it defines, the vim preset **replaces** the default bindings entirely rather than merging with them. Your own config is still merged on top, so individual bindings can still be overridden.
+The `[note_editor]` table holds the editor settings and its key bindings:
+
+- `experimental`: enables the experimental editor. It is off by default.
+- `vim_mode`: enables the vim keybinding preset (see [Vim mode](#vim-mode)).
+- `default_mode`: the view a note opens in, `read` (default) or `edit`.
 
 ```toml
+[note_editor]
+experimental = true
+default_mode = "edit"
+```
+
+`default_mode = "edit"` needs the experimental editor. When `experimental = false`, the note opens in READ view even if you set `edit`.
+
+## Vim mode
+
+Setting `vim_mode = true` in the `[note_editor]` table enables a built-in keybinding preset modelled after vim. For each section it defines, the vim preset **replaces** the default bindings entirely rather than merging with them. Your own config is still merged on top, so individual bindings can still be overridden.
+
+```toml
+[note_editor]
 vim_mode = true
 ```
 
@@ -107,10 +124,6 @@ theme = "causeway-dark"
 The full default configuration is shown below. The default `exec:` and `spawn:` commands use macOS conventions (`vi`, `open`). On Linux, replace `open` with `xdg-open`; on Windows, use `start`. See [[Custom commands]] for details.
 
 ```toml
-# Editor is experimental
-experimental_editor = false
-vim_mode = false
-
 leader = "<space>"
 
 [global]
@@ -181,6 +194,12 @@ key_bindings = [
 ]
 
 [note_editor]
+# The editor is experimental
+experimental = false
+vim_mode = false
+# The view a note opens in: "read" or "edit". "edit" needs the experimental
+# editor; without it the note opens in "read".
+default_mode = "read"
 key_bindings = [
  { key = "k", command = "note_editor_cursor_up" },
  { key = "j", command = "note_editor_cursor_down" },

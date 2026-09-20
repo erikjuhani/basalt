@@ -6,7 +6,7 @@ expression: terminal.backend()
 "│ 𝕥𝕒𝕓𝕝𝕖𝕤                                                                       │"
 "│ ════════════════════════════════════════════════════════════════════════════ │"
 "│                                                                              │"
-"│ Tables                                                                       │"
+"│▎Tables                                                                       │"
 "│ ──────────────────────────────────────────────────────────────────────────── │"
 "│ Columns size to their content and wrap long text so the table fits.          │"
 "│                                                                              │"

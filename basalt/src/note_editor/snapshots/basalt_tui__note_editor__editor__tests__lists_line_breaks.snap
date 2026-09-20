@@ -6,7 +6,7 @@ expression: terminal.backend()
 "│ 𝕝𝕚𝕤𝕥𝕤_𝕝𝕚𝕟𝕖_𝕓𝕣𝕖𝕒𝕜𝕤                                                            │"
 "│ ════════════════════════════════════════════════════════════════════════════ │"
 "│                                                                              │"
-"│ Lists with line breaks                                                       │"
+"│▎Lists with line breaks                                                       │"
 "│ ──────────────────────────────────────────────────────────────────────────── │"
 "│ You can use line breaks within an ordered list without altering the          │"
 "│ ⤷ numbering.                                                                 │"
