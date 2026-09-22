@@ -8,7 +8,12 @@ use std::{
 
 use serde::{Deserialize, Deserializer};
 
-use crate::obsidian::{directory::Directory, vault_entry::VaultEntry, Error, Note};
+use crate::obsidian::{
+    directory::Directory, vault_entry::VaultEntry, workspace, Error, Note, Workspace,
+};
+
+/// Name of the hidden directory Obsidian stores per-vault configuration and state in.
+const CONFIG_DIR: &str = ".obsidian";
 
 /// Represents a single Obsidian vault.
 ///
@@ -636,6 +641,27 @@ impl Vault {
         self.notes()
             .into_iter()
             .find(|note| note.name().to_lowercase() == name)
+    }
+
+    /// Returns the vault's workspace state, read from its `.obsidian/workspace.json` file.
+    ///
+    /// Returns `None` if the file is missing or malformed, since the workspace file is local
+    /// state that Obsidian recreates and many vaults exclude it from version control.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tempfile::tempdir;
+    /// use basalt_core::obsidian::Vault;
+    ///
+    /// let tmp_dir = tempdir()?;
+    /// let vault = Vault { path: tmp_dir.path().to_path_buf(), ..Default::default() };
+    ///
+    /// assert_eq!(vault.workspace(), None);
+    /// # Ok::<(), std::io::Error>(())
+    /// ```
+    pub fn workspace(&self) -> Option<Workspace> {
+        workspace::load_from(&self.path.join(CONFIG_DIR)).ok()
     }
 }
 
