@@ -1,7 +1,7 @@
 //! This module provides functionality operating with Obsidian. It lets you read and manipulate
 //! Obsidian's configuration, vaults, and notes.
 //!
-//! Currently supports reading vaults and notes within the vault.
+//! Currently supports reading vaults, notes within the vault, and a vault's workspace state.
 //!
 //! # Example
 //!
@@ -20,12 +20,14 @@ pub mod directory;
 pub mod note;
 pub mod vault;
 mod vault_entry;
+pub mod workspace;
 
 pub use config::ObsidianConfig;
 pub use note::Note;
 pub use vault::*;
 pub use vault_entry::FindNote;
 pub use vault_entry::VaultEntry;
+pub use workspace::Workspace;
 
 /// A [`std::result::Result`] type for fallible operations in [`crate::obsidian`].
 ///

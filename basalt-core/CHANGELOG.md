@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.10.1](https://github.com/erikjuhani/basalt/releases/tag/basalt-core/0.10.1) (Unreleased)
+
+### Added
+
+- [3d6ad03](https://github.com/erikjuhani/basalt/commit/3d6ad033dbfcf0e7eeadd40e4abc791dfef7c815) Add workspace file reading support to basalt-core
+
+> Add a workspace module to the obsidian crate. It reads a vault's
+> .obsidian/workspace.json file and exposes the active leaf id and the
+> list of last open files.
+>
+> Vault::workspace() returns None when the file is missing or
+> malformed, since many vaults exclude it from version control and a
+> fresh vault has none yet.
+>
+> Fixes #84
+
+### Dependencies
+
+- [3592e84](https://github.com/erikjuhani/basalt/commit/3592e843a87538415abdea0e7486d883b4675cbc) Update Rust crate dirs to v7 by @renovate-updater[bot]
+
+> | datasource | package | from  | to    |
+> | ---------- | ------- | ----- | ----- |
+> | crate      | dirs    | 6.0.0 | 7.0.0 |
+
 ## [0.10.0](https://github.com/erikjuhani/basalt/releases/tag/basalt-core/0.10.0) (Sep, 01 2026)
 
 ### Added
