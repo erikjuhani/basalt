@@ -103,9 +103,22 @@ pub enum NoteEditorMode {
     Edit,
 }
 
+/// How tabs sync with `.obsidian/workspace.json`. `Write` also corrupts that
+/// file if a bug slips through, since it is a file Obsidian also owns, so
+/// it is experimental.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TabsSync {
+    Off,
+    #[default]
+    Read,
+    Write,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Config<'a> {
     pub experimental_editor: bool,
+    pub tabs_sync: TabsSync,
     pub vim_mode: bool,
     pub wrap: bool,
     pub line_numbers: LineNumbers,
@@ -164,6 +177,7 @@ impl Config<'_> {
             symbols: value.symbols.into(),
             theme: theme::theme_by_name(value.theme.as_deref().unwrap_or("default")),
             experimental_editor: value.note_editor.experimental,
+            tabs_sync: value.tabs.sync,
             vim_mode: value.note_editor.vim_mode,
             default_note_editor_mode: value.note_editor.default_mode,
             wrap: value.wrap.unwrap_or(true),
@@ -188,6 +202,7 @@ impl Config<'_> {
         self.symbols = config.symbols;
         self.theme = config.theme;
         self.experimental_editor = config.experimental_editor;
+        self.tabs_sync = config.tabs_sync;
         self.vim_mode = config.vim_mode;
         self.wrap = config.wrap;
         self.line_numbers = config.line_numbers;
@@ -278,6 +293,12 @@ struct TomlNoteEditor {
 }
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Default)]
+struct TomlTabs {
+    #[serde(default)]
+    sync: TabsSync,
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize, Default)]
 struct KeyBindings(Vec<KeyBinding>);
 
 impl IntoIterator for KeyBindings {
@@ -332,6 +353,8 @@ struct TomlConfig {
     help_modal: TomlConfigSection,
     #[serde(default)]
     note_editor: TomlNoteEditor,
+    #[serde(default)]
+    tabs: TomlTabs,
     #[serde(default)]
     search: TomlConfigSection,
     #[serde(default)]

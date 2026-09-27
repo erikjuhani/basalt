@@ -228,6 +228,15 @@ key_bindings = [
  { key = "ctrl+shift+down", command = "explorer_scroll_to_bottom" },
 ]
 
+[tabs]
+# How tabs sync with .obsidian/workspace.json. Tabs themselves stay
+# available either way; this only controls syncing with Obsidian.
+# - "off": don't touch workspace.json at all.
+# - "read" (default): read open tabs from it.
+# - "write": also write tab changes back to it. Experimental, since a bug
+#   here could corrupt that file.
+sync = "read"
+
 [note_editor]
 # The editor is experimental
 experimental = false

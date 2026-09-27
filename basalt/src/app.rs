@@ -1,5 +1,5 @@
 use basalt_core::obsidian::{
-    self, create_note, create_untitled_dir, create_untitled_note, Note, Vault,
+    self, create_note, create_untitled_dir, create_untitled_note, FindNote, Note, Vault, VaultEntry,
 };
 use ratatui::{
     buffer::Buffer,
@@ -17,16 +17,21 @@ use tracing::{debug, error, info, warn};
 
 use std::{
     cell::RefCell,
+    collections::HashSet,
     fmt::Debug,
     fs,
     io::Result,
     path::{Path, PathBuf},
+    sync::mpsc::{self, Receiver},
+    thread,
     time::{Duration, Instant},
 };
 
 use crate::{
     command,
-    config::{self, Config, Keystroke, NoteEditorMode, Theme},
+    config::{
+        self, symbol::Symbols, Config, Keystroke, LineNumbers, NoteEditorMode, TabsSync, Theme,
+    },
     debug_log::{self, DebugLogModal, DebugLogModalState, LogLevel},
     explorer::{self, Explorer, ExplorerState, Item, Visibility},
     header::Header,
@@ -42,7 +47,7 @@ use crate::{
     splash_modal::{self, SplashModal, SplashModalState},
     statusbar::{StatusBar, StatusBarState},
     stylized_text::{self, FontStyle},
-    tabs::{Tab, Tabs},
+    tabs::{Tab, TabEditor, Tabs},
     text_counts::{CharCount, WordCount},
     theme_selector_modal::{self, ThemeSelectorModal, ThemeSelectorModalState},
     toast::{self, Toast, TOAST_WIDTH},
@@ -87,6 +92,8 @@ pub struct AppState<'a> {
     theme: Theme,
     explorer: ExplorerState,
     tabs: Tabs<'a>,
+    workspace_dirty: bool,
+    pending_tab_hydration: bool,
     outline: OutlineState,
     toasts: Vec<Toast>,
 
@@ -328,35 +335,147 @@ fn cursor_style(state: &AppState) -> SetCursorStyle {
     }
 }
 
-fn open_note(state: &mut AppState, config: &Config, selected_note: SelectedNote) {
-    if state.tabs.open_or_focus(selected_note.path()) {
-        return;
-    }
+#[derive(Clone, Copy)]
+struct EditorSettings {
+    vim_mode: bool,
+    line_numbers: LineNumbers,
+    experimental_editor: bool,
+    wrap: bool,
+    default_note_editor_mode: NoteEditorMode,
+}
 
-    let mut editor = NoteEditorState::new(
-        &selected_note.content,
-        &selected_note.name,
-        selected_note.path(),
-        &config.symbols,
-    );
-    editor.set_vim_mode(config.vim_mode);
-    editor.set_line_numbers(config.line_numbers);
-    editor.set_editor_enabled(config.experimental_editor);
-    editor.set_wrap(config.wrap);
+impl From<&Config<'_>> for EditorSettings {
+    fn from(config: &Config<'_>) -> Self {
+        Self {
+            vim_mode: config.vim_mode,
+            line_numbers: config.line_numbers,
+            experimental_editor: config.experimental_editor,
+            wrap: config.wrap,
+            default_note_editor_mode: config.default_note_editor_mode,
+        }
+    }
+}
+
+fn build_note_editor<'a>(
+    content: &str,
+    name: &str,
+    path: &Path,
+    symbols: &Symbols,
+    settings: EditorSettings,
+) -> NoteEditorState<'a> {
+    let mut editor = NoteEditorState::new(content, name, path, symbols);
+    editor.set_vim_mode(settings.vim_mode);
+    editor.set_line_numbers(settings.line_numbers);
+    editor.set_editor_enabled(settings.experimental_editor);
+    editor.set_wrap(settings.wrap);
     // Edit needs the experimental editor; fall back to Read when it is off so
     // the note stays navigable.
     let start_in_edit =
-        config.experimental_editor && config.default_note_editor_mode == NoteEditorMode::Edit;
+        settings.experimental_editor && settings.default_note_editor_mode == NoteEditorMode::Edit;
     editor.set_view(if start_in_edit {
         View::Edit(EditMode::Source)
     } else {
         View::Read
     });
+    editor
+}
 
-    state.tabs.open(Tab {
-        note: selected_note,
-        editor,
-    });
+fn open_note(state: &mut AppState, config: &Config, selected_note: SelectedNote) {
+    if state.tabs.open_or_focus(selected_note.path()) {
+        hydrate_active_tab(state, config);
+    } else {
+        let editor = build_note_editor(
+            &selected_note.content,
+            &selected_note.name,
+            selected_note.path(),
+            &config.symbols,
+            EditorSettings::from(config),
+        );
+
+        state.tabs.open(Tab {
+            note: selected_note,
+            editor: TabEditor::Loaded(Box::new(editor)),
+        });
+    }
+
+    state.workspace_dirty = true;
+}
+
+fn hydrate_active_tab(state: &mut AppState, config: &Config) {
+    let theme = state.theme;
+    let Some(tab) = state.tabs.active_tab_mut() else {
+        return;
+    };
+    if !matches!(tab.editor, TabEditor::Pending) {
+        return;
+    }
+
+    let content = fs::read_to_string(tab.note.path()).unwrap_or_default();
+    tab.note.content.clone_from(&content);
+    let mut editor = build_note_editor(
+        &content,
+        tab.note.name(),
+        tab.note.path(),
+        &config.symbols,
+        EditorSettings::from(config),
+    );
+    editor.set_theme(&theme);
+    tab.editor = TabEditor::Loaded(Box::new(editor));
+}
+
+fn seed_tabs_from_workspace(state: &mut AppState, vault: &Vault, entries: &[VaultEntry]) {
+    let Some(workspace) = vault.workspace() else {
+        return;
+    };
+
+    let mut seen = HashSet::new();
+    for path in workspace.open_files() {
+        let path = vault.path.join(path);
+        let Some(note) = entries.find_note(&path) else {
+            continue;
+        };
+        if seen.insert(note.path().to_path_buf()) {
+            state
+                .tabs
+                .open_pending(SelectedNote::new(note.name(), note.path(), ""));
+        }
+    }
+
+    let active_path = workspace.active_file().map(|path| vault.path.join(path));
+    if let Some(active_path) = active_path {
+        state.tabs.open_or_focus(&active_path);
+    }
+    state.pending_tab_hydration = state.tabs.pending_notes().next().is_some();
+}
+
+fn save_workspace(state: &AppState) {
+    if state.vault.path.as_os_str().is_empty() {
+        return;
+    }
+
+    let relative = |path: &Path| {
+        path.strip_prefix(&state.vault.path)
+            .ok()
+            .map(Path::to_path_buf)
+    };
+
+    let open_files: Vec<PathBuf> = state
+        .tabs
+        .notes()
+        .filter_map(|note| relative(note.path()))
+        .collect();
+    let open_files: Vec<&Path> = open_files.iter().map(PathBuf::as_path).collect();
+    let active_file = state
+        .tabs
+        .active_note()
+        .and_then(|note| relative(note.path()));
+
+    if let Err(error) = state
+        .vault
+        .save_workspace(&open_files, active_file.as_deref())
+    {
+        warn!(?error, "failed to save workspace");
+    }
 }
 
 fn rebuild_outline(state: &mut AppState, config: &Config) {
@@ -421,11 +540,18 @@ fn normal_mode_raw_key(
     }
 }
 
+struct HydratedTab {
+    path: PathBuf,
+    content: String,
+    editor: NoteEditorState<'static>,
+}
+
 pub struct App<'a> {
     state: AppState<'a>,
     config: Config<'a>,
     terminal: RefCell<DefaultTerminal>,
     vault_watcher: RefCell<Option<VaultWatcher>>,
+    background_hydration: RefCell<Option<Receiver<HydratedTab>>>,
 }
 
 impl<'a> App<'a> {
@@ -436,6 +562,7 @@ impl<'a> App<'a> {
             config,
             terminal: RefCell::new(terminal),
             vault_watcher: RefCell::new(None),
+            background_hydration: RefCell::new(None),
         }
     }
 
@@ -460,6 +587,70 @@ impl<'a> App<'a> {
             .borrow()
             .as_ref()
             .is_some_and(|w| w.drain())
+    }
+
+    fn ensure_background_hydration(&self, state: &mut AppState<'a>, config: &Config<'a>) {
+        if !state.pending_tab_hydration {
+            return;
+        }
+        state.pending_tab_hydration = false;
+
+        let mut pending: Vec<(PathBuf, String)> = state
+            .tabs
+            .pending_notes()
+            .map(|note| (note.path().to_path_buf(), note.name().to_string()))
+            .collect();
+        if pending.is_empty() {
+            return;
+        }
+
+        // The active tab is the only one visible right away, so it hydrates first.
+        if let Some(active_path) = state.tabs.active_note().map(SelectedNote::path) {
+            if let Some(index) = pending.iter().position(|(path, _)| path == active_path) {
+                pending.swap(0, index);
+            }
+        }
+
+        let symbols = config.symbols.clone();
+        let settings = EditorSettings::from(config);
+        let theme = state.theme;
+        let (tx, rx) = mpsc::channel();
+        thread::spawn(move || {
+            for (path, name) in pending {
+                let content = fs::read_to_string(&path).unwrap_or_default();
+                let mut editor = build_note_editor(&content, &name, &path, &symbols, settings);
+                editor.set_theme(&theme);
+                if tx
+                    .send(HydratedTab {
+                        path,
+                        content,
+                        editor,
+                    })
+                    .is_err()
+                {
+                    return;
+                }
+            }
+        });
+        *self.background_hydration.borrow_mut() = Some(rx);
+    }
+
+    fn apply_background_hydration(&self, state: &mut AppState<'a>) {
+        let receiver = self.background_hydration.borrow();
+        let Some(rx) = receiver.as_ref() else {
+            return;
+        };
+        while let Ok(hydrated) = rx.try_recv() {
+            if let Some(tab) = state.tabs.tab_mut(&hydrated.path) {
+                if matches!(tab.editor, TabEditor::Pending) {
+                    tab.note.content = hydrated.content;
+                    let mut editor = hydrated.editor;
+                    // In case the theme changed while this tab was hydrating. A no-op otherwise.
+                    editor.set_theme(&state.theme);
+                    tab.editor = TabEditor::Loaded(Box::new(editor));
+                }
+            }
+        }
     }
 
     pub fn start(
@@ -487,9 +678,12 @@ impl<'a> App<'a> {
         let show_splash = initial_vault.is_none() && initial_file.is_none();
 
         let vault = initial_vault.clone().unwrap_or_default();
-        let explorer = match &initial_vault {
-            Some(v) => ExplorerState::new(&v.name, v.entries(), &config.symbols),
-            None => ExplorerState::default(),
+        let initial_entries = initial_vault.as_ref().map(Vault::entries);
+        let explorer = match (&initial_vault, &initial_entries) {
+            (Some(v), Some(entries)) => {
+                ExplorerState::new(&v.name, entries.clone(), &config.symbols)
+            }
+            _ => ExplorerState::default(),
         };
         let active_pane = match workspace {
             Workspace::File => ActivePane::NoteEditor,
@@ -527,6 +721,14 @@ impl<'a> App<'a> {
             ..Default::default()
         };
 
+        if let (Some(vault), Some(entries)) = (&initial_vault, &initial_entries) {
+            if config.tabs_sync != TabsSync::Off {
+                seed_tabs_from_workspace(&mut state, vault, entries);
+            }
+            sync_explorer_to_active_tab(&mut state);
+            rebuild_outline(&mut state, &config);
+        }
+
         if let Some(path) = initial_file {
             let name = path
                 .file_stem()
@@ -556,11 +758,13 @@ impl<'a> App<'a> {
         let config = self.config.clone();
 
         self.ensure_watcher_for(&state.vault.path);
+        self.ensure_background_hydration(&mut state, &config);
 
         let tick_rate = Duration::from_millis(250);
         let mut last_tick = Instant::now();
 
         while state.is_running {
+            self.apply_background_hydration(&mut state);
             self.draw(&mut state)?;
 
             let timeout = tick_rate.saturating_sub(last_tick.elapsed());
@@ -573,6 +777,7 @@ impl<'a> App<'a> {
                     message = App::update(self.terminal.get_mut(), &config, &mut state, message);
                 }
                 self.ensure_watcher_for(&state.vault.path);
+                self.ensure_background_hydration(&mut state, &config);
             }
 
             if self.watcher_has_changes() {
@@ -597,8 +802,16 @@ impl<'a> App<'a> {
                         Some(Message::Search(search::Message::Poll)),
                     );
                 }
+                if config.tabs_sync == TabsSync::Write && state.workspace_dirty {
+                    save_workspace(&state);
+                    state.workspace_dirty = false;
+                }
                 last_tick = Instant::now();
             }
+        }
+
+        if config.tabs_sync == TabsSync::Write {
+            save_workspace(&state);
         }
 
         Ok(())
@@ -883,10 +1096,19 @@ impl<'a> App<'a> {
             }
             Message::OpenVault(vault) => {
                 info!(vault = %vault.name, "opened vault");
+                if config.tabs_sync == TabsSync::Write {
+                    save_workspace(state);
+                }
+                state.workspace_dirty = false;
                 state.workspace = Workspace::Vault;
                 state.vault = vault.clone();
-                state.explorer = ExplorerState::new(&vault.name, vault.entries(), &config.symbols);
+                let entries = vault.entries();
                 state.tabs = Tabs::default();
+                if config.tabs_sync != TabsSync::Off {
+                    seed_tabs_from_workspace(state, vault, &entries);
+                }
+                state.explorer = ExplorerState::new(&vault.name, entries, &config.symbols);
+                sync_explorer_to_active_tab(state);
                 rebuild_outline(state, config);
                 apply_theme(state, state.theme);
                 return Some(Message::SetActivePane(ActivePane::Explorer));
@@ -921,21 +1143,27 @@ impl<'a> App<'a> {
             }
             Message::TabNext => {
                 state.tabs.next();
+                hydrate_active_tab(state, config);
                 focus_active_editor(state);
                 sync_explorer_to_active_tab(state);
                 rebuild_outline(state, config);
+                state.workspace_dirty = true;
             }
             Message::TabPrevious => {
                 state.tabs.prev();
+                hydrate_active_tab(state, config);
                 focus_active_editor(state);
                 sync_explorer_to_active_tab(state);
                 rebuild_outline(state, config);
+                state.workspace_dirty = true;
             }
             Message::CloseTab => {
                 state.tabs.close_active();
+                hydrate_active_tab(state, config);
                 focus_active_editor(state);
                 sync_explorer_to_active_tab(state);
                 rebuild_outline(state, config);
+                state.workspace_dirty = true;
             }
             Message::Exec(command) => {
                 let (note_name, note_path) = state
