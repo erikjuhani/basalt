@@ -291,6 +291,7 @@ struct LayoutKey {
     width: usize,
     horizontal_offset: usize,
     buffer: Option<(u64, SourceRange<usize>, bool)>,
+    grammars_preloaded: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -373,6 +374,7 @@ impl<'a> VirtualDocument<'a> {
                     buffer.modified,
                 )
             }),
+            grammars_preloaded: highlight::is_preloaded(),
         };
         if self.cache_key.as_ref() == Some(&key) {
             return;
@@ -556,6 +558,7 @@ mod code_cache_tests {
 
     #[test]
     fn reuses_cached_ranges_for_unchanged_text() {
+        highlight::preload();
         let mut cache = CodeCache::default();
         let first = cache.get_or_compute("js", "const x = 1;").unwrap().clone();
         let mut cache = CodeCache::new(cache.into_next());
@@ -565,6 +568,7 @@ mod code_cache_tests {
 
     #[test]
     fn a_block_not_read_in_a_pass_is_dropped() {
+        highlight::preload();
         let mut cache = CodeCache::default();
         cache.get_or_compute("js", "const x = 1;");
         let store = cache.into_next();
@@ -579,6 +583,7 @@ mod code_cache_tests {
 
     #[test]
     fn a_block_repeated_in_one_pass_keeps_one_entry() {
+        highlight::preload();
         let mut cache = CodeCache::default();
         cache.get_or_compute("js", "const x = 1;");
         cache.get_or_compute("js", "const x = 1;");
