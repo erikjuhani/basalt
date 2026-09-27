@@ -490,7 +490,7 @@ fn rewrite_wiki(
                     .file_stem()
                     .and_then(|s| s.to_str())
                     .unwrap_or(target);
-                format!("{{{{ gif(name=\"{}\") }}}}", name)
+                format!("{{{{ demo(name=\"{}\") }}}}", name)
             }
             "png" | "jpg" | "jpeg" | "webp" | "svg" => {
                 format!("![]({})", asset_url(target))
@@ -686,7 +686,7 @@ mod tests {
         let link_map = HashMap::new();
         let mut warnings = 0;
         let out = rewrite_body("![[explorer.avif]]", &re, &link_map, "test", &mut warnings);
-        assert!(out.contains("{{ gif(name=\"explorer\") }}"));
+        assert!(out.contains("{{ demo(name=\"explorer\") }}"));
         assert_eq!(warnings, 0);
     }
 

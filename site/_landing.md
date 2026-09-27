@@ -7,7 +7,7 @@ sort_by = "weight"
 [extra]
 tagline_line1 = "TUI Application to manage Obsidian"
 tagline_line2 = "vaults and notes directly from the terminal."
-demo_gif = "demo"
+splash_demo = "demo"
 
 [[extra.install_commands]]
 label = "brew"

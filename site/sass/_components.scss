@@ -80,22 +80,22 @@
   overflow: hidden;
   font-family: var(--font-mono);
 }
-/* GIF swap (theme-aware) */
-.gif {
+/* Theme-aware demo swap */
+.demo {
   display: block;
   margin: 1rem 0;
   border: 1px solid var(--border);
   border-radius: 3px;
   background: var(--bg-soft);
 }
-.gif img {
+.demo img {
   display: block;
   width: 100%;
   height: auto;
   cursor: zoom-in;
 }
-:root[data-theme="dark"]  .gif .gif--light { display: none; }
-:root[data-theme="light"] .gif .gif--dark  { display: none; }
+:root[data-theme="dark"]  .demo .demo--light { display: none; }
+:root[data-theme="light"] .demo .demo--dark  { display: none; }
 
 .lightbox {
   position: fixed;
@@ -117,7 +117,7 @@
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
 }
 
-.splash__gif {
+.splash__demo {
   margin: 1.6rem auto;
   max-width: 60rem;
 }
@@ -203,7 +203,7 @@
   max-width: 54ch;
   margin: 0 0 1.2rem;
 }
-.hero__gif {
+.hero__demo {
   border: 1px solid var(--border);
   background: var(--bg-soft);
   margin: 1rem 0 1.6rem;

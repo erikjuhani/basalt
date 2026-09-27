@@ -63,7 +63,7 @@
   function closeModal() { if (modal) { modal.dataset.open = 'false'; modal.setAttribute('aria-hidden', 'true'); } }
   if (modal) modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
 
-  const lightbox = document.getElementById('gif-lightbox');
+  const lightbox = document.getElementById('demo-lightbox');
   const lightboxImg = lightbox && lightbox.querySelector('.lightbox__img');
   function closeLightbox() {
     if (!lightbox) return;
@@ -73,11 +73,11 @@
   }
   if (lightbox) {
     lightbox.addEventListener('click', closeLightbox);
-    document.querySelectorAll('.gif').forEach(function (gif) {
-      gif.addEventListener('click', function () {
+    document.querySelectorAll('.demo').forEach(function (demo) {
+      demo.addEventListener('click', function () {
         // Enlarge whichever variant the active theme is showing.
         const theme = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
-        const img = gif.querySelector('.gif--' + theme) || gif.querySelector('img');
+        const img = demo.querySelector('.demo--' + theme) || demo.querySelector('img');
         if (!img) return;
         lightboxImg.src = img.currentSrc || img.src;
         lightboxImg.alt = img.alt || '';
