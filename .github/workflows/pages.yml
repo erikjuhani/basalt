@@ -5,11 +5,13 @@ on:
     branches:
       - main
     paths:
-      - 'docs/*'
-      - 'site/*'
-      - 'devlog/*'
-      - 'obsidian-to-zola/*'
-      - 'assets/*'
+      # `**` is required: `*` does not match `/`, so a single star would skip
+      # every nested page, template and asset.
+      - 'docs/**'
+      - 'site/**'
+      - 'devlog/**'
+      - 'obsidian-to-zola/**'
+      - 'assets/**'
       - 'CONTRIBUTING.md'
       - 'basalt/CHANGELOG.md'
       - '.github/workflows/pages.yml'
