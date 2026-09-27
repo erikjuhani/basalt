@@ -1,6 +1,6 @@
 [[Basalt]] is a TUI to manage [Obsidian](https://obsidian.md) vaults and notes directly from the terminal. It renders markdown with WYSIWYG-style formatting, provides vim-inspired navigation and works as a companion to Obsidian.
 
-![[demo.gif]]
+![[demo.avif]]
 
 [[Basalt]] runs on Windows, macOS and Linux.
 

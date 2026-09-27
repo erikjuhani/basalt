@@ -31,7 +31,7 @@ Press `s` in the [[Explorer]] to toggle between ascending and descending sort or
 
 Press `n` in the [[Explorer]] to create a new untitled note, or `N` to create a new untitled folder. The new item is created under the currently selected folder, or under the parent folder of the currently selected note. If nothing is selected, it is created at the vault root. The target folder is expanded and the newly created item is automatically selected in the explorer after creation.
 
-![[create.gif]]
+![[create.avif]]
 
 ## Renaming
 
@@ -39,7 +39,7 @@ Select an item in the [[Explorer]] and press `r` to open the rename dialog. Modi
 
 When renaming a note, all wiki-links referencing that note are automatically updated throughout the vault.
 
-![[rename.gif]]
+![[rename.avif]]
 
 ## Opening a single file
 
@@ -55,7 +55,7 @@ If the file does not exist, [[Basalt]] creates it as an empty file. A file path 
 
 To return to a vault, press `Space` then `v` and select a vault. The [[Explorer]] then appears.
 
-![[file-mode.gif]]
+![[file-mode.avif]]
 
 ## Current limitations
 

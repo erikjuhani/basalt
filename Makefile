@@ -1,23 +1,15 @@
-.PHONY: fmt cargo-fmt json-fmt fmt-check cargo-fmt-check json-fmt-check gifs gifs-dark gifs-light avifs avifs-dark avifs-light release-build check changelog
+.PHONY: fmt cargo-fmt json-fmt fmt-check cargo-fmt-check json-fmt-check avifs avifs-dark avifs-light release-build check changelog
 
 DARK_TAPES := $(wildcard tapes/dark/*.tape)
-DARK_GIFS := $(DARK_TAPES:tapes/dark/%.tape=assets/dark/%.gif)
 DARK_AVIFS := $(DARK_TAPES:tapes/dark/%.tape=assets/dark/%.avif)
 
 LIGHT_TAPES := $(wildcard tapes/light/*.tape)
-LIGHT_GIFS := $(LIGHT_TAPES:tapes/light/%.tape=assets/light/%.gif)
 LIGHT_AVIFS := $(LIGHT_TAPES:tapes/light/%.tape=assets/light/%.avif)
 
 AVIF_QUALITY ?= 50
 AVIF_SPEED ?= 6
 AVIF_FPS ?= 25
 AVIF_SOURCE_FPS ?= 50
-
-gifs: gifs-dark gifs-light
-
-gifs-dark: release-build $(DARK_GIFS)
-
-gifs-light: release-build $(LIGHT_GIFS)
 
 avifs: avifs-dark avifs-light
 
@@ -27,14 +19,6 @@ avifs-light: release-build $(LIGHT_AVIFS)
 
 release-build:
 	cargo build --release -q
-
-assets/dark/%.gif: tapes/dark/%.tape
-	@mkdir -p assets/dark
-	vhs $<
-
-assets/light/%.gif: tapes/light/%.tape
-	@mkdir -p assets/light
-	vhs $<
 
 define record-avif
 	@command -v avifenc >/dev/null || { echo "avifenc not found. Install it with: brew install libavif"; exit 1; }

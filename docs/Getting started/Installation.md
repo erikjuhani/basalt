@@ -62,7 +62,7 @@ basalt
 
 [[Basalt]] opens in the splash screen, showing a list of your Obsidian vaults discovered automatically from Obsidian's configuration. Use `j`/`k` or arrow keys to navigate and `Enter` to open a vault.
 
-![[vault-selector.gif]]
+![[vault-selector.avif]]
 
 [[Basalt]] can also open a single markdown file. Pass the file path to skip the vault and open the file directly:
 

@@ -485,7 +485,7 @@ fn rewrite_wiki(
             .unwrap_or("")
             .to_ascii_lowercase();
         match ext.as_str() {
-            "gif" => {
+            "avif" => {
                 let name = Path::new(target)
                     .file_stem()
                     .and_then(|s| s.to_str())
@@ -681,11 +681,11 @@ mod tests {
     }
 
     #[test]
-    fn rewrite_gif_embed() {
+    fn rewrite_avif_embed() {
         let re = Regex::new(r"(!?)\[\[([^\]\|]+?)(?:\|([^\]]+))?\]\]").unwrap();
         let link_map = HashMap::new();
         let mut warnings = 0;
-        let out = rewrite_body("![[explorer.gif]]", &re, &link_map, "test", &mut warnings);
+        let out = rewrite_body("![[explorer.avif]]", &re, &link_map, "test", &mut warnings);
         assert!(out.contains("{{ gif(name=\"explorer\") }}"));
         assert_eq!(warnings, 0);
     }

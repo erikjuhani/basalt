@@ -2,7 +2,7 @@
 
 Press `?` at any time to see the active keymap for the current pane:
 
-![[help-modal.gif]]
+![[help-modal.avif]]
 
 ## Configuration file location
 
@@ -90,7 +90,7 @@ Normal mode carries the motions you expect from vim. See [[Key mappings]] for th
 | `;` / `,`       | Repeat the last find, forward and in reverse  |
 | `gx`            | Follow the link under the cursor              |
 
-![[vim-motions.gif]]
+![[vim-motions.avif]]
 
 ### Operators and edits
 
@@ -118,7 +118,7 @@ From Normal mode you can select text and yank it to the system clipboard:
 
 Motions extend the selection, a short flash marks the yanked range and the copy uses your platform clipboard utility with an OSC 52 fallback for SSH and tmux.
 
-![[visual-selection.gif]]
+![[visual-selection.avif]]
 
 ### Other panes
 

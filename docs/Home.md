@@ -1,6 +1,6 @@
 [[Basalt]] is a TUI to manage [Obsidian](https://obsidian.md) vaults and notes from the terminal.
 
-![[demo.gif]]
+![[demo.avif]]
 
 - [[Installation]]: install [[Basalt]] and open your first vault
 - [[User interface]]: panes, modals and navigation

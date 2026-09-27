@@ -9,7 +9,7 @@
 experimental = true
 ```
 
-![[note-editor.gif]]
+![[note-editor.avif]]
 
 ## Views
 

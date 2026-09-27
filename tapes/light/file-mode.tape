@@ -6,6 +6,6 @@ Set Width 1000
 Set Height 600
 Source tapes/causeway-light.tape
 
-Output assets/light/file-mode.gif
+Output frames/
 
 Source tapes/file-mode.tape

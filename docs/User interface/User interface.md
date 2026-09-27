@@ -1,6 +1,6 @@
 Basalt's interface is divided into a tab bar, panes, modals and a status bar.
 
-![[demo.gif]]
+![[demo.avif]]
 
 Only one pane has focus at a time. The active pane is indicated by a thicker border, and the status bar at the bottom shows which pane is active. Switch between panes with `Tab` and `Shift+Tab`.
 
@@ -10,7 +10,7 @@ The tab bar runs along the top and lists the notes you have open. Opening a note
 
 Cycling to a tab also moves the [[Explorer]] selection to that note, expanding any collapsed folder in its path so the note stays visible. Tabs are sized uniformly and shrink as more open; tabs that share a name are disambiguated by their parent directory.
 
-![[tabs.gif]]
+![[tabs.avif]]
 
 | Mapping             | Description                    |
 | ------------------- | ------------------------------ |
@@ -25,19 +25,19 @@ Cycling to a tab also moves the [[Explorer]] selection to that note, expanding a
 
 The [[Explorer]] is the sidebar on the left side. It displays folders and notes in the current vault.
 
-![[explorer.gif]]
+![[explorer.avif]]
 
 ### Note editor
 
 The [[Note editor]] is the main pane in the center. It displays the selected note with rendered markdown. Headings, lists, code blocks and other elements are rendered with WYSIWYG-style formatting.
 
-![[note-editor.gif]]
+![[note-editor.avif]]
 
 ### Outline
 
 The [[Outline]] is the pane on the right side. It lists the headings in the current note and lets you jump to a specific section.
 
-![[outline.gif]]
+![[outline.avif]]
 
 ## Modals
 
@@ -47,19 +47,19 @@ Modals open on top of the interface. While a modal is open, key mappings for the
 
 Press `?` to open the help modal. It shows the available key mappings for the currently active pane. Use `j`/`k` or arrow keys to scroll and `Esc` to close.
 
-![[help-modal.gif]]
+![[help-modal.avif]]
 
 ### Search modal
 
 Press `Space` then `s` (the [[Key mappings|leader]] followed by `s`) to open the [[Search]] modal. It fuzzy-matches note content across the whole vault line by line. Type a query to search, use `Ctrl+n`/`Ctrl+p` or arrow keys to move the selection, `Enter` to open the note at the matched line, and `Esc` to close.
 
-![[search.gif]]
+![[search.avif]]
 
 ### Vault selector modal
 
 Press `Space` then `v` (the [[Key mappings|leader]] followed by `v`) to open the vault selector. It lists all your Obsidian vaults and lets you switch between them. Use `j`/`k` or arrow keys to navigate, `Enter` to open and `Esc` to close.
 
-![[vault-selector.gif]]
+![[vault-selector.avif]]
 
 ### Input modal
 
@@ -84,7 +84,7 @@ Press `Space` then `d` (the [[Key mappings|leader]] followed by `d`) to toggle t
 
 The title shows the active minimum level and the current process memory. The overlay is meant for debugging and troubleshooting. It does not interfere with normal use, so you can open it to inspect activity, then close it and carry on.
 
-![[debug-log.gif]]
+![[debug-log.avif]]
 
 | Mapping               | Description                                     |
 | --------------------- | ----------------------------------------------- |
