@@ -1,7 +1,7 @@
 // Causeway Dark / Light. Identity colours are taken from the bundled TUI themes
 // (basalt/themes/causeway-{dark,light}.toml); the extra chrome shades (soft/elevated
-// backgrounds, dim text, borders) are derived from them. --bg matches the demo GIFs
-// (VHS's encoder tints the background slightly) so the recordings blend into the page.
+// backgrounds, dim text, borders) are derived from them. --bg matches the recordings
+// (the encoder tints the background slightly) so the demos blend into the page.
 
 :root[data-theme="dark"] {
   --bg:           #181e20;

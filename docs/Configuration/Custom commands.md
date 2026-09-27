@@ -92,13 +92,13 @@ key_bindings = [
 
 > [!NOTE]
 >
-> These are examples — choose key combinations that don't conflict with your existing bindings. Check the [[Configuration|default configuration]] for keys already in use.
+> These are examples. Choose key combinations that don't conflict with your existing bindings. Check the [[Configuration|default configuration]] for keys already in use.
 
 ## Tips
 
 - Use `spawn:` for non-blocking operations like opening applications or URLs
 - Use `exec:` for commands that should complete before continuing
-- Shell features like pipes (`|`), redirects (`>`), and command substitution (`$(...)`) are not supported
+- Shell features like pipes (`|`), redirects (`>`) and command substitution (`$(...)`) are not supported
 - Wrap complex operations in scripts that can be called as single commands
 - Ensure external commands are available in your `PATH`
 - Variables require the relevant context to be active (e.g., `%note` needs a note to be selected)

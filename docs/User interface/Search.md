@@ -1,6 +1,6 @@
 The Search modal finds text across every note in the vault. It matches note content line by line, so a query finds text inside notes, not just in their titles.
 
-![[search.gif]]
+![[search.avif]]
 
 Press `Space` then `s` (the [[Key mappings|leader]] followed by `s`) to open it. Type a query to search. The match is fuzzy, so the query characters must appear in order, but they do not need to be next to each other.
 

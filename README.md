@@ -5,9 +5,9 @@
 
 TUI Application to manage Obsidian vaults and notes directly from the terminal ✨.
 
-![Demo](https://raw.githubusercontent.com/erikjuhani/basalt/refs/heads/main/assets/dark/demo.gif)
+![Demo](https://raw.githubusercontent.com/erikjuhani/basalt/refs/heads/main/assets/dark/demo.avif)
 
-Basalt is a cross-platform TUI (Terminal User Interface) for managing Obsidian vaults and notes. It runs on Windows, macOS, and Linux. Basalt is not a replacement for Obsidian. Instead, it provides a minimalist terminal interface with a [WYSIWYG](https://en.wikipedia.org/wiki/WYSIWYG) experience.
+Basalt is a cross-platform TUI (Terminal User Interface) for managing Obsidian vaults and notes. It runs on Windows, macOS and Linux. Basalt is not a replacement for Obsidian. Instead, it provides a minimalist terminal interface with a [WYSIWYG](https://en.wikipedia.org/wiki/WYSIWYG) experience.
 
 ## Installation
 
@@ -26,7 +26,7 @@ Basalt is a cross-platform TUI (Terminal User Interface) for managing Obsidian v
   aqua g -i erikjuhani/basalt
   ```
 
-Or download a pre-compiled binary from the [latest release](https://github.com/erikjuhani/basalt/releases/latest), extract it, and move the `basalt` binary to a location in your `PATH`.
+Or download a pre-compiled binary from the [latest release](https://github.com/erikjuhani/basalt/releases/latest), extract it and move the `basalt` binary to a location in your `PATH`.
 
 ## Nightly builds
 
@@ -46,7 +46,7 @@ Or download a pre-compiled binary from the [nightly release](https://github.com/
 
 ## Configuration
 
-Basalt can be customized using a TOML configuration file. The file does not exist by default — create it manually when you want to override the defaults.
+Basalt can be customized using a TOML configuration file. The file does not exist by default. Create it manually when you want to override the defaults.
 
 **macOS and Linux:**
 
@@ -64,22 +64,24 @@ If configuration files exist in multiple locations, only the first one found is 
 >
 > This behavior may change in future versions to merge all found configurations instead.
 
-See the [full configuration reference](https://github.com/erikjuhani/basalt/blob/main/docs/Configuration/Configuration.md) for key mappings, custom commands, and defaults.
+See the [full configuration reference](https://basalt.page/configuration/configuration/) for key mappings, custom commands and defaults.
 
 ## Documentation
 
-- [Getting started](https://github.com/erikjuhani/basalt/blob/main/docs/Getting%20started/Installation.md)
-- [User interface](https://github.com/erikjuhani/basalt/blob/main/docs/User%20interface/User%20interface.md)
-- [Configuration](https://github.com/erikjuhani/basalt/blob/main/docs/Configuration/Configuration.md)
-- [Editing and Formatting](https://github.com/erikjuhani/basalt/blob/main/docs/Editing%20and%20Formatting.md)
-- [Files and Folders](https://github.com/erikjuhani/basalt/blob/main/docs/Files%20and%20Folders.md)
-- [Known Limitations](https://github.com/erikjuhani/basalt/blob/main/docs/Known%20Limitations.md)
+The docs live at **[basalt.page](https://basalt.page)**. The sources are in [`docs/`](docs), written as an Obsidian vault, so read them on the site rather than on GitHub, where wiki-links and image embeds do not resolve.
+
+- [Getting started](https://basalt.page/getting-started/installation/): install Basalt and open your first vault
+- [User interface](https://basalt.page/user-interface/user-interface/): tabs, panes, modals and navigation
+- [Configuration](https://basalt.page/configuration/configuration/): key mappings, custom commands and symbols
+- [Editing and Formatting](https://basalt.page/editing-and-formatting/): markdown support and rendering
+- [Files and Folders](https://basalt.page/files-and-folders/): working with notes and directories
+- [Known Limitations](https://basalt.page/known-limitations/): what is not supported yet
 
 ## Contributing
 
-Contributions are welcome, primarily for bug fixes. Feature work is considered on a case-by-case basis — please open an issue first to discuss.
+Contributions are welcome, primarily for bug fixes. Feature work is considered on a case-by-case basis. Please open an issue first to discuss.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code style, and contribution guidelines.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code style and contribution guidelines.
 
 ## License
 

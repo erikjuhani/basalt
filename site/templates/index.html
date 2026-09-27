@@ -20,11 +20,11 @@
 <a style="font-weight: 600" href="{{ get_url(path='@/changelog.md') }}">v{{ config.extra.basalt_version | default(value="dev") }}</a>
 <br/>
    </span>
-    {% if section.extra.demo_gif %}
-      {% set name = section.extra.demo_gif %}
-      <div class="splash__gif gif" data-name="{{ name }}">
-        <img class="gif--dark"  src="{{ get_url(path='assets/dark/' ~ name ~ '.gif') }}" alt="{{ name }} demo">
-        <img class="gif--light" src="{{ get_url(path='assets/light/' ~ name ~ '.gif') }}" alt="{{ name }} demo" aria-hidden="true">
+    {% if section.extra.splash_demo %}
+      {% set name = section.extra.splash_demo %}
+      <div class="splash__demo demo" data-name="{{ name }}">
+        <img class="demo--dark"  src="{{ get_url(path='assets/dark/' ~ name ~ '.avif') }}" alt="{{ name }} demo">
+        <img class="demo--light" src="{{ get_url(path='assets/light/' ~ name ~ '.avif') }}" alt="{{ name }} demo" aria-hidden="true">
       </div>
     {% endif %}
 

@@ -53,13 +53,13 @@ GitHub Flavored Markdown tables are rendered as bordered boxes. Columns size to 
 | Wrapping | done   | Long cell text wraps to fit the column |
 ```
 
-![[table.gif]]
+![[table.avif]]
 
 While editing, the table stays rendered and only the row under the cursor reveals its raw markdown. If the table syntax breaks the whole block falls back to raw text so it stays visible and editable.
 
 ## Code blocks
 
-![[syntax-highlighting.gif]]
+![[syntax-highlighting.avif]]
 
 Fenced code blocks are rendered with a distinct background. When the fence names a language, the code gets syntax highlighting:
 
@@ -75,7 +75,7 @@ The language is the first word after the opening fence, as a name (`rust`, `pyth
 
 ## Callouts
 
-![[callouts.gif]]
+![[callouts.avif]]
 
 Callout blocks are rendered with an icon and a coloured label header above the
 body. A custom title and Obsidian's fold markers (`-`/`+`) are supported:
@@ -126,7 +126,7 @@ Wiki-links and standard markdown links are parsed:
 
 ## Text styling
 
-While [[Basalt]] parses bold, italic, and strikethrough syntax, these styles are **not yet rendered visually** in the terminal:
+While [[Basalt]] parses bold, italic and strikethrough syntax, these styles are **not yet rendered visually** in the terminal:
 
 ```markdown
 **bold text**      (parsed but not styled)

@@ -1,0 +1,5 @@
+{% set alt = alt | default(value=name ~ " demo") %}
+<span class="demo" data-name="{{ name }}">
+  <img class="demo--dark"  src="{{ get_url(path='assets/dark/'  ~ name ~ '.avif') }}" alt="{{ alt }}" loading="lazy" decoding="async">
+  <img class="demo--light" src="{{ get_url(path='assets/light/' ~ name ~ '.avif') }}" alt="{{ alt }}" loading="lazy" decoding="async" aria-hidden="true">
+</span>

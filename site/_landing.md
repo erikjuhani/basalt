@@ -7,7 +7,7 @@ sort_by = "weight"
 [extra]
 tagline_line1 = "TUI Application to manage Obsidian"
 tagline_line2 = "vaults and notes directly from the terminal."
-demo_gif = "demo"
+splash_demo = "demo"
 
 [[extra.install_commands]]
 label = "brew"
@@ -42,6 +42,6 @@ href = "@/editing-and-formatting.md"
 blurb = "Markdown rendering"
 +++
 
-basalt is a cross-platform TUI for managing Obsidian vaults and notes. It runs on Windows, macOS, and Linux — a minimalist terminal companion with a WYSIWYG-style reading experience.
+basalt is a cross-platform TUI for managing Obsidian vaults and notes. It runs on Windows, macOS and Linux. It is a minimalist terminal companion with a WYSIWYG-style reading experience.
 
-basalt is not a replacement for Obsidian. It's a terminal-native way to read, browse, and edit your notes without leaving the shell.
+basalt is not a replacement for Obsidian. It's a terminal-native way to read, browse and edit your notes without leaving the shell.

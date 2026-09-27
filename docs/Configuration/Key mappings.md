@@ -18,7 +18,7 @@ key_bindings = [
 
 ## Key sequence syntax
 
-A key can be a single character, a named key, a modified key, or a **sequence** of keystrokes. Sequences are written as a multi-character string and only fire when all keys are pressed in order with nothing in between. This makes it possible to define vim- or Helix-style bindings like `gg`.
+A key can be a single character, a named key, a modified key or a **sequence** of keystrokes. Sequences are written as a multi-character string and only fire when all keys are pressed in order with nothing in between. This makes it possible to define vim- or Helix-style bindings like `gg`.
 
 ```toml
 [note_editor]
@@ -28,7 +28,7 @@ key_bindings = [
 ]
 ```
 
-An uppercase letter like `G` is shorthand for `shift+g` — shift is implied automatically.
+An uppercase letter like `G` is shorthand for `shift+g`. Shift is implied automatically.
 
 ### Named keys in sequences
 
@@ -114,6 +114,8 @@ error.
 | `explorer_toggle`                | Toggle explorer pane                           |
 | `explorer_toggle_outline`        | Toggle outline pane                            |
 | `explorer_toggle_input_rename`   | Open rename dialog for selected item           |
+| `explorer_new_untitled_note`     | Create a new untitled note                     |
+| `explorer_new_untitled_folder`   | Create a new untitled folder                   |
 | `explorer_hide_pane`             | Hide pane (stepped)                            |
 | `explorer_expand_pane`           | Expand pane (stepped)                          |
 | `explorer_switch_pane_next`      | Switch focus to next pane                      |
@@ -154,6 +156,17 @@ error.
 | `note_editor_toggle_outline`           | Toggle outline pane                 |
 | `note_editor_switch_pane_next`         | Switch focus to next pane           |
 | `note_editor_switch_pane_previous`     | Switch focus to previous pane       |
+| `note_editor_cursor_screen_up`         | Move cursor up one visible row      |
+| `note_editor_cursor_screen_down`       | Move cursor down one visible row    |
+| `note_editor_follow_link`              | Follow the link under the cursor    |
+
+`note_editor_cursor_up` and `note_editor_cursor_down` move by whole line, so a
+soft-wrapped line counts once. `note_editor_cursor_screen_up` and
+`note_editor_cursor_screen_down` move by visible row instead, which matches vim
+`gk` and `gj`.
+
+`note_editor_follow_link` travels to the note a wiki-link names and creates
+that note when it does not exist. On a plain URL it opens your browser.
 
 ### Experimental editor commands
 
@@ -168,7 +181,81 @@ error.
 | `note_editor_experimental_cursor_right`           | Move cursor right              |
 | `note_editor_experimental_cursor_word_forward`    | Move cursor forward by word    |
 | `note_editor_experimental_cursor_word_backward`   | Move cursor backward by word   |
-| `note_editor_insert_mode`                         | Enter insert mode (vim mode)   |
+| `note_editor_insert_mode`                         | Enter insert mode              |
+| `note_editor_append`                              | Enter insert mode after the cursor |
+| `note_editor_visual_mode`                         | Start a charwise selection     |
+| `note_editor_visual_line_mode`                    | Start a linewise selection     |
+
+`note_editor_experimental_set_edit_mode`, `note_editor_experimental_set_read_mode`
+and `note_editor_experimental_exit_mode` are deprecated aliases of the `_view` and
+`_exit` commands above. They still work but will be removed in the next major
+version.
+
+### Vim mode motions
+
+These commands need `vim_mode = true` in `[note_editor]`. They act in Normal
+mode. The key in brackets is the default binding from the vim preset.
+
+| Command                                | Description                                       |
+| -------------------------------------- | ------------------------------------------------- |
+| `note_editor_cursor_line_start`        | Move to the start of the line (`0`)               |
+| `note_editor_cursor_first_non_blank`   | Move to the first non-blank character (`^`)       |
+| `note_editor_cursor_line_end`          | Move to the end of the line (`$`)                 |
+| `note_editor_cursor_doc_start`         | Move to the start of the note (`gg`)              |
+| `note_editor_cursor_doc_end`           | Move to the end of the note (`G`)                 |
+| `note_editor_cursor_word_end`          | Move to the end of the word (`e`)                 |
+| `note_editor_cursor_word_forward_big`  | Move forward by whitespace-delimited word (`W`)   |
+| `note_editor_cursor_word_backward_big` | Move backward by whitespace-delimited word (`B`)  |
+| `note_editor_cursor_word_end_big`      | Move to the end of the whitespace-delimited word (`E`) |
+| `note_editor_paragraph_forward`        | Move to the next paragraph (`}`)                  |
+| `note_editor_paragraph_backward`       | Move to the previous paragraph (`{`)              |
+| `note_editor_matching_pair`            | Jump to the matching bracket (`%`)                |
+| `note_editor_find_forward`             | Jump forward to the next typed character (`f`)    |
+| `note_editor_find_backward`            | Jump backward to the next typed character (`F`)   |
+| `note_editor_till_forward`             | Jump forward, stopping before the character (`t`) |
+| `note_editor_till_backward`            | Jump backward, stopping after the character (`T`) |
+| `note_editor_repeat_find`              | Repeat the last find (`;`)                        |
+| `note_editor_repeat_find_reverse`      | Repeat the last find in reverse (`,`)             |
+
+### Vim mode operators and edits
+
+| Command                              | Description                                          |
+| ------------------------------------ | ---------------------------------------------------- |
+| `note_editor_delete`                 | Delete operator; takes a motion (`d`)                |
+| `note_editor_change`                 | Change operator; deletes then enters insert (`c`)    |
+| `note_editor_yank`                   | Yank operator; copies to the clipboard (`y`)         |
+| `note_editor_delete_under_cursor`    | Delete the character under the cursor (`x`)          |
+| `note_editor_delete_to_line_end`     | Delete to the end of the line (`D`)                  |
+| `note_editor_change_to_line_end`     | Change to the end of the line (`C`)                  |
+| `note_editor_substitute_char`        | Delete the character and enter insert mode (`s`)     |
+| `note_editor_replace_char`           | Replace the character with the next one typed (`r`)  |
+| `note_editor_paste_after`            | Paste after the cursor (`p`)                         |
+| `note_editor_paste_before`           | Paste before the cursor (`P`)                        |
+| `note_editor_undo`                   | Undo the last change (`u`)                           |
+| `note_editor_redo`                   | Redo the undone change (`Ctrl+R`)                    |
+
+### Theme selector modal commands
+
+| Command                        | Description                                        |
+| ------------------------------ | -------------------------------------------------- |
+| `theme_selector_modal_toggle`  | Toggle the theme picker                            |
+| `theme_selector_modal_up`      | Move selector up and preview the theme             |
+| `theme_selector_modal_down`    | Move selector down and preview the theme           |
+| `theme_selector_modal_open`    | Keep the highlighted theme and close the picker    |
+| `theme_selector_modal_close`   | Close the picker and revert to the previous theme  |
+
+### Debug log commands
+
+| Command                             | Description                                     |
+| ----------------------------------- | ----------------------------------------------- |
+| `debug_log_toggle`                  | Toggle the debug log overlay                    |
+| `debug_log_close`                   | Close the debug log overlay                     |
+| `debug_log_clear`                   | Clear all captured log entries                  |
+| `debug_log_cycle_level`             | Cycle the minimum visible level (trace → error) |
+| `debug_log_scroll_up_one`           | Scroll up by one                                |
+| `debug_log_scroll_down_one`         | Scroll down by one                              |
+| `debug_log_scroll_up_half_page`     | Scroll up half page                             |
+| `debug_log_scroll_down_half_page`   | Scroll down half page                           |
 
 ### Input modal commands
 

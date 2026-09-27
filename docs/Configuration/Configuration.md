@@ -1,8 +1,8 @@
-[[Basalt]] can be customized using a TOML configuration file. The file does not exist by default — create it manually when you want to override the defaults.
+[[Basalt]] can be customized using a TOML configuration file. The file does not exist by default. Create it manually when you want to override the defaults.
 
 Press `?` at any time to see the active keymap for the current pane:
 
-![[help-modal.gif]]
+![[help-modal.avif]]
 
 ## Configuration file location
 
@@ -19,7 +19,7 @@ If configuration files exist in multiple locations, only the first one found is 
 
 ## Overriding defaults
 
-Your configuration is **merged** with the defaults. You only need to define the key bindings you want to change — all other defaults remain active. If you bind a key that already exists in the defaults, your binding takes precedence.
+Your configuration is **merged** with the defaults. You only need to define the key bindings you want to change. All other defaults remain active. If you bind a key that already exists in the defaults, your binding takes precedence.
 
 For example, to change only the quit key:
 
@@ -68,22 +68,42 @@ Setting `vim_mode = true` in the `[note_editor]` table enables a built-in keybin
 vim_mode = true
 ```
 
-Key differences from the defaults:
+In the note editor, vim mode introduces Normal and Insert sub-modes within EDIT. Press `i` to enter Insert mode for typing. Press `Esc` to return to Normal mode for navigation. Press `Esc` again to exit back to READ.
 
-| Pane          | Key  | Command                      |
-| ------------- | ---- | ---------------------------- |
-| Note editor   | `gg` | Jump to top of note          |
-| Note editor   | `G`  | Jump to bottom of note       |
-| Note editor   | `w`  | Move cursor forward by word  |
-| Note editor   | `b`  | Move cursor backward by word |
-| Explorer      | `gg` | Jump to first item           |
-| Explorer      | `G`  | Jump to last item            |
-| Outline       | `gg` | Jump to first item           |
-| Outline       | `G`  | Jump to last item            |
-| Input modal   | `w`  | Move cursor forward by word  |
-| Input modal   | `b`  | Move cursor backward by word |
+### Motions
 
-In the note editor, vim mode introduces Normal/Insert sub-modes within EDIT. Pressing `i` enters Insert mode for typing; `Esc` returns to Normal mode for navigation; pressing `Esc` again exits back to READ.
+Normal mode carries the motions you expect from vim. See [[Key mappings]] for the command name behind each key.
+
+| Key             | Motion                                        |
+| --------------- | --------------------------------------------- |
+| `h` / `l`       | Move left and right                           |
+| `w` / `b`       | Move forward and backward by word             |
+| `e`             | Move to the end of the word                   |
+| `W` / `B` / `E` | The same three by whitespace-delimited word   |
+| `0` / `^` / `$` | Line start, first non-blank, line end         |
+| `gg` / `G`      | Start and end of the note                     |
+| `gk` / `gj`     | Up and down one visible row of a wrapped line |
+| `{` / `}`       | Previous and next paragraph                   |
+| `%`             | Jump to the matching bracket                  |
+| `f` / `F`       | Jump to the next typed character              |
+| `t` / `T`       | The same, stopping short of the character     |
+| `;` / `,`       | Repeat the last find, forward and in reverse  |
+| `gx`            | Follow the link under the cursor              |
+
+![[vim-motions.avif]]
+
+### Operators and edits
+
+| Key        | Action                                        |
+| ---------- | --------------------------------------------- |
+| `d` / `c`  | Delete and change; each takes a motion        |
+| `x`        | Delete the character under the cursor         |
+| `D` / `C`  | Delete and change to the end of the line      |
+| `s` / `r`  | Substitute and replace a character            |
+| `p` / `P`  | Paste after and before the cursor             |
+| `a`        | Enter insert mode after the cursor            |
+| `u`        | Undo the last change                          |
+| `Ctrl+R`   | Redo the undone change                        |
 
 ### Visual selection and yank
 
@@ -96,9 +116,16 @@ From Normal mode you can select text and yank it to the system clipboard:
 | `y`   | Yank the selection to clipboard  |
 | `Esc` | Cancel the selection             |
 
-Motions extend the selection, a short flash marks the yanked range, and the copy uses your platform clipboard utility with an OSC 52 fallback for SSH and tmux.
+Motions extend the selection, a short flash marks the yanked range and the copy uses your platform clipboard utility with an OSC 52 fallback for SSH and tmux.
 
-![[visual-selection.gif]]
+![[visual-selection.avif]]
+
+### Other panes
+
+| Pane        | Key        | Command                                 |
+| ----------- | ---------- | --------------------------------------- |
+| Explorer    | `gg` / `G` | Jump to the first and last item         |
+| Input modal | `w` / `b`  | Move the cursor forward and back a word |
 
 The full vim preset is defined in `vim.toml`. Sections not defined in the preset keep their default bindings.
 
@@ -121,17 +148,43 @@ theme = "causeway-dark"
 
 ## Default configuration
 
-The full default configuration is shown below. The default `exec:` and `spawn:` commands use macOS conventions (`vi`, `open`). On Linux, replace `open` with `xdg-open`; on Windows, use `start`. See [[Custom commands]] for details.
+The full default configuration is shown below, mirroring `basalt/config.toml` in the repository. The default `exec:` and `spawn:` commands use macOS conventions (`vi`, `open`). On Linux, replace `open` with `xdg-open`; on Windows, use `start`. See [[Custom commands]] for details.
 
 ```toml
+wrap = true
+
+# Line-number gutter shown while editing a note. "absolute" numbers each line,
+# "relative" shows the distance from the cursor line (the cursor line keeps its
+# absolute number), and "off" hides the gutter.
+line_numbers = "absolute"
+
+# The key that `<leader>` stands for in key bindings, e.g. `{ key =
+# "<leader>f", command = "vault_selector_modal_toggle" }`. Only the leader set
+# in the user config takes effect.
 leader = "<space>"
+
+# Colour theme. Built-in: "default", "causeway-dark", "causeway-light",
+# "gruvbox-dark", "gruvbox-light", "everforest-dark", "everforest-light",
+# "nord", "dracula", "catppuccin-latte", "catppuccin-frappe",
+# "catppuccin-macchiato", "catppuccin-mocha", "minimal". Add your own by
+# dropping a <name>.toml in $config/basalt/themes/ (see the bundled themes for
+# the format); it then appears in the theme picker too. Themes colour text,
+# backgrounds, headings, code and markdown, the status bar, and per-pane
+# borders (including which edges draw, so a theme can keep only the dividers
+# between panes).
+theme = "default"
+
+[symbols]
+preset = "unicode"
 
 [global]
 key_bindings = [
  { key = "q", command = "quit" },
  { key = "?", command = "help_modal_toggle" },
+ { key = "<leader>s", command = "search_toggle" },
  { key = "<leader>v", command = "vault_selector_modal_toggle" },
  { key = "<leader>d", command = "debug_log_toggle" },
+ { key = "<leader>t", command = "theme_selector_modal_toggle" },
  { key = "ctrl+n", command = "tab_next" },
  { key = "ctrl+p", command = "tab_previous" },
  { key = "ctrl+w", command = "tab_close" },
@@ -164,6 +217,8 @@ key_bindings = [
  { key = "left", command = "explorer_hide_pane" },
  { key = "right", command = "explorer_expand_pane" },
  { key = "s", command = "explorer_sort" },
+ { key = "n", command = "explorer_new_untitled_note" },
+ { key = "shift+n", command = "explorer_new_untitled_folder" },
  { key = "r", command = "explorer_toggle_input_rename" },
  { key = "tab", command = "explorer_switch_pane_next" },
  { key = "shift+backtab", command = "explorer_switch_pane_previous" },
@@ -203,6 +258,8 @@ default_mode = "read"
 key_bindings = [
  { key = "k", command = "note_editor_cursor_up" },
  { key = "j", command = "note_editor_cursor_down" },
+ { key = "gk", command = "note_editor_cursor_screen_up" },
+ { key = "gj", command = "note_editor_cursor_screen_down" },
  { key = "up", command = "note_editor_cursor_up" },
  { key = "down", command = "note_editor_cursor_down" },
  { key = "t", command = "note_editor_toggle_explorer" },
@@ -214,8 +271,10 @@ key_bindings = [
  { key = "ctrl+o", command = "note_editor_toggle_outline" },
  { key = "ctrl+shift+up", command = "note_editor_scroll_to_top" },
  { key = "ctrl+shift+down", command = "note_editor_scroll_to_bottom" },
+ { key = "enter", command = "note_editor_follow_link" },
+ { key = "gd", command = "note_editor_follow_link" },
 
- # Experimental editor
+ # Experimental editor 
  { key = "i", command = "note_editor_experimental_set_edit_view" },
  { key = "ctrl+e", command = "note_editor_experimental_toggle_view" },
  { key = "shift+r", command = "note_editor_experimental_set_read_view" },
@@ -225,7 +284,9 @@ key_bindings = [
  { key = "l", command = "note_editor_experimental_cursor_right" },
  { key = "left", command = "note_editor_experimental_cursor_left" },
  { key = "right", command = "note_editor_experimental_cursor_right" },
+ # 'f' translates to arrow key right
  { key = "alt+f", command = "note_editor_experimental_cursor_word_forward" },
+ # 'b' translates to arrow key left
  { key = "alt+b", command = "note_editor_experimental_cursor_word_backward" },
 ]
 
@@ -238,7 +299,9 @@ key_bindings = [
  { key = "l", command = "input_modal_right" },
  { key = "left", command = "input_modal_left" },
  { key = "right", command = "input_modal_right" },
+ # 'f' translates to arrow key right
  { key = "alt+f", command = "input_modal_word_forward" },
+ # 'b' translates to arrow key left
  { key = "alt+b", command = "input_modal_word_backward" },
 ]
 
@@ -261,5 +324,28 @@ key_bindings = [
  { key = "down", command = "vault_selector_modal_down" },
  { key = "enter", command = "vault_selector_modal_open" },
  { key = "esc", command = "vault_selector_modal_close" },
+]
+
+[debug_log_modal]
+key_bindings = [
+ { key = "esc", command = "debug_log_close" },
+ { key = "k", command = "debug_log_scroll_up_one" },
+ { key = "j", command = "debug_log_scroll_down_one" },
+ { key = "up", command = "debug_log_scroll_up_one" },
+ { key = "down", command = "debug_log_scroll_down_one" },
+ { key = "ctrl+u", command = "debug_log_scroll_up_half_page" },
+ { key = "ctrl+d", command = "debug_log_scroll_down_half_page" },
+ { key = "c", command = "debug_log_clear" },
+ { key = "l", command = "debug_log_cycle_level" },
+]
+
+[theme_selector_modal]
+key_bindings = [
+ { key = "k", command = "theme_selector_modal_up" },
+ { key = "j", command = "theme_selector_modal_down" },
+ { key = "up", command = "theme_selector_modal_up" },
+ { key = "down", command = "theme_selector_modal_down" },
+ { key = "enter", command = "theme_selector_modal_open" },
+ { key = "esc", command = "theme_selector_modal_close" },
 ]
 ```
