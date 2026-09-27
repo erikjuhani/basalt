@@ -167,7 +167,10 @@ mod tests {
 
     use super::*;
     use crate::{
-        app::SelectedNote, config::Symbols, note_editor::state::NoteEditorState, tabs::Tab,
+        app::SelectedNote,
+        config::Symbols,
+        note_editor::state::NoteEditorState,
+        tabs::{Tab, TabEditor},
     };
 
     fn tab(name: &str) -> Tab<'static> {
@@ -179,7 +182,7 @@ mod tests {
         let editor = NoteEditorState::new("", name, &path, &Symbols::unicode());
         Tab {
             note: SelectedNote::new(name, &path, ""),
-            editor,
+            editor: TabEditor::Loaded(Box::new(editor)),
         }
     }
 

@@ -106,6 +106,7 @@ pub enum NoteEditorMode {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Config<'a> {
     pub experimental_editor: bool,
+    pub experimental_write: bool,
     pub vim_mode: bool,
     pub wrap: bool,
     pub line_numbers: LineNumbers,
@@ -164,6 +165,7 @@ impl Config<'_> {
             symbols: value.symbols.into(),
             theme: theme::theme_by_name(value.theme.as_deref().unwrap_or("default")),
             experimental_editor: value.note_editor.experimental,
+            experimental_write: value.tabs.experimental_write,
             vim_mode: value.note_editor.vim_mode,
             default_note_editor_mode: value.note_editor.default_mode,
             wrap: value.wrap.unwrap_or(true),
@@ -188,6 +190,7 @@ impl Config<'_> {
         self.symbols = config.symbols;
         self.theme = config.theme;
         self.experimental_editor = config.experimental_editor;
+        self.experimental_write = config.experimental_write;
         self.vim_mode = config.vim_mode;
         self.wrap = config.wrap;
         self.line_numbers = config.line_numbers;
@@ -278,6 +281,12 @@ struct TomlNoteEditor {
 }
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Default)]
+struct TomlTabs {
+    #[serde(default)]
+    experimental_write: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize, Default)]
 struct KeyBindings(Vec<KeyBinding>);
 
 impl IntoIterator for KeyBindings {
@@ -332,6 +341,8 @@ struct TomlConfig {
     help_modal: TomlConfigSection,
     #[serde(default)]
     note_editor: TomlNoteEditor,
+    #[serde(default)]
+    tabs: TomlTabs,
     #[serde(default)]
     search: TomlConfigSection,
     #[serde(default)]
