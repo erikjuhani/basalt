@@ -36,7 +36,7 @@ jobs:
       run: rustup toolchain install
 
     - name: Install nextest
-      uses: taiki-e/install-action@dfae9bf3d6f6c6f20ef4ebb3486c01a51341ff12 # v2.87.18
+      uses: taiki-e/install-action@7623a79cdfecb99d681017af368ca353d9f49bb5 # v2.87.19
       with:
         tool: nextest
 
