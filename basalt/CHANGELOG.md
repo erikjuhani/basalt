@@ -146,6 +146,13 @@
 > lines that follow it. The cursor can rest on and edit those blanks,
 > which previously fell in an unreachable gap between block source ranges.
 
+- [529e607](https://github.com/erikjuhani/basalt/commit/529e607780bd01b72ff221e863e98add3910a189) Default note titles to the script font style by @erikjuhani
+
+> The note title derived from a filename rendered in Blackboard Bold
+> (double-struck) in the unicode and nerd-font presets. The default is now
+> the script style, which reads as a more title-like hand and matches the
+> h5/h6 heading styling that already uses it.
+
 ### Fixed
 
 - [28429e2](https://github.com/erikjuhani/basalt/commit/28429e2440fca596a1470fe6caca9bf424a1ad03) Match title text to the symbol preset by @erikjuhani
