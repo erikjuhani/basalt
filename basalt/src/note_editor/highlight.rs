@@ -1,4 +1,4 @@
-use std::{borrow::Cow, cell::RefCell, ops::Range, sync::LazyLock};
+use std::{borrow::Cow, cell::RefCell, ops::Range, sync::OnceLock};
 
 use ratatui::style::Color;
 use tree_sitter_highlight::{Highlight, HighlightConfiguration, HighlightEvent, Highlighter};
@@ -193,14 +193,23 @@ impl Language {
 
     fn configuration(self) -> Option<&'static HighlightConfiguration> {
         LANGUAGES
+            .get()?
             .iter()
             .find(|(language, _)| *language == self)
             .map(|(_, configuration)| configuration)
     }
 }
 
-static LANGUAGES: LazyLock<[(Language, HighlightConfiguration); 10]> =
-    LazyLock::new(|| Language::ALL.map(|language| (language, language.grammar().compile())));
+static LANGUAGES: OnceLock<[(Language, HighlightConfiguration); 10]> = OnceLock::new();
+
+pub(crate) fn preload() {
+    LANGUAGES
+        .get_or_init(|| Language::ALL.map(|language| (language, language.grammar().compile())));
+}
+
+pub(crate) fn is_preloaded() -> bool {
+    LANGUAGES.get().is_some()
+}
 
 thread_local! {
     /// One highlighter per thread, reused across blocks so its parser and
@@ -341,6 +350,7 @@ mod tests {
 
     #[test]
     fn classifies_javascript_tokens() {
+        preload();
         let line = "const answer = 42; // done";
         let lines = block_tokens("js", line).unwrap();
         assert_eq!(
@@ -357,6 +367,7 @@ mod tests {
 
     #[test]
     fn word_operators_are_keywords() {
+        preload();
         let line = "typeof x";
         let lines = block_tokens("js", line).unwrap();
         assert_eq!(
@@ -367,6 +378,7 @@ mod tests {
 
     #[test]
     fn classifies_rust_function_and_string() {
+        preload();
         let line = r#"fn greet() { println!("hi"); }"#;
         let lines = block_tokens("rust", line).unwrap();
         let segments = tokens(line, &lines[0]);
@@ -377,6 +389,7 @@ mod tests {
 
     #[test]
     fn multi_line_comment_carries_across_lines() {
+        preload();
         let text = "/* open\nstill comment */ let x = 1;";
         let lines = block_tokens("rust", text).unwrap();
         assert_eq!(
@@ -387,12 +400,14 @@ mod tests {
 
     #[test]
     fn empty_line_yields_one_empty_range() {
+        preload();
         let lines = block_tokens("rust", "").unwrap();
         assert_eq!(lines, vec![vec![plain_empty()]]);
     }
 
     #[test]
     fn one_entry_per_line_including_a_trailing_blank_one() {
+        preload();
         let source_lines = ["const a = 1;", ""];
         let lines = block_tokens("js", &source_lines.join("\n")).unwrap();
         assert_eq!(lines.len(), source_lines.len());
@@ -401,6 +416,7 @@ mod tests {
 
     #[test]
     fn info_string_takes_the_first_word() {
+        preload();
         assert!(block_tokens("py title=example.py", "x = 1").is_some());
         assert!(block_tokens("", "x").is_none());
         assert!(block_tokens("no-such-language", "x").is_none());
@@ -408,6 +424,7 @@ mod tests {
 
     #[test]
     fn block_tokens_parses_every_line_once() {
+        preload();
         let ranges = block_tokens("js", "const a = 1;\nconst b = 2;").unwrap();
         assert_eq!(ranges.len(), 2);
         assert_eq!(

@@ -660,6 +660,9 @@ impl<'a> App<'a> {
         log_level: LogLevel,
         theme_override: Option<String>,
     ) -> Result<()> {
+        // Off the main thread: compiling every grammar would stall the first layout.
+        std::thread::spawn(note_editor::highlight::preload);
+
         let version = stylized_text::stylize(VERSION, FontStyle::Script);
         let size = terminal.size()?;
         let (mut config, warnings) = config::load().unwrap();
