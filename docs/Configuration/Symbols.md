@@ -98,7 +98,7 @@ list_markers = ["*", "-", "+"]
 | `ascii`     | `["-", "*", "+"]`          |
 | `nerd-font` | `["●", "○", "◆", "◇"]`    |
 
-At depth 0 the first marker is used, at depth 1 the second, and so on. When the depth exceeds the number of markers the list wraps around.
+At depth 0 the first marker is used, at depth 1 the second and so on. When the depth exceeds the number of markers the list wraps around.
 
 ### Outline
 

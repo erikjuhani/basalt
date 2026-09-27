@@ -2,12 +2,12 @@
 
 ![[demo.gif]]
 
-- [[Installation]] — Install [[Basalt]] and open your first vault
-- [[User interface]] — Panes, modals, and navigation
-- [[Configuration]] — Key mappings, custom commands, and integrations
-- [[Editing and Formatting]] — Markdown support and rendering
-- [[Files and Folders]] — Working with notes and directories
-- [[Editor (experimental)]] — Built-in text editing
-- [[Known Limitations]] — Current limitations
-- [[Basalt]] — Design, architecture, and background
-- [[Contributing to Basalt]] — Contributing to Basalt
+- [[Installation]]: install [[Basalt]] and open your first vault
+- [[User interface]]: panes, modals and navigation
+- [[Configuration]]: key mappings, custom commands and integrations
+- [[Editing and Formatting]]: markdown support and rendering
+- [[Files and Folders]]: working with notes and directories
+- [[Editor (experimental)]]: built-in text editing
+- [[Known Limitations]]: current limitations
+- [[Basalt]]: design, architecture and background
+- [[Contributing to Basalt]]: how to get involved

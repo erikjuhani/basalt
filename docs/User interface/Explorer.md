@@ -2,7 +2,7 @@ The Explorer is the sidebar pane on the left side, displaying folders and notes 
 
 ![[explorer.gif]]
 
-Use `j`/`k` or arrow keys to move through the file list and `Enter` to open a note in the [[Note editor]]. You can sort the list with `s`, resize the pane with `h`/`l`, and rename notes or directories with `r` (press `i` in the rename dialog to start typing).
+Use `j`/`k` or arrow keys to move through the file list and `Enter` to open a note in the [[Note editor]]. You can sort the list with `s`, resize the pane with `h`/`l` and rename notes or directories with `r` (press `i` in the rename dialog to start typing).
 
 ## Key mappings
 
@@ -24,3 +24,5 @@ Use `j`/`k` or arrow keys to move through the file list and `Enter` to open a no
 | `Ctrl+O`          | Toggle outline pane                  |
 | `Ctrl+U`          | Scroll up half page                  |
 | `Ctrl+D`          | Scroll down half page                |
+| `Ctrl+Shift+↑`    | Jump to first item                   |
+| `Ctrl+Shift+↓`    | Jump to last item                    |

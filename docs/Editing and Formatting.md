@@ -126,7 +126,7 @@ Wiki-links and standard markdown links are parsed:
 
 ## Text styling
 
-While [[Basalt]] parses bold, italic, and strikethrough syntax, these styles are **not yet rendered visually** in the terminal:
+While [[Basalt]] parses bold, italic and strikethrough syntax, these styles are **not yet rendered visually** in the terminal:
 
 ```markdown
 **bold text**      (parsed but not styled)

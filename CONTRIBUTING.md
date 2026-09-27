@@ -1,10 +1,10 @@
-Basalt is **open for code contributions**, primarily for bug fixes. Feature work can bring long-term maintenance overhead, and I'd like to keep that to a minimum. One reason for limiting feature work is that I want to build features myself, as this is a fun side project—and I would like to keep it that way.
+Basalt is **open for code contributions**, primarily for bug fixes. Feature work can bring long-term maintenance overhead, and I'd like to keep that to a minimum. One reason for limiting feature work is that I want to build features myself, as this is a fun side project, and I would like to keep it that way.
 
 That said, open source projects flourish with multiple contributors. I won't say no to feature work, but please open an issue first so we can discuss it. This avoids unnecessary effort or bikeshedding over architectural or stylistic choices.
 
 > [!NOTE]
 >
-> I want this project to feel low-barrier, so don't be discouraged from opening an issue, whether it's about existing features, ideas, or anything else!
+> I want this project to feel low-barrier, so don't be discouraged from opening an issue, whether it's about existing features, ideas or anything else!
 
 ## AI and LLM-assisted contributions
 
@@ -90,7 +90,7 @@ Run the full CI check suite locally:
 make check
 ```
 
-This runs formatting checks, clippy, tests, and build verification.
+This runs formatting checks, clippy, tests and build verification.
 
 ### Git Pre-push Hook
 

@@ -76,15 +76,17 @@ See [[Files and Folders]] for how single-file mode works.
 
 Once inside a vault, the interface is divided into three panes:
 
-- **[[Explorer]]** on the left — browse folders and notes
-- **[[Note editor]]** in the center — view the selected note with rendered markdown
-- **[[Outline]]** on the right — navigate headings in the current note
+- **[[Explorer]]** on the left: browse folders and notes
+- **[[Note editor]]** in the center: view the selected note with rendered markdown
+- **[[Outline]]** on the right: navigate headings in the current note
 
 Use `Tab` and `Shift+Tab` to move focus between panes. The status bar at the bottom shows which pane is active.
 
 ## Opening a note
 
 In the [[Explorer]], use `j`/`k` or arrow keys to move through the file list. Press `Enter` to open a note in the [[Note editor]].
+
+Each open note gets its own tab in the bar along the top, keeping its cursor and scroll position. Cycle tabs with `Ctrl+n`/`Ctrl+p` and close the active one with `Ctrl+w`.
 
 ## Switching vaults
 
@@ -94,4 +96,8 @@ Press `Space` then `v` to open the vault selector and switch to a different vaul
 
 Press `?` to open the help modal. It shows the available key mappings for the currently active pane.
 
-For more on the interface, see [[User interface]].
+## Quitting
+
+Press `q` to exit.
+
+For more on the interface, see [[User interface]]. To edit notes rather than just read them, see [[Editor (experimental)]].

@@ -1,4 +1,4 @@
-Basalt's interface is divided into a tab bar, panes, modals, and a status bar.
+Basalt's interface is divided into a tab bar, panes, modals and a status bar.
 
 ![[demo.gif]]
 
@@ -29,7 +29,7 @@ The [[Explorer]] is the sidebar on the left side. It displays folders and notes 
 
 ### Note editor
 
-The [[Note editor]] is the main pane in the center. It displays the selected note with rendered markdown — headings, lists, code blocks, and other elements are rendered with WYSIWYG-style formatting.
+The [[Note editor]] is the main pane in the center. It displays the selected note with rendered markdown. Headings, lists, code blocks and other elements are rendered with WYSIWYG-style formatting.
 
 ![[note-editor.gif]]
 
@@ -57,13 +57,13 @@ Press `Space` then `s` (the [[Key mappings|leader]] followed by `s`) to open the
 
 ### Vault selector modal
 
-Press `Space` then `v` (the [[Key mappings|leader]] followed by `v`) to open the vault selector. It lists all your Obsidian vaults and lets you switch between them. Use `j`/`k` or arrow keys to navigate, `Enter` to open, and `Esc` to close.
+Press `Space` then `v` (the [[Key mappings|leader]] followed by `v`) to open the vault selector. It lists all your Obsidian vaults and lets you switch between them. Use `j`/`k` or arrow keys to navigate, `Enter` to open and `Esc` to close.
 
 ![[vault-selector.gif]]
 
 ### Input modal
 
-The input modal provides text input for operations like renaming. Press `r` in the [[Explorer]] to rename the selected note or directory. The modal opens with the current name — modify it and press `Enter` to confirm or `Esc` to cancel.
+The input modal provides text input for operations like renaming. Press `r` in the [[Explorer]] to rename the selected note or directory. The modal opens with the current name. Modify it and press `Enter` to confirm or `Esc` to cancel.
 
 When renaming a note, all wiki-links referencing that note are automatically updated across the vault.
 
@@ -99,4 +99,4 @@ The overlay can also be opened on startup with the `--debug` flag, and the initi
 
 ## Status bar
 
-The status bar runs along the bottom of the screen and displays contextual information: the active pane, word and character counts for the current note, and the editing mode when using the [[Editor (experimental)|experimental editor]].
+The status bar runs along the bottom of the screen and displays contextual information: the active pane, word and character counts for the current note and the editing mode when using the [[Editor (experimental)|experimental editor]].
