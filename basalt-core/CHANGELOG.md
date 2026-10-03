@@ -16,6 +16,35 @@
 >
 > Fixes #84
 
+- [28ab075](https://github.com/erikjuhani/basalt/commit/28ab07570129e4006dfd8ee4ca9fdd1e1df8d87e) Restore Obsidian's open tabs and write tab state back to workspace.json by @erikjuhani
+
+> Vault::workspace() already reads active and lastOpenFiles. Add the main
+> split/tabs/leaf layout tree, so Workspace exposes the notes open as tabs
+> and which one is active, in tab order. Add Vault::save_workspace to
+> write tabs back to workspace.json; only the fields Basalt understands
+> are touched, so sidebars, other panes and anything else in the file are
+> left as they were.
+>
+> Read the vault's .obsidian/workspace.json on open and restore every tab
+> Obsidian had open, in the same order, with the active one focused. Only
+> the active tab loads its note; the rest stay pending and load lazily on
+> first focus, or sooner if a background pass reaches them first, so a
+> vault with many open tabs opens as fast as one with a single note. Tabs
+> also write back: opening or closing a note, switching tabs and switching
+> vaults update workspace.json so Obsidian shows the same tabs next time
+> it opens the vault.
+>
+> This does not merge with changes Obsidian makes to the same vault while
+> Basalt is running. Whichever one saves last wins, so keep them pointed
+> at the same vault one at a time.
+>
+> Writing workspace.json touches a file Obsidian also owns, and a bug there
+> could corrupt it, so gate the write behind tabs.experimental_write in
+> config.toml. Off by default, nothing is written back. Reading tabs from
+> workspace.json is always on.
+>
+> Closes #292
+
 ### Dependencies
 
 - [3592e84](https://github.com/erikjuhani/basalt/commit/3592e843a87538415abdea0e7486d883b4675cbc) Update Rust crate dirs to v7 by @renovate-updater[bot]

@@ -1895,6 +1895,7 @@ mod tests {
     /// walk it by source offset and its tokens must carry the theme colours.
     #[test]
     fn test_cursor_walks_highlighted_code_line_when_editing() {
+        crate::note_editor::highlight::preload();
         let content = "```rust\nlet x = \"hi\";\n```\n";
         let mut state =
             NoteEditorState::new(content, "test", Path::new("test.md"), &Symbols::unicode());
