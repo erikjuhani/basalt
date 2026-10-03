@@ -101,6 +101,35 @@
 > Move the word and character motions into a shared crate::motion module
 > so the search input reuses them for query editing.
 
+- [28ab075](https://github.com/erikjuhani/basalt/commit/28ab07570129e4006dfd8ee4ca9fdd1e1df8d87e) Restore Obsidian's open tabs and write tab state back to workspace.json by @erikjuhani
+
+> Vault::workspace() already reads active and lastOpenFiles. Add the main
+> split/tabs/leaf layout tree, so Workspace exposes the notes open as tabs
+> and which one is active, in tab order. Add Vault::save_workspace to
+> write tabs back to workspace.json; only the fields Basalt understands
+> are touched, so sidebars, other panes and anything else in the file are
+> left as they were.
+>
+> Read the vault's .obsidian/workspace.json on open and restore every tab
+> Obsidian had open, in the same order, with the active one focused. Only
+> the active tab loads its note; the rest stay pending and load lazily on
+> first focus, or sooner if a background pass reaches them first, so a
+> vault with many open tabs opens as fast as one with a single note. Tabs
+> also write back: opening or closing a note, switching tabs and switching
+> vaults update workspace.json so Obsidian shows the same tabs next time
+> it opens the vault.
+>
+> This does not merge with changes Obsidian makes to the same vault while
+> Basalt is running. Whichever one saves last wins, so keep them pointed
+> at the same vault one at a time.
+>
+> Writing workspace.json touches a file Obsidian also owns, and a bug there
+> could corrupt it, so gate the write behind tabs.experimental_write in
+> config.toml. Off by default, nothing is written back. Reading tabs from
+> workspace.json is always on.
+>
+> Closes #292
+
 ### Breaking
 
 - [f4cd7f2](https://github.com/erikjuhani/basalt/commit/f4cd7f2ade6fcf62a8fe1e5ecb0a4c561de15df8) Nest editor settings under the [note_editor] table by @erikjuhani
@@ -152,6 +181,15 @@
 > (double-struck) in the unicode and nerd-font presets. The default is now
 > the script style, which reads as a more title-like hand and matches the
 > h5/h6 heading styling that already uses it.
+
+- [517a071](https://github.com/erikjuhani/basalt/commit/517a07162d9824d6ea4aa2308956b11aa2b51264) Preload syntax highlighting grammars in the background at startup by @erikjuhani
+
+> Compiling every language grammar takes long enough to stall a note's
+> first layout. Start that compile in the background as soon as Basalt
+> starts, instead of blocking whichever note happens to need it first.
+>
+> A note laid out before the compile finishes renders its code blocks
+> plain and picks up highlighting on its next layout.
 
 ### Fixed
 
