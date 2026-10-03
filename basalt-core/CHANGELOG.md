@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.10.1](https://github.com/erikjuhani/basalt/releases/tag/basalt-core/0.10.1) (Unreleased)
+## [0.10.1](https://github.com/erikjuhani/basalt/releases/tag/basalt-core/0.10.1) (Oct, 04 2026)
 
 ### Added
 
@@ -15,6 +15,36 @@
 > fresh vault has none yet.
 >
 > Fixes #84
+
+- [56ff6ff](https://github.com/erikjuhani/basalt/commit/56ff6ff704f8ce2df9a9ad5eb28b66e618ed665c) Restore Obsidian's open tabs and write tab state back to workspace.json by @erikjuhani
+
+> Vault::workspace() already reads active and lastOpenFiles. Add the main
+> split/tabs/leaf layout tree, so Workspace exposes the notes open as tabs
+> and which one is active, in tab order. Add Vault::save_workspace to
+> write tabs back to workspace.json; only the fields Basalt understands
+> are touched, so sidebars, other panes and anything else in the file are
+> left as they were.
+>
+> Read the vault's .obsidian/workspace.json on open and restore every tab
+> Obsidian had open, in the same order, with the active one focused. Only
+> the active tab loads its note; the rest stay pending and load lazily on
+> first focus, or sooner if a background pass reaches them first, so a
+> vault with many open tabs opens as fast as one with a single note. Tabs
+> also write back: opening or closing a note, switching tabs and switching
+> vaults update workspace.json so Obsidian shows the same tabs next time
+> it opens the vault.
+>
+> This does not merge with changes Obsidian makes to the same vault while
+> Basalt is running. Whichever one saves last wins, so keep them pointed
+> at the same vault one at a time.
+>
+> workspace.json is a file Obsidian also owns, and a bug in the write path
+> could corrupt it, so tabs.sync in config.toml controls it: "off" to not
+> touch the file at all, "read" (default) to only read tabs from it, or
+> "write" to also write tab changes back, which is experimental. Tabs
+> themselves stay available either way.
+>
+> Closes #292
 
 ### Dependencies
 
