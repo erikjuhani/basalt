@@ -1,7 +1,7 @@
 pub mod ast;
 mod cursor;
 pub mod editor;
-mod highlight;
+pub(crate) mod highlight;
 pub mod parser;
 mod render;
 mod rich_text;

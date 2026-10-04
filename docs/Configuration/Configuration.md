@@ -59,6 +59,23 @@ default_mode = "edit"
 
 `default_mode = "edit"` needs the experimental editor. When `experimental = false`, the note opens in READ view even if you set `edit`.
 
+## Tabs
+
+[[Basalt]] can sync tabs with the vault's `.obsidian/workspace.json`. Tabs themselves stay available either way; the `[tabs]` table's `sync` setting only controls syncing with Obsidian:
+
+- `"off"`: don't touch `workspace.json` at all.
+- `"read"` (default): read open tabs from it.
+- `"write"`: also write tab changes back to it.
+
+```toml
+[tabs]
+sync = "write"
+```
+
+> [!WARNING]
+>
+> `.obsidian/workspace.json` is a file Obsidian also owns. A bug in the write path could corrupt it, so `"write"` is experimental.
+
 ## Vim mode
 
 Setting `vim_mode = true` in the `[note_editor]` table enables a built-in keybinding preset modelled after vim. For each section it defines, the vim preset **replaces** the default bindings entirely rather than merging with them. Your own config is still merged on top, so individual bindings can still be overridden.

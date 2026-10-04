@@ -1201,8 +1201,10 @@ mod tests {
     #[test]
     fn test_code_block_tokens_take_syntax_colours() {
         use crate::config::Theme;
+        use crate::note_editor::highlight;
         use ratatui::layout::Size;
 
+        highlight::preload();
         let mut state = NoteEditorState::new(
             "```js\nconst x = 1;\n```\n",
             "",
@@ -1424,8 +1426,10 @@ mod tests {
     #[test]
     fn test_editing_one_block_keeps_other_code_blocks_highlighted() {
         use crate::config::Theme;
+        use crate::note_editor::highlight;
         use ratatui::layout::Size;
 
+        highlight::preload();
         let mut state = edit_state("para\n\n```js\nconst x = 1;\n```\n\nafter\n");
         state.resize_viewport(Size::new(40, 12));
         state.jump_to_offset(0);
@@ -1457,8 +1461,10 @@ mod tests {
     #[test]
     fn test_typing_inside_large_code_block_keeps_highlighting_correct() {
         use crate::config::Theme;
+        use crate::note_editor::highlight;
         use ratatui::layout::Size;
 
+        highlight::preload();
         let lines = (0..800)
             .map(|i| format!("const value_{i} = {i};"))
             .collect::<Vec<_>>()

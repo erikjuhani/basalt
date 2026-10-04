@@ -663,6 +663,16 @@ impl Vault {
     pub fn workspace(&self) -> Option<Workspace> {
         workspace::load_from(&self.path.join(CONFIG_DIR)).ok()
     }
+
+    /// Writes `open_files`/`active_file` (vault-relative paths, in tab order) to
+    /// `.obsidian/workspace.json`. Does nothing if the vault has no `.obsidian` directory.
+    pub fn save_workspace(
+        &self,
+        open_files: &[&Path],
+        active_file: Option<&Path>,
+    ) -> result::Result<(), Error> {
+        workspace::save_to(&self.path.join(CONFIG_DIR), open_files, active_file)
+    }
 }
 
 impl<'de> Deserialize<'de> for Vault {

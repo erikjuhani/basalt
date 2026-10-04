@@ -64,7 +64,7 @@ pub trait FindNote {
     fn find_note<'a>(&'a self, path: &Path) -> Option<&'a Note>;
 }
 
-impl FindNote for Vec<VaultEntry> {
+impl FindNote for [VaultEntry] {
     fn find_note<'a>(&'a self, path: &Path) -> Option<&'a Note> {
         self.iter().find_map(|entry| entry.find_note(path))
     }
