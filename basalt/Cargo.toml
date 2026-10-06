@@ -46,7 +46,7 @@ tree-sitter-c = "0.24.2"
 
 [dev-dependencies]
 indoc = "=2.0.7"
-insta = "=1.48.0"
+insta = "=1.49.0"
 similar-asserts.workspace = true
 
 [[bin]]
