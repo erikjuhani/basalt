@@ -10,7 +10,9 @@ fn main() -> Result<(), Error> {
 
     debug_log::init();
 
-    let obsidian_config = obsidian::config::load().unwrap_or_default();
+    let obsidian_config = obsidian::config::load();
+    let obsidian_config_error = obsidian_config.as_ref().err().map(ToString::to_string);
+    let obsidian_config = obsidian_config.unwrap_or_default();
     let vaults = obsidian_config.vaults();
 
     let initial_vault = match std::env::var("BASALT_EXP_VAULT_PATH") {
@@ -57,6 +59,7 @@ fn main() -> Result<(), Error> {
         cli.debug,
         cli.log_level,
         cli.theme,
+        obsidian_config_error,
     );
 
     let _ = execute!(std::io::stdout(), SetCursorStyle::DefaultUserShape);
