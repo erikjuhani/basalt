@@ -10,7 +10,7 @@ fn main() -> Result<(), Error> {
 
     debug_log::init();
 
-    let obsidian_config = obsidian::config::load().unwrap();
+    let obsidian_config = obsidian::config::load().unwrap_or_default();
     let vaults = obsidian_config.vaults();
 
     let initial_vault = match std::env::var("BASALT_EXP_VAULT_PATH") {
