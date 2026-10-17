@@ -20,6 +20,7 @@ pub mod directory;
 pub mod note;
 pub mod vault;
 mod vault_entry;
+pub mod vault_filter;
 pub mod workspace;
 
 pub use config::ObsidianConfig;
@@ -27,6 +28,7 @@ pub use note::Note;
 pub use vault::*;
 pub use vault_entry::FindNote;
 pub use vault_entry::VaultEntry;
+pub use vault_filter::VaultFilter;
 pub use workspace::Workspace;
 
 /// A [`std::result::Result`] type for fallible operations in [`crate::obsidian`].
