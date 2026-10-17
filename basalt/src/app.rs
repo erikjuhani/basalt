@@ -566,7 +566,8 @@ impl<'a> App<'a> {
         }
     }
 
-    fn ensure_watcher_for(&self, path: &Path) {
+    fn ensure_watcher_for(&self, vault: &Vault) {
+        let path = vault.path.as_path();
         let mut current = self.vault_watcher.borrow_mut();
         let needs_swap = match current.as_ref() {
             Some(watcher) => watcher.path() != path,
@@ -576,7 +577,7 @@ impl<'a> App<'a> {
             return;
         }
         *current = if path.is_dir() {
-            VaultWatcher::new(path).ok()
+            VaultWatcher::new(path, vault.filter()).ok()
         } else {
             None
         };
@@ -584,8 +585,8 @@ impl<'a> App<'a> {
 
     fn watcher_has_changes(&self) -> bool {
         self.vault_watcher
-            .borrow()
-            .as_ref()
+            .borrow_mut()
+            .as_mut()
             .is_some_and(|w| w.drain())
     }
 
@@ -760,7 +761,7 @@ impl<'a> App<'a> {
         let mut state = self.state.clone();
         let config = self.config.clone();
 
-        self.ensure_watcher_for(&state.vault.path);
+        self.ensure_watcher_for(&state.vault);
         self.ensure_background_hydration(&mut state, &config);
 
         let tick_rate = Duration::from_millis(250);
@@ -779,7 +780,7 @@ impl<'a> App<'a> {
                 while message.is_some() {
                     message = App::update(self.terminal.get_mut(), &config, &mut state, message);
                 }
-                self.ensure_watcher_for(&state.vault.path);
+                self.ensure_watcher_for(&state.vault);
                 self.ensure_background_hydration(&mut state, &config);
             }
 
