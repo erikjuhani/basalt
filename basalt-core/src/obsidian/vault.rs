@@ -564,8 +564,8 @@ pub fn find_available_path_name<T: AsRef<Path>>(
 
 impl Vault {
     /// Returns a [`Vec`] of entries as [`VaultEntry`]s. Entries can be either directories or
-    /// files. If the directory is marked hidden with a dot (`.`) prefix it will be filtered out
-    /// from the resulting [`Vec`].
+    /// files. Entries marked hidden with a dot (`.`) prefix, such as `.obsidian` or `.git`, are
+    /// filtered out at any depth, and hidden directories are never read.
     ///
     /// The returned entries are not sorted.
     ///
@@ -592,13 +592,14 @@ impl Vault {
     ///
     /// # Ok::<(), Error>(())
     /// ```
-    /// TODO: Add Options struct to configure e.g. filters. Currently all hidden folders are filtered.
+    /// TODO: Add Options struct to configure e.g. filters.
     pub fn entries(&self) -> Vec<VaultEntry> {
-        let is_hidden_top_level = |path: &Path| {
-            path.parent() == Some(Path::new("")) && path.to_string_lossy().starts_with('.')
+        let is_hidden = |path: &Path| {
+            path.file_name()
+                .is_some_and(|name| name.to_string_lossy().starts_with('.'))
         };
 
-        match VaultEntry::walk(&self.path, &is_hidden_top_level) {
+        match VaultEntry::walk(&self.path, &is_hidden) {
             Ok(VaultEntry::Directory { entries, .. }) => entries,
             _ => vec![],
         }
@@ -731,5 +732,25 @@ mod tests {
         };
 
         assert_eq!(names(&vault.entries()), ["note"]);
+    }
+
+    #[test]
+    fn entries_skips_hidden_nested_entries() {
+        let dir = tempdir().unwrap();
+        fs::create_dir_all(dir.path().join("notes/.trash")).unwrap();
+        fs::write(dir.path().join("notes/.trash/deleted.md"), "").unwrap();
+        fs::write(dir.path().join("notes/.hidden.md"), "").unwrap();
+        fs::write(dir.path().join("notes/note.md"), "").unwrap();
+
+        let vault = Vault {
+            path: dir.path().to_path_buf(),
+            ..Default::default()
+        };
+
+        let entries = vault.entries();
+        let [VaultEntry::Directory { entries, .. }] = entries.as_slice() else {
+            panic!("expected a single directory, got {entries:?}");
+        };
+        assert_eq!(names(entries), ["note"]);
     }
 }
