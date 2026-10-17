@@ -226,6 +226,22 @@ impl ExplorerState {
             .position(|(item, _)| item.path() == path)
     }
 
+    /// Resolves a wiki link target against the already loaded tree, with the same
+    /// matching rules as [`basalt_core::obsidian::Vault::find_note`], so following a
+    /// link does not walk the vault on disk.
+    pub fn find_note(&self, name: &str) -> Option<&Note> {
+        fn find<'a>(items: &'a [Item], name: &str) -> Option<&'a Note> {
+            items.iter().find_map(|item| match item {
+                Item::File { note, .. } if note.name().to_lowercase() == name => Some(note),
+                Item::File { .. } => None,
+                Item::Directory { items, .. } => find(items, name),
+            })
+        }
+
+        let name = name.rsplit('/').next().unwrap_or(name).to_lowercase();
+        find(&self.items, &name)
+    }
+
     pub fn reveal_path(&mut self, path: &Path) {
         if self.select_path(path) {
             return;
@@ -473,6 +489,26 @@ mod tests {
         };
         assert_eq!(*depth, 0);
         assert_eq!(items[0].depth(), 1, "nested file should keep its depth");
+    }
+
+    #[test]
+    fn find_note_matches_name_in_collapsed_folder() {
+        let mut state = ExplorerState::default();
+        let entries = vec![VaultEntry::Directory {
+            name: "dir".into(),
+            path: PathBuf::from("dir"),
+            entries: vec![VaultEntry::File(Note::new_unchecked(
+                "Meeting Notes",
+                &PathBuf::from("dir/Meeting Notes.md"),
+            ))],
+        }];
+        state.with_entries(entries, None);
+
+        let path = Some(Path::new("dir/Meeting Notes.md"));
+        assert_eq!(state.find_note("Meeting Notes").map(Note::path), path);
+        assert_eq!(state.find_note("meeting notes").map(Note::path), path);
+        assert_eq!(state.find_note("other/Meeting Notes").map(Note::path), path);
+        assert_eq!(state.find_note("Missing"), None);
     }
 
     #[test]

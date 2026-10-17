@@ -162,7 +162,7 @@ pub enum Message<'a> {
         rename: Option<(PathBuf, PathBuf)>,
         select: Option<PathBuf>,
     },
-    RescanVault,
+    RescanVault(Vec<VaultEntry>),
     CreateUntitledNote,
     CreateUntitledFolder,
     OpenVault(&'a Vault),
@@ -552,6 +552,30 @@ pub struct App<'a> {
     terminal: RefCell<DefaultTerminal>,
     vault_watcher: RefCell<Option<VaultWatcher>>,
     background_hydration: RefCell<Option<Receiver<HydratedTab>>>,
+    vault_scan: RefCell<Option<VaultScan>>,
+}
+
+/// A vault walk running off the main thread. Only one runs at a time; changes that
+/// arrive meanwhile set `dirty`, which starts one more walk once this one lands.
+struct VaultScan {
+    path: PathBuf,
+    rx: Receiver<Vec<VaultEntry>>,
+    dirty: bool,
+}
+
+impl VaultScan {
+    fn spawn(vault: &Vault) -> Self {
+        let (tx, rx) = mpsc::channel();
+        let scanned = vault.clone();
+        thread::spawn(move || {
+            let _ = tx.send(scanned.entries());
+        });
+        Self {
+            path: vault.path.clone(),
+            rx,
+            dirty: false,
+        }
+    }
 }
 
 impl<'a> App<'a> {
@@ -563,6 +587,7 @@ impl<'a> App<'a> {
             terminal: RefCell::new(terminal),
             vault_watcher: RefCell::new(None),
             background_hydration: RefCell::new(None),
+            vault_scan: RefCell::new(None),
         }
     }
 
@@ -587,6 +612,36 @@ impl<'a> App<'a> {
             .borrow()
             .as_ref()
             .is_some_and(|w| w.drain())
+    }
+
+    fn request_vault_scan(&self, vault: &Vault) {
+        let mut scan = self.vault_scan.borrow_mut();
+        match scan.as_mut() {
+            Some(scan) if scan.path == vault.path => scan.dirty = true,
+            _ => *scan = Some(VaultScan::spawn(vault)),
+        }
+    }
+
+    /// Returns the entries of a finished walk, unless the vault was switched while it ran.
+    fn poll_vault_scan(&self, vault: &Vault) -> Option<Vec<VaultEntry>> {
+        let mut slot = self.vault_scan.borrow_mut();
+        let entries = match slot.as_ref()?.rx.try_recv() {
+            Ok(entries) => entries,
+            Err(mpsc::TryRecvError::Empty) => return None,
+            Err(mpsc::TryRecvError::Disconnected) => {
+                *slot = None;
+                return None;
+            }
+        };
+
+        let scan = slot.take()?;
+        if scan.path != vault.path {
+            return None;
+        }
+        if scan.dirty {
+            *slot = Some(VaultScan::spawn(vault));
+        }
+        Some(entries)
     }
 
     fn ensure_background_hydration(&self, state: &mut AppState<'a>, config: &Config<'a>) {
@@ -787,7 +842,11 @@ impl<'a> App<'a> {
             }
 
             if self.watcher_has_changes() {
-                let mut message = Some(Message::RescanVault);
+                self.request_vault_scan(&state.vault);
+            }
+
+            if let Some(entries) = self.poll_vault_scan(&state.vault) {
+                let mut message = Some(Message::RescanVault(entries));
                 while message.is_some() {
                     message = App::update(self.terminal.get_mut(), &config, &mut state, message);
                 }
@@ -996,8 +1055,8 @@ impl<'a> App<'a> {
                 }
                 return Some(Message::SetActivePane(ActivePane::Explorer));
             }
-            Message::RescanVault => {
-                state.explorer.refresh_entries(state.vault.entries());
+            Message::RescanVault(entries) => {
+                state.explorer.refresh_entries(entries);
                 debug!("rescanned vault after watcher change");
             }
             Message::CreateUntitledNote => {
@@ -1201,7 +1260,14 @@ impl<'a> App<'a> {
                 return command::open_url(&url);
             }
             Message::FollowLink(note_editor::LinkTarget::Wikilink(name)) => {
-                if let Some(note) = state.vault.find_note(&name) {
+                // The explorer tree is a few hundred milliseconds behind the disk at
+                // worst, so fall back to a walk before creating a duplicate note.
+                let note = state
+                    .explorer
+                    .find_note(&name)
+                    .cloned()
+                    .or_else(|| state.vault.find_note(&name));
+                if let Some(note) = note {
                     state.explorer.reveal_path(note.path());
                     return Some(Message::SelectNote(note.into()));
                 }
