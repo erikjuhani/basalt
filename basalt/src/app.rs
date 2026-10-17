@@ -653,6 +653,7 @@ impl<'a> App<'a> {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn start(
         terminal: DefaultTerminal,
         vaults: Vec<&Vault>,
@@ -661,6 +662,7 @@ impl<'a> App<'a> {
         debug: bool,
         log_level: LogLevel,
         theme_override: Option<String>,
+        obsidian_config_error: Option<String>,
     ) -> Result<()> {
         // Off the main thread: compiling every grammar would stall the first layout.
         std::thread::spawn(note_editor::highlight::preload);
@@ -716,6 +718,7 @@ impl<'a> App<'a> {
             },
             toasts: warnings
                 .into_iter()
+                .chain(obsidian_config_error)
                 .map(|message| {
                     warn!(message, "config warning");
                     toast::Toast::warn(&message, Duration::from_secs(5))
