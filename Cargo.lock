@@ -117,6 +117,7 @@ dependencies = [
  "dirs 7.0.0",
  "indoc",
  "pulldown-cmark",
+ "regex",
  "serde",
  "serde_json",
  "similar-asserts",
