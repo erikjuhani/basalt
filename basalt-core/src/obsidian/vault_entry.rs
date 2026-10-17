@@ -29,13 +29,18 @@ impl VaultEntry {
 impl TryFrom<&Path> for VaultEntry {
     type Error = Error;
     fn try_from(value: &Path) -> Result<Self> {
-        let name = value
-            .with_extension("")
-            .file_name()
-            .map(|file_name| file_name.to_string_lossy().into_owned())
-            .ok_or_else(|| Error::EmptyFileName(value.to_path_buf()))?;
+        // Only notes carry an extension. A dot in a directory name is part of the name, as in
+        // "57.02 Project".
+        let is_file = value.is_file();
+        let name = if is_file {
+            value.file_stem()
+        } else {
+            value.file_name()
+        }
+        .map(|file_name| file_name.to_string_lossy().into_owned())
+        .ok_or_else(|| Error::EmptyFileName(value.to_path_buf()))?;
 
-        if value.is_file() {
+        if is_file {
             let note = Note::try_from((name, value.to_path_buf()))?;
             Ok(VaultEntry::File(note))
         } else {
@@ -81,5 +86,33 @@ impl FindNote for VaultEntry {
             } if path.starts_with(dir_path) => entries.find_note(path),
             _ => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn directory_name_keeps_dots() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("57.02 The First Civilization");
+        fs::create_dir(&path).unwrap();
+
+        let entry = VaultEntry::try_from(path.as_path()).unwrap();
+
+        assert_eq!(entry.name(), "57.02 The First Civilization");
+    }
+
+    #[test]
+    fn note_name_drops_extension() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("57.02 Notes.md");
+        fs::write(&path, "").unwrap();
+
+        let entry = VaultEntry::try_from(path.as_path()).unwrap();
+
+        assert_eq!(entry.name(), "57.02 Notes");
     }
 }
