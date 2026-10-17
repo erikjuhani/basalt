@@ -144,6 +144,7 @@ dependencies = [
  "rayon",
  "serde",
  "similar-asserts",
+ "tempfile",
  "textwrap",
  "thiserror 2.0.21",
  "toml",
