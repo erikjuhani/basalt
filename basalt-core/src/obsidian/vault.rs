@@ -594,11 +594,12 @@ impl Vault {
     /// ```
     /// TODO: Add Options struct to configure e.g. filters. Currently all hidden folders are filtered.
     pub fn entries(&self) -> Vec<VaultEntry> {
-        match self.path.as_path().try_into() {
-            Ok(VaultEntry::Directory { entries, .. }) => entries
-                .into_iter()
-                .filter(|entry| !entry.name().starts_with('.'))
-                .collect(),
+        let is_hidden_top_level = |path: &Path| {
+            path.parent() == Some(Path::new("")) && path.to_string_lossy().starts_with('.')
+        };
+
+        match VaultEntry::walk(&self.path, &is_hidden_top_level) {
+            Ok(VaultEntry::Directory { entries, .. }) => entries,
             _ => vec![],
         }
     }
@@ -703,5 +704,32 @@ impl<'de> Deserialize<'de> for Vault {
 
         let deserialized: Json = Deserialize::deserialize(deserializer)?;
         deserialized.try_into().map_err(serde::de::Error::custom)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    fn names(entries: &[VaultEntry]) -> Vec<&str> {
+        let mut names: Vec<&str> = entries.iter().map(VaultEntry::name).collect();
+        names.sort();
+        names
+    }
+
+    #[test]
+    fn entries_skips_hidden_top_level_entries() {
+        let dir = tempdir().unwrap();
+        fs::create_dir(dir.path().join(".obsidian")).unwrap();
+        fs::write(dir.path().join(".obsidian/app.json"), "{}").unwrap();
+        fs::write(dir.path().join("note.md"), "").unwrap();
+
+        let vault = Vault {
+            path: dir.path().to_path_buf(),
+            ..Default::default()
+        };
+
+        assert_eq!(names(&vault.entries()), ["note"]);
     }
 }

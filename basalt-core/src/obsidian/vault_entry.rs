@@ -26,40 +26,55 @@ impl VaultEntry {
     }
 }
 
-impl TryFrom<&Path> for VaultEntry {
-    type Error = Error;
-    fn try_from(value: &Path) -> Result<Self> {
+impl VaultEntry {
+    /// Walks `path` into a [`VaultEntry`], recursing into directories.
+    ///
+    /// `skip` is called with the path of each directory entry, relative to `path`, before the
+    /// entry is read. A skipped directory is never descended into.
+    pub(crate) fn walk(path: &Path, skip: &dyn Fn(&Path) -> bool) -> Result<Self> {
+        Self::walk_from(path, path, skip)
+    }
+
+    fn walk_from(root: &Path, path: &Path, skip: &dyn Fn(&Path) -> bool) -> Result<Self> {
         // Only notes carry an extension. A dot in a directory name is part of the name, as in
         // "57.02 Project".
-        let is_file = value.is_file();
+        let is_file = path.is_file();
         let name = if is_file {
-            value.file_stem()
+            path.file_stem()
         } else {
-            value.file_name()
+            path.file_name()
         }
         .map(|file_name| file_name.to_string_lossy().into_owned())
-        .ok_or_else(|| Error::EmptyFileName(value.to_path_buf()))?;
+        .ok_or_else(|| Error::EmptyFileName(path.to_path_buf()))?;
 
         if is_file {
-            let note = Note::try_from((name, value.to_path_buf()))?;
+            let note = Note::try_from((name, path.to_path_buf()))?;
             Ok(VaultEntry::File(note))
         } else {
             Ok(VaultEntry::Directory {
                 name,
-                path: value.to_path_buf(),
-                entries: fs::read_dir(value)
+                path: path.to_path_buf(),
+                entries: fs::read_dir(path)
                     .into_iter()
                     .flatten()
                     .filter_map(|entry| {
-                        // NOTE: Might want to propagate the try_into errors further up
-                        entry
-                            .map_err(Error::from)
-                            .and_then(|entry| entry.path().as_path().try_into())
-                            .ok()
+                        let path = entry.ok()?.path();
+                        if skip(path.strip_prefix(root).unwrap_or(&path)) {
+                            return None;
+                        }
+                        // NOTE: Might want to propagate the walk errors further up
+                        Self::walk_from(root, &path, skip).ok()
                     })
                     .collect(),
             })
         }
+    }
+}
+
+impl TryFrom<&Path> for VaultEntry {
+    type Error = Error;
+    fn try_from(value: &Path) -> Result<Self> {
+        Self::walk(value, &|_| false)
     }
 }
 
@@ -92,7 +107,14 @@ impl FindNote for VaultEntry {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{cell::RefCell, path::PathBuf};
     use tempfile::tempdir;
+
+    fn names(entries: &[VaultEntry]) -> Vec<&str> {
+        let mut names: Vec<&str> = entries.iter().map(VaultEntry::name).collect();
+        names.sort();
+        names
+    }
 
     #[test]
     fn directory_name_keeps_dots() {
@@ -114,5 +136,31 @@ mod tests {
         let entry = VaultEntry::try_from(path.as_path()).unwrap();
 
         assert_eq!(entry.name(), "57.02 Notes");
+    }
+
+    #[test]
+    fn walk_does_not_descend_into_skipped_directories() {
+        let dir = tempdir().unwrap();
+        fs::create_dir_all(dir.path().join("skipped/nested")).unwrap();
+        fs::write(dir.path().join("skipped/nested/note.md"), "").unwrap();
+        fs::write(dir.path().join("kept.md"), "").unwrap();
+
+        let visited = RefCell::new(Vec::<PathBuf>::new());
+        let skip = |path: &Path| {
+            visited.borrow_mut().push(path.to_path_buf());
+            path == Path::new("skipped")
+        };
+
+        let Ok(VaultEntry::Directory { entries, .. }) = VaultEntry::walk(dir.path(), &skip) else {
+            panic!("expected a directory");
+        };
+
+        assert_eq!(names(&entries), ["kept"]);
+        let mut visited = visited.into_inner();
+        visited.sort();
+        assert_eq!(
+            visited,
+            [PathBuf::from("kept.md"), PathBuf::from("skipped")]
+        );
     }
 }
