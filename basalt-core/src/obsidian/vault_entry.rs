@@ -29,14 +29,15 @@ impl VaultEntry {
 impl VaultEntry {
     /// Walks `path` into a [`VaultEntry`], recursing into directories.
     ///
-    /// `skip` is called with the path of each directory entry, relative to `path`, before the
-    /// entry is read. A skipped directory is never descended into.
+    /// `skip` is called with the path of each directory entry, relative to `path`, and whether
+    /// the entry is a directory, before the entry is read. A skipped directory is never
+    /// descended into.
     ///
     /// Symbolic links below `path` are not followed into directories: a symlinked file is
     /// included as a note, while a symlinked directory or a dangling symlink is left out. This
     /// keeps the walk inside the vault and safe from symlink loops. `path` itself may be a
     /// symlink.
-    pub(crate) fn walk(path: &Path, skip: &dyn Fn(&Path) -> bool) -> Result<Self> {
+    pub(crate) fn walk(path: &Path, skip: &dyn Fn(&Path, bool) -> bool) -> Result<Self> {
         Self::walk_from(path, path, !path.is_file(), skip)
     }
 
@@ -44,7 +45,7 @@ impl VaultEntry {
         root: &Path,
         path: &Path,
         is_dir: bool,
-        skip: &dyn Fn(&Path) -> bool,
+        skip: &dyn Fn(&Path, bool) -> bool,
     ) -> Result<Self> {
         let name = path
             .with_extension("")
@@ -68,12 +69,12 @@ impl VaultEntry {
                 .filter_map(|entry| {
                     let entry = entry.ok()?;
                     let path = entry.path();
-                    if skip(path.strip_prefix(root).unwrap_or(&path)) {
-                        return None;
-                    }
                     // DirEntry::file_type does not follow symlinks, so a symlinked directory
                     // is not a directory here.
                     let is_dir = entry.file_type().ok()?.is_dir();
+                    if skip(path.strip_prefix(root).unwrap_or(&path), is_dir) {
+                        return None;
+                    }
                     // NOTE: Might want to propagate the walk errors further up
                     Self::walk_from(root, &path, is_dir, skip).ok()
                 })
@@ -85,7 +86,7 @@ impl VaultEntry {
 impl TryFrom<&Path> for VaultEntry {
     type Error = Error;
     fn try_from(value: &Path) -> Result<Self> {
-        Self::walk(value, &|_| false)
+        Self::walk(value, &|_, _| false)
     }
 }
 
@@ -135,7 +136,7 @@ mod tests {
         fs::write(dir.path().join("kept.md"), "").unwrap();
 
         let visited = RefCell::new(Vec::<PathBuf>::new());
-        let skip = |path: &Path| {
+        let skip = |path: &Path, _| {
             visited.borrow_mut().push(path.to_path_buf());
             path == Path::new("skipped")
         };
@@ -175,7 +176,7 @@ mod tests {
         )
         .unwrap();
 
-        let Ok(VaultEntry::Directory { entries, .. }) = VaultEntry::walk(dir.path(), &|_| false)
+        let Ok(VaultEntry::Directory { entries, .. }) = VaultEntry::walk(dir.path(), &|_, _| false)
         else {
             panic!("expected a directory");
         };

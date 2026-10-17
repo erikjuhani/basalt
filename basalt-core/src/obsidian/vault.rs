@@ -9,7 +9,8 @@ use std::{
 use serde::{Deserialize, Deserializer};
 
 use crate::obsidian::{
-    directory::Directory, vault_entry::VaultEntry, workspace, Error, Note, Workspace,
+    directory::Directory, vault_entry::VaultEntry, vault_filter, workspace, Error, Note,
+    VaultFilter, Workspace,
 };
 
 /// Name of the hidden directory Obsidian stores per-vault configuration and state in.
@@ -564,8 +565,9 @@ pub fn find_available_path_name<T: AsRef<Path>>(
 
 impl Vault {
     /// Returns a [`Vec`] of entries as [`VaultEntry`]s. Entries can be either directories or
-    /// files. Entries marked hidden with a dot (`.`) prefix, such as `.obsidian` or `.git`, are
-    /// filtered out at any depth, and hidden directories are never read.
+    /// files. Entries ignored by the vault's [`VaultFilter`], such as hidden entries like
+    /// `.obsidian` or `.git` and the vault's "Excluded files", are filtered out at any depth, and
+    /// ignored directories are never read.
     ///
     /// The returned entries are not sorted.
     ///
@@ -592,14 +594,11 @@ impl Vault {
     ///
     /// # Ok::<(), Error>(())
     /// ```
-    /// TODO: Add Options struct to configure e.g. filters.
     pub fn entries(&self) -> Vec<VaultEntry> {
-        let is_hidden = |path: &Path| {
-            path.file_name()
-                .is_some_and(|name| name.to_string_lossy().starts_with('.'))
-        };
+        let filter = self.filter();
+        let is_ignored = |path: &Path, is_dir| filter.is_ignored(path, is_dir);
 
-        match VaultEntry::walk(&self.path, &is_hidden) {
+        match VaultEntry::walk(&self.path, &is_ignored) {
             Ok(VaultEntry::Directory { entries, .. }) => entries,
             _ => vec![],
         }
@@ -643,6 +642,14 @@ impl Vault {
         self.notes()
             .into_iter()
             .find(|note| note.name().to_lowercase() == name)
+    }
+
+    /// Returns the [`VaultFilter`] that decides which entries of the vault are left out, with the
+    /// vault's "Excluded files" read from its `.obsidian/app.json` file.
+    ///
+    /// A missing or malformed `app.json` gives a filter with only the built-in rules.
+    pub fn filter(&self) -> VaultFilter {
+        vault_filter::load_from(&self.path.join(CONFIG_DIR))
     }
 
     /// Returns the vault's workspace state, read from its `.obsidian/workspace.json` file.
@@ -752,5 +759,27 @@ mod tests {
             panic!("expected a single directory, got {entries:?}");
         };
         assert_eq!(names(entries), ["note"]);
+    }
+
+    #[test]
+    fn entries_skips_ignored_entries() {
+        let dir = tempdir().unwrap();
+        fs::create_dir(dir.path().join(".obsidian")).unwrap();
+        fs::write(
+            dir.path().join(".obsidian/app.json"),
+            r#"{"userIgnoreFilters":["Archive/","/\\.excalidraw\\.md$/"]}"#,
+        )
+        .unwrap();
+        fs::create_dir_all(dir.path().join("Archive")).unwrap();
+        fs::write(dir.path().join("Archive/old.md"), "").unwrap();
+        fs::write(dir.path().join("Drawing.excalidraw.md"), "").unwrap();
+        fs::write(dir.path().join("note.md"), "").unwrap();
+
+        let vault = Vault {
+            path: dir.path().to_path_buf(),
+            ..Default::default()
+        };
+
+        assert_eq!(names(&vault.entries()), ["note"]);
     }
 }
