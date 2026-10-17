@@ -10,6 +10,7 @@ use crate::note_editor::{
 pub struct Parser<'a> {
     events: pulldown_cmark::TextMergeWithOffset<'a, pulldown_cmark::OffsetIter<'a>>,
     source: &'a str,
+    offset: usize,
 }
 
 impl<'a> Deref for Parser<'a> {
@@ -28,7 +29,10 @@ impl DerefMut for Parser<'_> {
 impl<'a> Iterator for Parser<'a> {
     type Item = (Event<'a>, SourceRange<usize>);
     fn next(&mut self) -> Option<Self::Item> {
-        self.deref_mut().next()
+        let offset = self.offset;
+        self.deref_mut()
+            .next()
+            .map(|(event, range)| (event, range.start + offset..range.end + offset))
     }
 }
 
@@ -56,14 +60,18 @@ impl<'a> Parser<'a> {
         // different layer of the app to only do the smart punctuation effect visually using
         // virtual elements or such, but keeping the original source content unchanged.
         options.remove(Options::ENABLE_SMART_PUNCTUATION);
+        options.remove(Options::ENABLE_YAML_STYLE_METADATA_BLOCKS);
+        options.remove(Options::ENABLE_PLUSES_DELIMITED_METADATA_BLOCKS);
 
+        let offset = frontmatter_len(text);
         let parser = pulldown_cmark::TextMergeWithOffset::new(
-            pulldown_cmark::Parser::new_ext(text, options).into_offset_iter(),
+            pulldown_cmark::Parser::new_ext(&text[offset..], options).into_offset_iter(),
         );
 
         Self {
             events: parser,
             source: text,
+            offset,
         }
     }
 
@@ -410,6 +418,20 @@ fn resolve_callout(
     (Some(marker.kind), marker.title, nodes)
 }
 
+fn frontmatter_len(text: &str) -> usize {
+    let mut len = 0;
+    for (index, line) in text.split_inclusive('\n').enumerate() {
+        len += line.len();
+        match (index, line.trim_end()) {
+            (0, "---") => {}
+            (0, _) => return 0,
+            (_, "---" | "...") => return len,
+            _ => {}
+        }
+    }
+    0
+}
+
 pub fn from_str(text: &str) -> Vec<Node> {
     Parser::new(text).parse()
 }
@@ -420,6 +442,17 @@ mod tests {
     use insta::assert_snapshot;
 
     use super::*;
+
+    #[test]
+    fn frontmatter_is_only_read_from_the_top() {
+        let text = "---\ntags: a\n---\nintro\n\n---\nkept\n\n---\n";
+        let ranges: Vec<_> = from_str(text)
+            .iter()
+            .map(|node| text[node.source_range().clone()].trim_end().to_string())
+            .collect();
+
+        assert_eq!(ranges, ["intro", "---", "kept", "---"]);
+    }
 
     #[test]
     fn test_parser() {
