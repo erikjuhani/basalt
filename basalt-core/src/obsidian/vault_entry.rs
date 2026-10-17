@@ -31,43 +31,58 @@ impl VaultEntry {
     ///
     /// `skip` is called with the path of each directory entry, relative to `path`, before the
     /// entry is read. A skipped directory is never descended into.
+    ///
+    /// Symbolic links below `path` are not followed into directories: a symlinked file is
+    /// included as a note, while a symlinked directory or a dangling symlink is left out. This
+    /// keeps the walk inside the vault and safe from symlink loops. `path` itself may be a
+    /// symlink.
     pub(crate) fn walk(path: &Path, skip: &dyn Fn(&Path) -> bool) -> Result<Self> {
-        Self::walk_from(path, path, skip)
+        Self::walk_from(path, path, !path.is_file(), skip)
     }
 
-    fn walk_from(root: &Path, path: &Path, skip: &dyn Fn(&Path) -> bool) -> Result<Self> {
+    fn walk_from(
+        root: &Path,
+        path: &Path,
+        is_dir: bool,
+        skip: &dyn Fn(&Path) -> bool,
+    ) -> Result<Self> {
         // Only notes carry an extension. A dot in a directory name is part of the name, as in
         // "57.02 Project".
-        let is_file = path.is_file();
-        let name = if is_file {
-            path.file_stem()
-        } else {
+        let name = if is_dir {
             path.file_name()
+        } else {
+            path.file_stem()
         }
         .map(|file_name| file_name.to_string_lossy().into_owned())
         .ok_or_else(|| Error::EmptyFileName(path.to_path_buf()))?;
 
-        if is_file {
+        if !is_dir {
+            // Note::try_from follows symlinks, so it accepts a symlinked file but rejects a
+            // symlinked directory, a dangling symlink or any other non-file.
             let note = Note::try_from((name, path.to_path_buf()))?;
-            Ok(VaultEntry::File(note))
-        } else {
-            Ok(VaultEntry::Directory {
-                name,
-                path: path.to_path_buf(),
-                entries: fs::read_dir(path)
-                    .into_iter()
-                    .flatten()
-                    .filter_map(|entry| {
-                        let path = entry.ok()?.path();
-                        if skip(path.strip_prefix(root).unwrap_or(&path)) {
-                            return None;
-                        }
-                        // NOTE: Might want to propagate the walk errors further up
-                        Self::walk_from(root, &path, skip).ok()
-                    })
-                    .collect(),
-            })
+            return Ok(VaultEntry::File(note));
         }
+
+        Ok(VaultEntry::Directory {
+            name,
+            path: path.to_path_buf(),
+            entries: fs::read_dir(path)
+                .into_iter()
+                .flatten()
+                .filter_map(|entry| {
+                    let entry = entry.ok()?;
+                    let path = entry.path();
+                    if skip(path.strip_prefix(root).unwrap_or(&path)) {
+                        return None;
+                    }
+                    // DirEntry::file_type does not follow symlinks, so a symlinked directory
+                    // is not a directory here.
+                    let is_dir = entry.file_type().ok()?.is_dir();
+                    // NOTE: Might want to propagate the walk errors further up
+                    Self::walk_from(root, &path, is_dir, skip).ok()
+                })
+                .collect(),
+        })
     }
 }
 
@@ -162,5 +177,40 @@ mod tests {
             visited,
             [PathBuf::from("kept.md"), PathBuf::from("skipped")]
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn walk_does_not_follow_symlinked_directories() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempdir().unwrap();
+        fs::create_dir(dir.path().join("folder")).unwrap();
+        fs::write(dir.path().join("folder/note.md"), "").unwrap();
+        // A loop back to the vault root, which would recurse forever if followed.
+        symlink(dir.path(), dir.path().join("folder/loop")).unwrap();
+        symlink(dir.path().join("folder"), dir.path().join("linked folder")).unwrap();
+        symlink(
+            dir.path().join("folder/note.md"),
+            dir.path().join("linked note.md"),
+        )
+        .unwrap();
+        symlink(
+            dir.path().join("missing.md"),
+            dir.path().join("dangling.md"),
+        )
+        .unwrap();
+
+        let Ok(VaultEntry::Directory { entries, .. }) = VaultEntry::walk(dir.path(), &|_| false)
+        else {
+            panic!("expected a directory");
+        };
+
+        assert_eq!(names(&entries), ["folder", "linked note"]);
+        let folder = entries.iter().find(|entry| entry.name() == "folder");
+        let Some(VaultEntry::Directory { entries, .. }) = folder else {
+            panic!("expected folder to be a directory");
+        };
+        assert_eq!(names(entries), ["note"]);
     }
 }
