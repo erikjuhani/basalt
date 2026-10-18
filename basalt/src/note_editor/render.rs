@@ -765,14 +765,9 @@ pub fn paragraph<'a>(
         RenderStyle::Raw => render_raw(content, source_range, max_width, prefix, symbols),
         RenderStyle::Visual | RenderStyle::Reader => {
             let text = text.plain_text();
-            let mut current_range_start = source_range.start;
 
-            let mut lines = text
-                .lines()
-                .flat_map(|line| {
-                    let line_range = line_range(current_range_start, line.len(), true);
-                    current_range_start = line_range.end;
-
+            let mut lines = text_line_ranges(content, source_range.start, &text)
+                .flat_map(|(line, line_range)| {
                     text_wrap(
                         &line.to_string().into(),
                         prefix.clone(),
@@ -865,9 +860,9 @@ pub fn code_block<'a>(
                     .bg(code_bg))
             ]);
 
+            // Only a fenced block has a language, even an empty one, and a fence line to skip.
             let raw = content.get(source_range.clone()).unwrap_or("");
-            let after_fence = raw.find('\n').map_or(0, |index| index + 1);
-            let mut current_range_start = source_range.start + after_fence;
+            let after_fence = lang.and(raw.find('\n')).map_or(0, |index| index + 1);
 
             // A whole-block parse, cached by (language, text), so an unrelated
             // edit elsewhere in the document does not re-run the syntax grammar
@@ -876,28 +871,29 @@ pub fn code_block<'a>(
                 lang.and_then(|language| context.code_cache.get_or_compute(language, &text));
 
             let mut lines = vec![padding_line.clone()];
-            lines.extend(text.lines().enumerate().map(|(index, line)| {
-                let source_range = line_range(current_range_start, line.len(), true);
-                current_range_start = source_range.end;
-
-                let mut spans = vec![
-                    synthetic_span!(prefix.clone()),
-                    synthetic_span!(Span::styled(" ", Style::new().bg(code_bg))),
-                ];
-                let ranges = block_tokens
-                    .as_ref()
-                    .and_then(|lines| lines.get(index))
-                    .map(Vec::as_slice);
-                spans.extend(code_spans(line, &source_range, ranges, theme));
-                spans.push(synthetic_span!(" "
-                    .repeat(
-                        fill_width
-                            .saturating_sub(prefix.width() + line.chars().count())
-                            .saturating_sub(1)
-                    )
-                    .bg(code_bg)));
-                VirtualLine::new(&spans)
-            }));
+            lines.extend(
+                text_line_ranges(content, source_range.start + after_fence, &text)
+                    .enumerate()
+                    .map(|(index, (line, source_range))| {
+                        let mut spans = vec![
+                            synthetic_span!(prefix.clone()),
+                            synthetic_span!(Span::styled(" ", Style::new().bg(code_bg))),
+                        ];
+                        let ranges = block_tokens
+                            .as_ref()
+                            .and_then(|lines| lines.get(index))
+                            .map(Vec::as_slice);
+                        spans.extend(code_spans(line, &source_range, ranges, theme));
+                        spans.push(synthetic_span!(" "
+                            .repeat(
+                                fill_width
+                                    .saturating_sub(prefix.width() + line.chars().count())
+                                    .saturating_sub(1)
+                            )
+                            .bg(code_bg)));
+                        VirtualLine::new(&spans)
+                    }),
+            );
             lines.extend([padding_line]);
             lines.extend([empty_virtual_line!()]);
             lines
@@ -1088,6 +1084,35 @@ pub fn item<'a>(
     };
 
     VirtualBlock::new(&lines, source_range)
+}
+
+/// Pairs each line of parsed `text` with the source range of the line it comes
+/// from, starting at `start`. The parser strips indentation and quote markers from
+/// the text, so a range measured from the text length alone drifts off the source.
+fn text_line_ranges<'a>(
+    content: &'a str,
+    start: usize,
+    text: &'a str,
+) -> impl Iterator<Item = (&'a str, SourceRange<usize>)> + 'a {
+    let source_lines = content
+        .get(start..)
+        .unwrap_or_default()
+        .split_inclusive('\n')
+        .scan(start, |line_start, line| {
+            let range = *line_start..*line_start + line.len();
+            *line_start = range.end;
+            Some((line.trim_end_matches(['\n', '\r']), range))
+        });
+
+    text.lines()
+        .zip(source_lines)
+        .map(|(line, (source_line, range))| {
+            let text_start = source_line.strip_suffix(line).map_or_else(
+                || source_line.len() - source_line.trim_start().len(),
+                str::len,
+            );
+            (line, range.start + text_start..range.end)
+        })
 }
 
 pub fn line_range(start: usize, line_width: usize, newline: bool) -> SourceRange<usize> {
