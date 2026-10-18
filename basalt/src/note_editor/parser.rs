@@ -71,7 +71,7 @@ impl<'a> Parser<'a> {
     /// a plain paragraph so its source stays visible and editable. Without this it parses as a
     /// [`pulldown_cmark::Event::Rule`], which carries no text and would leave that line uncovered
     /// by any node — invisible and impossible to fix. Horizontal rules are not rendered specially.
-    fn rule_node(&self, source_range: SourceRange<usize>) -> Node {
+    fn source_node(&self, source_range: SourceRange<usize>) -> Node {
         let text = self
             .source
             .get(source_range.clone())
@@ -81,6 +81,12 @@ impl<'a> Parser<'a> {
             text: RichText::from(vec![TextSegment::plain(text)]),
             source_range,
         }
+    }
+
+    fn metadata_node(&mut self, source_range: SourceRange<usize>) -> Option<Node> {
+        self.by_ref()
+            .find(|(event, _)| matches!(event, Event::End(TagEnd::MetadataBlock(_))));
+        (source_range.start != 0).then(|| self.source_node(source_range))
     }
 
     pub fn parse(mut self) -> Vec<Node> {
@@ -97,7 +103,10 @@ impl<'a> Parser<'a> {
                         result.push(node);
                     }
                 }
-                Event::Rule => result.push(self.rule_node(source_range)),
+                Event::Start(Tag::MetadataBlock(_)) => {
+                    result.extend(self.metadata_node(source_range));
+                }
+                Event::Rule => result.push(self.source_node(source_range)),
                 _ => {}
             }
         }
@@ -138,7 +147,11 @@ impl<'a> Parser<'a> {
                     }
                 }
 
-                Event::Rule => nodes.push(self.rule_node(source_range)),
+                Event::Start(Tag::MetadataBlock(_)) => {
+                    nodes.extend(self.metadata_node(source_range));
+                }
+
+                Event::Rule => nodes.push(self.source_node(source_range)),
 
                 Event::TaskListMarker(checked) => {
                     state.task_kind.push(if checked {
@@ -420,6 +433,44 @@ mod tests {
     use insta::assert_snapshot;
 
     use super::*;
+
+    #[test]
+    fn metadata_block_is_only_hidden_at_the_top() {
+        let tests = [
+            ("---\ntags: a\n---\nbody\n", vec!["body\n"]),
+            ("---\r\ntags: a\r\n---\r\nbody\r\n", vec!["body\r\n"]),
+            (
+                "intro\n\n---\nhidden\n\n---\n\noutro\n",
+                vec!["intro\n", "---\nhidden\n\n---", "outro\n"],
+            ),
+            (
+                "---\ntags: a\n---\nintro\n\n---\nkept\n---\n",
+                vec!["intro\n", "---\nkept\n---"],
+            ),
+        ];
+
+        tests.into_iter().for_each(|(text, expected)| {
+            let sources: Vec<_> = from_str(text)
+                .iter()
+                .map(|node| &text[node.source_range().clone()])
+                .collect();
+            assert_eq!(sources, expected, "{text:?}");
+        });
+    }
+
+    #[test]
+    fn metadata_block_in_a_quote_is_kept() {
+        let text = ">---\ntitle: a\n---\n";
+        let Ok([Node::BlockQuote { nodes, .. }, _]) = <[Node; 2]>::try_from(from_str(text)) else {
+            panic!("expected a block quote and a heading");
+        };
+        let sources: Vec<_> = nodes
+            .iter()
+            .map(|node| &text[node.source_range().clone()])
+            .collect();
+
+        assert_eq!(sources, ["---\n"]);
+    }
 
     #[test]
     fn test_parser() {
