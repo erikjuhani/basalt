@@ -1111,6 +1111,28 @@ mod tests {
     }
 
     #[test]
+    fn test_metadata_block_below_the_top_is_visible() {
+        use ratatui::layout::Size;
+
+        let mut state = NoteEditorState::new(
+            "intro\n\n---\nhidden\n\n---\n\noutro\n",
+            "",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.resize_viewport(Size::new(30, 10));
+
+        let mut terminal = Terminal::new(TestBackend::new(30, 10)).unwrap();
+        terminal
+            .draw(|frame| {
+                NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut state)
+            })
+            .unwrap();
+
+        assert_snapshot!("metadata_block_below_the_top", terminal.backend());
+    }
+
+    #[test]
     fn test_line_highlight_tints_every_wrapped_row_in_edit_mode() {
         use crate::config::Theme;
         use ratatui::layout::Size;

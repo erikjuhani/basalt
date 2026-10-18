@@ -1,0 +1,14 @@
+---
+source: basalt/src/note_editor/editor.rs
+expression: terminal.backend()
+---
+"╭────────────────────────────╮"
+"│▎intro                      │"
+"│                            │"
+"│ ---                        │"
+"│ hidden                     │"
+"│                            │"
+"│ ---                        │"
+"│                            │"
+"│ outro                      │"
+"╰────────────────────────────╯"
