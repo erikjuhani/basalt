@@ -10,7 +10,6 @@ use crate::note_editor::{
 pub struct Parser<'a> {
     events: pulldown_cmark::TextMergeWithOffset<'a, pulldown_cmark::OffsetIter<'a>>,
     source: &'a str,
-    offset: usize,
 }
 
 impl<'a> Deref for Parser<'a> {
@@ -29,10 +28,7 @@ impl DerefMut for Parser<'_> {
 impl<'a> Iterator for Parser<'a> {
     type Item = (Event<'a>, SourceRange<usize>);
     fn next(&mut self) -> Option<Self::Item> {
-        let offset = self.offset;
-        self.deref_mut()
-            .next()
-            .map(|(event, range)| (event, range.start + offset..range.end + offset))
+        self.deref_mut().next()
     }
 }
 
@@ -60,18 +56,14 @@ impl<'a> Parser<'a> {
         // different layer of the app to only do the smart punctuation effect visually using
         // virtual elements or such, but keeping the original source content unchanged.
         options.remove(Options::ENABLE_SMART_PUNCTUATION);
-        options.remove(Options::ENABLE_YAML_STYLE_METADATA_BLOCKS);
-        options.remove(Options::ENABLE_PLUSES_DELIMITED_METADATA_BLOCKS);
 
-        let offset = frontmatter_len(text);
         let parser = pulldown_cmark::TextMergeWithOffset::new(
-            pulldown_cmark::Parser::new_ext(&text[offset..], options).into_offset_iter(),
+            pulldown_cmark::Parser::new_ext(text, options).into_offset_iter(),
         );
 
         Self {
             events: parser,
             source: text,
-            offset,
         }
     }
 
@@ -79,7 +71,7 @@ impl<'a> Parser<'a> {
     /// a plain paragraph so its source stays visible and editable. Without this it parses as a
     /// [`pulldown_cmark::Event::Rule`], which carries no text and would leave that line uncovered
     /// by any node — invisible and impossible to fix. Horizontal rules are not rendered specially.
-    fn rule_node(&self, source_range: SourceRange<usize>) -> Node {
+    fn source_node(&self, source_range: SourceRange<usize>) -> Node {
         let text = self
             .source
             .get(source_range.clone())
@@ -89,6 +81,12 @@ impl<'a> Parser<'a> {
             text: RichText::from(vec![TextSegment::plain(text)]),
             source_range,
         }
+    }
+
+    fn metadata_node(&mut self, source_range: SourceRange<usize>) -> Option<Node> {
+        self.by_ref()
+            .find(|(event, _)| matches!(event, Event::End(TagEnd::MetadataBlock(_))));
+        (source_range.start != 0).then(|| self.source_node(source_range))
     }
 
     pub fn parse(mut self) -> Vec<Node> {
@@ -105,7 +103,10 @@ impl<'a> Parser<'a> {
                         result.push(node);
                     }
                 }
-                Event::Rule => result.push(self.rule_node(source_range)),
+                Event::Start(Tag::MetadataBlock(_)) => {
+                    result.extend(self.metadata_node(source_range));
+                }
+                Event::Rule => result.push(self.source_node(source_range)),
                 _ => {}
             }
         }
@@ -146,7 +147,11 @@ impl<'a> Parser<'a> {
                     }
                 }
 
-                Event::Rule => nodes.push(self.rule_node(source_range)),
+                Event::Start(Tag::MetadataBlock(_)) => {
+                    nodes.extend(self.metadata_node(source_range));
+                }
+
+                Event::Rule => nodes.push(self.source_node(source_range)),
 
                 Event::TaskListMarker(checked) => {
                     state.task_kind.push(if checked {
@@ -418,20 +423,6 @@ fn resolve_callout(
     (Some(marker.kind), marker.title, nodes)
 }
 
-fn frontmatter_len(text: &str) -> usize {
-    let mut len = 0;
-    for (index, line) in text.split_inclusive('\n').enumerate() {
-        len += line.len();
-        match (index, line.trim_end()) {
-            (0, "---") => {}
-            (0, _) => return 0,
-            (_, "---" | "...") => return len,
-            _ => {}
-        }
-    }
-    0
-}
-
 pub fn from_str(text: &str) -> Vec<Node> {
     Parser::new(text).parse()
 }
@@ -444,14 +435,41 @@ mod tests {
     use super::*;
 
     #[test]
-    fn frontmatter_is_only_read_from_the_top() {
-        let text = "---\ntags: a\n---\nintro\n\n---\nkept\n\n---\n";
-        let ranges: Vec<_> = from_str(text)
+    fn metadata_block_is_only_hidden_at_the_top() {
+        let tests = [
+            ("---\ntags: a\n---\nbody\n", vec!["body\n"]),
+            ("---\r\ntags: a\r\n---\r\nbody\r\n", vec!["body\r\n"]),
+            (
+                "intro\n\n---\nhidden\n\n---\n\noutro\n",
+                vec!["intro\n", "---\nhidden\n\n---", "outro\n"],
+            ),
+            (
+                "---\ntags: a\n---\nintro\n\n---\nkept\n---\n",
+                vec!["intro\n", "---\nkept\n---"],
+            ),
+        ];
+
+        tests.into_iter().for_each(|(text, expected)| {
+            let sources: Vec<_> = from_str(text)
+                .iter()
+                .map(|node| &text[node.source_range().clone()])
+                .collect();
+            assert_eq!(sources, expected, "{text:?}");
+        });
+    }
+
+    #[test]
+    fn metadata_block_in_a_quote_is_kept() {
+        let text = ">---\ntitle: a\n---\n";
+        let Ok([Node::BlockQuote { nodes, .. }, _]) = <[Node; 2]>::try_from(from_str(text)) else {
+            panic!("expected a block quote and a heading");
+        };
+        let sources: Vec<_> = nodes
             .iter()
-            .map(|node| text[node.source_range().clone()].trim_end().to_string())
+            .map(|node| &text[node.source_range().clone()])
             .collect();
 
-        assert_eq!(ranges, ["intro", "---", "kept", "---"]);
+        assert_eq!(sources, ["---\n"]);
     }
 
     #[test]
