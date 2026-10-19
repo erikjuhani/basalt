@@ -2140,4 +2140,40 @@ mod tests {
         assert!(!state.is_selecting());
         assert_eq!(state.selection_range(), None);
     }
+
+    fn read_view_line_starts(content: &str) -> Vec<usize> {
+        let mut state =
+            NoteEditorState::new(content, "test", Path::new("test.md"), &Symbols::unicode());
+        state.resize_viewport(Size::new(40, 12));
+        (1..content.lines().count())
+            .map(|_| {
+                state.cursor_down(1);
+                state.cursor.source_offset()
+            })
+            .collect()
+    }
+
+    /// Block art that starts with four spaces parses as an indented code block,
+    /// which has no fence line to skip and loses its indentation in the parsed
+    /// text. Its rows must still map to their own source lines, or the cursor
+    /// cannot move past the block.
+    #[test]
+    fn test_cursor_moves_through_block_art_in_an_indented_code_block() {
+        let content = "# Art\n    ▄▄██▀█▀\n     ▀█▄  █\n  ██▄▀▄\n▀███▀\n";
+
+        assert_eq!(
+            read_view_line_starts(content),
+            ["▄▄██", " ▀█▄", "██▄▀▄", "▀███▀"].map(|text| content.find(text).unwrap()),
+        );
+    }
+
+    #[test]
+    fn test_cursor_moves_through_indented_paragraph_lines() {
+        let content = "# Art\n▄▄██▀█▀\n   ▀█▄  █\n  ██▄▀▄\n";
+
+        assert_eq!(
+            read_view_line_starts(content),
+            ["▄▄██", "▀█▄", "██▄▀▄"].map(|text| content.find(text).unwrap()),
+        );
+    }
 }
