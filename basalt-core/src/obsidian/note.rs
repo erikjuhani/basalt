@@ -44,8 +44,6 @@ impl TryFrom<(String, PathBuf)> for Note {
 
 impl Note {
     /// Creates a Note struct that is unchecked to be a valid file.
-    /// Only used in tests.
-    /// NOTE: This will be removed.
     pub fn new_unchecked(name: &str, path: &Path) -> Self {
         Self {
             name: name.to_string(),
