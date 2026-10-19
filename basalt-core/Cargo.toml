@@ -16,6 +16,7 @@ serde = { version = "1.0.224", features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 pulldown-cmark = "0.13.0"
 regex = "1.13.1"
+dua-core = "5.0.0"
 
 [dev-dependencies]
 indoc = "=2.0.8"
