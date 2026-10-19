@@ -24,6 +24,7 @@ pub struct VaultWatcher {
     debouncer: VaultDebouncer,
     rx: Receiver<Vec<PathBuf>>,
     path: PathBuf,
+    root: PathBuf,
     filter: Arc<VaultFilter>,
     /// Directories watched one by one, or `None` if the whole vault is watched recursively.
     watched_dirs: Option<HashSet<PathBuf>>,
@@ -41,14 +42,17 @@ impl VaultWatcher {
         let (tx, rx) = mpsc::channel::<Vec<PathBuf>>();
         let filter = Arc::new(filter);
 
-        let root = path.to_path_buf();
+        // FSEvents reports canonical paths, so a vault opened through a symlink must be matched
+        // against its canonical path.
+        let root = path.canonicalize()?;
+        let event_root = root.clone();
         let event_filter = Arc::clone(&filter);
         let mut debouncer = new_debouncer(DEBOUNCE, None, move |result: DebounceEventResult| {
             let Ok(events) = result else { return };
             let paths: Vec<PathBuf> = events
                 .iter()
                 .flat_map(|event| event.paths.iter())
-                .filter(|p| !is_ignored(&root, &event_filter, p))
+                .filter(|p| !is_ignored(&event_root, &event_filter, p))
                 .cloned()
                 .collect();
             if !paths.is_empty() {
@@ -58,13 +62,13 @@ impl VaultWatcher {
 
         let watched_dirs = match VaultDebouncer::kind() {
             WatcherKind::Fsevent | WatcherKind::ReadDirectoryChangesWatcher => {
-                debouncer.watch(path, RecursiveMode::Recursive)?;
+                debouncer.watch(&root, RecursiveMode::Recursive)?;
                 None
             }
             _ => {
-                debouncer.watch(path, RecursiveMode::NonRecursive)?;
-                let mut watched_dirs = HashSet::from([path.to_path_buf()]);
-                watch_dirs(&mut debouncer, &mut watched_dirs, path, &filter, path);
+                debouncer.watch(&root, RecursiveMode::NonRecursive)?;
+                let mut watched_dirs = HashSet::from([root.clone()]);
+                watch_dirs(&mut debouncer, &mut watched_dirs, &root, &filter, &root);
                 Some(watched_dirs)
             }
         };
@@ -73,6 +77,7 @@ impl VaultWatcher {
             debouncer,
             rx,
             path: path.to_path_buf(),
+            root,
             filter,
             watched_dirs,
         })
@@ -112,7 +117,7 @@ impl VaultWatcher {
                 watch_dirs(
                     &mut self.debouncer,
                     watched_dirs,
-                    &self.path,
+                    &self.root,
                     &self.filter,
                     path,
                 );
@@ -314,5 +319,24 @@ mod tests {
             watched(&watcher),
             HashSet::from([root.to_path_buf(), root.join("c"), root.join("c/d")])
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn watcher_reports_changes_in_a_vault_opened_through_a_symlink() {
+        let dir = tempdir().unwrap();
+        fs::create_dir(dir.path().join("vault")).unwrap();
+        let link = dir.path().join("link");
+        std::os::unix::fs::symlink(dir.path().join("vault"), &link).unwrap();
+
+        let mut watcher = VaultWatcher::new(&link, VaultFilter::default()).unwrap();
+        std::thread::sleep(DEBOUNCE);
+        fs::write(link.join("note.md"), "").unwrap();
+
+        let received = (0..20).any(|_| {
+            std::thread::sleep(DEBOUNCE);
+            watcher.drain()
+        });
+        assert!(received);
     }
 }
