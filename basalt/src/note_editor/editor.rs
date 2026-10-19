@@ -1531,4 +1531,27 @@ mod tests {
             "typing should not change how many keyword-coloured cells are on screen"
         );
     }
+
+    #[test]
+    fn test_wrapped_lines_keep_their_last_letter_next_to_the_scrollbar() {
+        let content = indoc! {"
+            - aaaa bbbbbbb cc
+            - aaaa bbbbbb cccc dddd eeee
+
+            > aaaa bbbbbbb cc
+
+            > aaaa bbbbbb cccc dddd eeee
+        "};
+        let mut state =
+            NoteEditorState::new(content, "Test", Path::new("test.md"), &Symbols::unicode());
+
+        let mut terminal = Terminal::new(TestBackend::new(17, 16)).unwrap();
+        terminal
+            .draw(|frame| {
+                NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut state)
+            })
+            .unwrap();
+
+        assert_snapshot!(terminal.backend());
+    }
 }

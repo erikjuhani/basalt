@@ -1,0 +1,20 @@
+---
+source: basalt/src/note_editor/editor.rs
+expression: terminal.backend()
+---
+"╭───────────────▲"
+"│ 𝓣𝓮𝓼𝓽          █"
+"│ ═════════════ █"
+"│               █"
+"│▎● aaaa        █"
+"│   ⤷ bbbbbbb   █"
+"│   ⤷ cc        █"
+"│ ● aaaa bbbbbb █"
+"│   ⤷ cccc dddd ║"
+"│   ⤷ eeee      ║"
+"│               ║"
+"│ ┃ aaaa        ║"
+"│ ┃ ⤷ bbbbbbb   ║"
+"│ ┃ ⤷ cc        ║"
+"│               ║"
+"╰───────────────▼"
