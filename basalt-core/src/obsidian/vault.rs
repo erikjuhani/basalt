@@ -604,7 +604,8 @@ impl Vault {
         }
     }
 
-    /// Returns every note in the vault, recursively flattened from [`Vault::entries`].
+    /// Returns every note in the vault, recursively flattened. Unlike [`Vault::entries`], this
+    /// includes the vault's "Excluded files", so links to them resolve and are updated on rename.
     pub fn notes(&self) -> Vec<Note> {
         fn flatten(entry: VaultEntry) -> Vec<Note> {
             match entry {
@@ -614,7 +615,10 @@ impl Vault {
                 }
             }
         }
-        self.entries().into_iter().flat_map(flatten).collect()
+        let filter = VaultFilter::default();
+        VaultEntry::walk(&self.path, &|path, is_dir| filter.is_ignored(path, is_dir))
+            .map(flatten)
+            .unwrap_or_default()
     }
 
     /// Resolves a wiki link target (`[[name]]`) to a note by base name, matched
@@ -781,5 +785,6 @@ mod tests {
         };
 
         assert_eq!(names(&vault.entries()), ["note"]);
+        assert!(vault.find_note("old").is_some());
     }
 }
