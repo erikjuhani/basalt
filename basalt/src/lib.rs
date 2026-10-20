@@ -11,6 +11,7 @@ pub mod input;
 pub mod motion;
 pub mod note_editor;
 pub mod outline;
+pub mod panel;
 pub mod search;
 pub mod splash_modal;
 pub mod statusbar;
