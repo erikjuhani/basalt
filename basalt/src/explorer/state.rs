@@ -1,5 +1,6 @@
 use std::{
     cmp::Ordering,
+    collections::HashSet,
     path::{Path, PathBuf},
 };
 
@@ -152,37 +153,22 @@ impl ExplorerState {
         self.active = active;
     }
 
-    fn map_to_item(&self, depth: usize, entry: VaultEntry) -> Item {
+    fn map_to_item(expanded_dirs: &HashSet<PathBuf>, depth: usize, entry: VaultEntry) -> Item {
         match entry {
             VaultEntry::Directory {
                 name,
                 path,
                 entries,
-            } => {
-                let expanded = self
-                    .flat_items
-                    .iter()
-                    .find_map(|(item, _)| match item {
-                        Item::Directory {
-                            path: item_path,
-                            expanded,
-                            ..
-                        } if &path == item_path => Some(*expanded),
-                        _ => None,
-                    })
-                    .unwrap_or(false);
-
-                Item::Directory {
-                    name,
-                    path,
-                    expanded,
-                    depth,
-                    items: entries
-                        .into_iter()
-                        .map(|entry| self.map_to_item(depth + 1, entry))
-                        .collect(),
-                }
-            }
+            } => Item::Directory {
+                name,
+                expanded: expanded_dirs.contains(&path),
+                path,
+                depth,
+                items: entries
+                    .into_iter()
+                    .map(|entry| Self::map_to_item(expanded_dirs, depth + 1, entry))
+                    .collect(),
+            },
             VaultEntry::File(note) => Item::File { note, depth },
         }
     }
@@ -213,9 +199,21 @@ impl ExplorerState {
     }
 
     fn rebuild(&mut self, entries: Vec<VaultEntry>) {
+        let expanded_dirs: HashSet<PathBuf> = self
+            .flat_items
+            .iter()
+            .filter_map(|(item, _)| match item {
+                Item::Directory {
+                    path,
+                    expanded: true,
+                    ..
+                } => Some(path.clone()),
+                _ => None,
+            })
+            .collect();
         let items: Vec<Item> = entries
             .into_iter()
-            .map(|entry| self.map_to_item(0, entry))
+            .map(|entry| Self::map_to_item(&expanded_dirs, 0, entry))
             .collect();
         self.flatten_with_items(&items);
     }
