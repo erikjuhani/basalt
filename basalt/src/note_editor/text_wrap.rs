@@ -1,10 +1,6 @@
 use textwrap::WordSeparator;
 
-pub fn wrap_preserve_trailing(
-    text: &str,
-    max_width: usize,
-    wrap_symbol_width: usize,
-) -> Vec<String> {
+pub fn wrap_preserve_trailing(text: &str, first_width: usize, rest_width: usize) -> Vec<String> {
     let separator = WordSeparator::AsciiSpace;
     let mut lines = Vec::new();
     let mut cur = String::new();
@@ -21,13 +17,13 @@ pub fn wrap_preserve_trailing(
             continue;
         }
 
-        let wrap_symbol_width = match lines.is_empty() {
-            false => wrap_symbol_width,
-            true => 0,
+        let max_width = match lines.is_empty() {
+            true => first_width,
+            false => rest_width,
         };
 
-        // If the word (without dropping its trailing whitespace) fits, append it.
-        if cur_width + width + wrap_symbol_width <= max_width {
+        // Trailing whitespace may run past the edge: it shows nothing there.
+        if cur_width + textwrap::core::display_width(word.word) <= max_width {
             cur.push_str(&word_with_trailing_whitespace);
             cur_width += width;
         } else {
@@ -46,4 +42,25 @@ pub fn wrap_preserve_trailing(
     }
 
     lines
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_wrap_fills_each_line_to_its_width() {
+        assert_eq!(
+            wrap_preserve_trailing("aaaa bbbb cccc dddd", 9, 4),
+            ["aaaa bbbb ", "cccc ", "dddd"]
+        );
+    }
+
+    #[test]
+    fn test_wrap_keeps_an_overlong_word_whole() {
+        assert_eq!(
+            wrap_preserve_trailing("abcdefgh ij", 4, 4),
+            ["abcdefgh ", "ij"]
+        );
+    }
 }

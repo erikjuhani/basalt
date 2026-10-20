@@ -67,8 +67,16 @@ fn text_wrap_internal<'a>(
     symbols: &Symbols,
 ) -> Vec<VirtualLine<'a>> {
     let wrap_marker = &symbols.wrap_marker;
-    let wrap_width = if symbols.wrap { width } else { usize::MAX };
-    let wrapped_lines = wrap_preserve_trailing(text_content, wrap_width, wrap_marker.width() + 1);
+    let marker_width = marker.as_ref().map_or(0, Span::width);
+    let first_marker_width = if option.is_styled() { marker_width } else { 0 };
+    let (first_width, rest_width) = match symbols.wrap {
+        true => (
+            width.saturating_sub(prefix.width() + first_marker_width),
+            width.saturating_sub(prefix.width() + marker_width + wrap_marker.width()),
+        ),
+        false => (usize::MAX, usize::MAX),
+    };
+    let wrapped_lines = wrap_preserve_trailing(text_content, first_width, rest_width);
 
     let mut current_range_start = source_range.start;
 
@@ -1645,7 +1653,7 @@ fn table_content_rows<'a>(
     let wrapped = row
         .iter()
         .zip(widths)
-        .map(|(cell, &width)| wrap_preserve_trailing(cell, width, 0))
+        .map(|(cell, &width)| wrap_preserve_trailing(cell, width, width))
         .collect::<Vec<_>>();
 
     let height = wrapped.iter().map(Vec::len).max().unwrap_or(1).max(1);
