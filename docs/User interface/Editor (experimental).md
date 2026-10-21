@@ -42,7 +42,7 @@ Read view uses the `[note_editor]` key bindings, so it is fully configurable. Th
 
 > [!WARNING]
 >
-> Edit view key mappings are hardcoded and cannot be configured. Every key not in the table below is inserted as text, so `Ctrl+X` types an `x` rather than saving. Leave edit view with `Esc` or `Ctrl+E` before saving.
+> Edit view key mappings are hardcoded and cannot be configured. Edit view inserts each key that is not in the table below as text. If such a key holds `Ctrl`, edit view ignores it.
 
 | Mapping     | Description                        |
 | ----------- | ---------------------------------- |
@@ -53,6 +53,7 @@ Read view uses the `[note_editor]` key bindings, so it is fully configurable. Th
 | `Alt+f`     | Move cursor forward by word        |
 | `Alt+b`     | Move cursor backward by word       |
 | `Ctrl+E`    | Return to read view                |
+| `Ctrl+X`    | Save the note                      |
 | `Esc`       | Return to read view                |
 
 ## Vim mode
@@ -67,7 +68,7 @@ Set `vim_mode = true` in `[note_editor]`. The edit view then gains Normal and In
 
 ## Saving
 
-`Ctrl+X` saves the note to disk and shows a confirmation toast. It works from read view and from Normal mode in [[Configuration|vim mode]], but not while typing in edit view.
+`Ctrl+X` saves the note to disk and shows a confirmation toast. It works in read view, in edit view and in [[Configuration|vim mode]].
 
 ## Limitations
 
