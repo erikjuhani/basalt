@@ -58,6 +58,7 @@ pub enum Message {
     ScrollToBottom,
     JumpToBlock(usize),
     Delete,
+    DeleteForward,
     InsertMode,
     VisualMode,
     VisualLineMode,
@@ -438,6 +439,13 @@ pub fn update<'a>(
             Message::Delete => {
                 state.delete_char();
             }
+            Message::DeleteForward => {
+                let before = offset(state);
+                update(Message::CursorRight, screen_size, state);
+                if offset(state) > before {
+                    state.delete_char();
+                }
+            }
             Message::Exit => {
                 state.set_insert_mode(false);
                 state.exit_insert();
@@ -744,6 +752,7 @@ pub fn handle_editing_event(key: KeyEvent) -> Option<Message> {
         KeyCode::End => Some(Message::CursorLineEnd),
         KeyCode::Esc => Some(Message::Exit),
         KeyCode::Backspace => Some(Message::Delete),
+        KeyCode::Delete => Some(Message::DeleteForward),
         KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             Some(Message::ToggleView)
         }
@@ -921,8 +930,26 @@ mod tests {
                 update(Message::CursorLineStart, size, &mut state);
                 update(Message::CursorLeft, size, &mut state);
                 update(Message::CursorLineEnd, size, &mut state);
+                update(Message::DeleteForward, size, &mut state);
             }
         }
+    }
+
+    #[test]
+    fn insert_mode_delete_removes_char_after_cursor() {
+        let mut state = vim_edit_state("ab\ncd\n");
+        state.set_insert_mode(true);
+        let size = Size::new(40, 10);
+        let delete = || handle_editing_event(KeyEvent::from(KeyCode::Delete)).unwrap();
+
+        update(delete(), size, &mut state);
+        assert_eq!(state.live_content(), "b\ncd\n");
+        assert_eq!(state.cursor.source_offset(), 0);
+
+        update(Message::CursorLineEnd, size, &mut state);
+        update(delete(), size, &mut state);
+        assert_eq!(state.live_content(), "bcd\n");
+        assert_eq!(state.cursor.source_offset(), 1);
     }
 
     #[test]
