@@ -59,6 +59,7 @@ pub enum Message {
     JumpToBlock(usize),
     Delete,
     DeleteForward,
+    CutToLineEnd,
     InsertMode,
     VisualMode,
     VisualLineMode,
@@ -430,6 +431,9 @@ pub fn update<'a>(
             }
             Message::KeyEvent(key) => {
                 match key.code {
+                    KeyCode::Char(_)
+                        if key.modifiers.contains(KeyModifiers::CONTROL)
+                            != key.modifiers.contains(KeyModifiers::ALT) => {}
                     KeyCode::Char(c) => {
                         state.insert_char(c);
                     }
@@ -447,12 +451,24 @@ pub fn update<'a>(
             Message::Delete => {
                 state.delete_char();
             }
-            Message::DeleteForward => {
-                let before = offset(state);
-                update(Message::CursorRight, screen_size, state);
-                if offset(state) > before {
-                    state.delete_char();
+            Message::DeleteForward => delete_forward(state, screen_size),
+            Message::CutToLineEnd => {
+                let content = state.live_content();
+                let start = offset(state);
+                let line_end = motion::line_end_exclusive(&content, start);
+                let end = if line_end == start {
+                    (line_end + 1).min(content.len())
+                } else {
+                    line_end
+                };
+                let text = content[start..end].to_string();
+                drop(content);
+                if text.is_empty() {
+                    return None;
                 }
+                (0..text.chars().count()).for_each(|_| delete_forward(state, screen_size));
+                state.set_register(text.clone(), false);
+                return Some(AppMessage::CopyToClipboard(text));
             }
             Message::Exit => {
                 state.set_insert_mode(false);
@@ -744,6 +760,14 @@ pub fn update<'a>(
     None
 }
 
+fn delete_forward(state: &mut NoteEditorState, screen_size: Size) {
+    let before = offset(state);
+    update(Message::CursorRight, screen_size, state);
+    if offset(state) > before {
+        state.delete_char();
+    }
+}
+
 pub fn handle_editing_event(key: KeyEvent) -> Option<Message> {
     match key.code {
         KeyCode::Up => Some(Message::CursorUp),
@@ -761,6 +785,9 @@ pub fn handle_editing_event(key: KeyEvent) -> Option<Message> {
         KeyCode::Esc => Some(Message::Exit),
         KeyCode::Backspace => Some(Message::Delete),
         KeyCode::Delete => Some(Message::DeleteForward),
+        KeyCode::Char('k') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            Some(Message::CutToLineEnd)
+        }
         KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             Some(Message::ToggleView)
         }
@@ -958,6 +985,56 @@ mod tests {
         update(delete(), size, &mut state);
         assert_eq!(state.live_content(), "bcd\n");
         assert_eq!(state.cursor.source_offset(), 1);
+    }
+
+    #[test]
+    fn insert_mode_ctrl_k_cuts_to_line_end() {
+        let mut state = vim_edit_state("ab cd\nef\n");
+        state.set_insert_mode(true);
+        let size = Size::new(40, 10);
+        let ctrl_k = || {
+            handle_editing_event(KeyEvent::new(KeyCode::Char('k'), KeyModifiers::CONTROL)).unwrap()
+        };
+
+        update(Message::CursorRight, size, &mut state);
+        update(Message::CursorRight, size, &mut state);
+        assert_eq!(
+            update(ctrl_k(), size, &mut state),
+            Some(AppMessage::CopyToClipboard(" cd".to_string()))
+        );
+        assert_eq!(state.live_content(), "ab\nef\n");
+
+        assert_eq!(
+            update(ctrl_k(), size, &mut state),
+            Some(AppMessage::CopyToClipboard("\n".to_string()))
+        );
+        assert_eq!(state.live_content(), "abef\n");
+        assert_eq!(state.cursor.source_offset(), 2);
+    }
+
+    #[test]
+    fn insert_mode_ignores_control_and_alt_characters() {
+        let mut state = vim_edit_state("ab\n");
+        state.set_insert_mode(true);
+        let size = Size::new(40, 10);
+
+        for modifiers in [KeyModifiers::CONTROL, KeyModifiers::ALT] {
+            update(
+                Message::KeyEvent(KeyEvent::new(KeyCode::Char('x'), modifiers)),
+                size,
+                &mut state,
+            );
+        }
+        update(
+            Message::KeyEvent(KeyEvent::new(
+                KeyCode::Char('@'),
+                KeyModifiers::CONTROL | KeyModifiers::ALT,
+            )),
+            size,
+            &mut state,
+        );
+
+        assert_eq!(state.live_content(), "@ab\n");
     }
 
     #[test]
