@@ -902,6 +902,30 @@ mod tests {
     }
 
     #[test]
+    fn insert_mode_home_end_on_heading() {
+        for content in ["# Title\n\nbody\n", "text\n\n## Heading", "## Heading"] {
+            let mut state = vim_edit_state(content);
+            state.set_insert_mode(true);
+            let size = Size::new(40, 10);
+            for _ in 0..4 {
+                update(Message::CursorDown, size, &mut state);
+                update(Message::CursorLineEnd, size, &mut state);
+                update(Message::CursorRight, size, &mut state);
+                update(Message::CursorLineStart, size, &mut state);
+                update(Message::CursorLineEnd, size, &mut state);
+                update(
+                    Message::KeyEvent(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE)),
+                    size,
+                    &mut state,
+                );
+                update(Message::CursorLineStart, size, &mut state);
+                update(Message::CursorLeft, size, &mut state);
+                update(Message::CursorLineEnd, size, &mut state);
+            }
+        }
+    }
+
+    #[test]
     fn insert_mode_word_motion_uses_engine() {
         // In insert mode (alt+f / alt+b) word motion now shares the vim engine,
         // so it stops at punctuation instead of splitting only on spaces.
