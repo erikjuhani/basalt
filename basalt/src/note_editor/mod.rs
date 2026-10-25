@@ -307,13 +307,13 @@ pub fn update<'a>(
 
     match message {
         Message::CursorLeft
-            if state.insert_mode() && state.content[..offset(state)].ends_with('\n') =>
+            if state.insert_mode() && state.live_content()[..offset(state)].ends_with('\n') =>
         {
             let target = offset(state) - 1;
             state.jump_to_offset(target);
         }
         Message::CursorRight
-            if state.insert_mode() && state.content[offset(state)..].starts_with('\n') =>
+            if state.insert_mode() && state.live_content()[offset(state)..].starts_with('\n') =>
         {
             let target = offset(state) + 1;
             state.jump_to_offset(target);
@@ -398,19 +398,19 @@ pub fn update<'a>(
     match state.view {
         View::Edit(..) if state.insert_mode() => match message {
             Message::CursorWordForward => {
-                let target = motion::word_forward(&state.content, offset(state), false);
+                let target = motion::word_forward(&state.live_content(), offset(state), false);
                 state.jump_to_offset(target);
             }
             Message::CursorWordBackward => {
-                let target = motion::word_backward(&state.content, offset(state), false);
+                let target = motion::word_backward(&state.live_content(), offset(state), false);
                 state.jump_to_offset(target);
             }
             Message::CursorLineStart => {
-                let target = motion::line_start(&state.content, offset(state));
+                let target = motion::line_start(&state.live_content(), offset(state));
                 state.jump_to_offset(target);
             }
             Message::CursorLineEnd => {
-                let target = motion::line_end_exclusive(&state.content, offset(state));
+                let target = motion::line_end_exclusive(&state.live_content(), offset(state));
                 state.jump_to_offset(target);
             }
             Message::ToggleView | Message::ReadView => {
@@ -870,6 +870,35 @@ mod tests {
 
         update(Message::CursorLeft, size, &mut state);
         assert_eq!(state.cursor.source_offset(), 2);
+    }
+
+    #[test]
+    fn insert_mode_motions_see_uncommitted_edits() {
+        let mut state = vim_edit_state("ab\ncd\n");
+        state.set_insert_mode(true);
+        let size = Size::new(40, 10);
+
+        for character in "xxxxxxxxxx".chars() {
+            update(
+                Message::KeyEvent(KeyEvent::new(KeyCode::Char(character), KeyModifiers::NONE)),
+                size,
+                &mut state,
+            );
+        }
+
+        update(Message::CursorLineEnd, size, &mut state);
+        assert_eq!(state.cursor.source_offset(), 12);
+
+        update(Message::CursorRight, size, &mut state);
+        assert_eq!(state.cursor.source_offset(), 13);
+
+        update(Message::CursorLeft, size, &mut state);
+        update(Message::CursorLineStart, size, &mut state);
+        assert_eq!(state.cursor.source_offset(), 0);
+
+        update(Message::CursorLineEnd, size, &mut state);
+        update(Message::CursorWordBackward, size, &mut state);
+        assert_eq!(state.cursor.source_offset(), 0);
     }
 
     #[test]
