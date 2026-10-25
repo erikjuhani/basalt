@@ -1148,6 +1148,51 @@ mod tests {
     }
 
     #[test]
+    fn insert_mode_block_switch_after_reparse() {
+        let mut state = vim_edit_state("# H\ntext\n> quote\n");
+        state.set_insert_mode(true);
+        let size = Size::new(40, 10);
+        let type_k = || Message::KeyEvent(KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE));
+
+        update(type_k(), size, &mut state);
+        update(Message::CursorDown, size, &mut state);
+        update(type_k(), size, &mut state);
+        update(Message::CursorDown, size, &mut state);
+        update(Message::CursorDown, size, &mut state);
+        update(Message::CursorRight, size, &mut state);
+        update(type_k(), size, &mut state);
+        update(Message::Exit, size, &mut state);
+
+        assert_eq!(state.content, "k# H\nktext\n> quote\nk");
+    }
+
+    #[test]
+    fn insert_mode_edit_after_block_gains_leading_space() {
+        let mut state = vim_edit_state("# H\ntext\n> quote\n");
+        state.set_insert_mode(true);
+        let size = Size::new(40, 10);
+        let key = |code| Message::KeyEvent(KeyEvent::new(code, KeyModifiers::NONE));
+
+        for message in [
+            Message::CursorDown,
+            Message::Delete,
+            Message::CursorDown,
+            Message::CursorRight,
+            Message::Delete,
+            key(KeyCode::Char('k')),
+            Message::Delete,
+            Message::CursorUp,
+            Message::CursorDown,
+            Message::CursorDown,
+            Message::Delete,
+        ] {
+            update(message, size, &mut state);
+        }
+
+        assert_eq!(state.live_content(), "# Htext\n quote");
+    }
+
+    #[test]
     fn insert_mode_word_motion_uses_engine() {
         // In insert mode (alt+f / alt+b) word motion now shares the vim engine,
         // so it stops at punctuation instead of splitting only on spaces.
