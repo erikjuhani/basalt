@@ -306,6 +306,18 @@ pub fn update<'a>(
     }
 
     match message {
+        Message::CursorLeft
+            if state.insert_mode() && state.content[..offset(state)].ends_with('\n') =>
+        {
+            let target = offset(state) - 1;
+            state.jump_to_offset(target);
+        }
+        Message::CursorRight
+            if state.insert_mode() && state.content[offset(state)..].starts_with('\n') =>
+        {
+            let target = offset(state) + 1;
+            state.jump_to_offset(target);
+        }
         Message::CursorLeft => {
             let count = state.take_count().unwrap_or(1);
             if state.pending_operator().is_some() {
@@ -391,6 +403,14 @@ pub fn update<'a>(
             }
             Message::CursorWordBackward => {
                 let target = motion::word_backward(&state.content, offset(state), false);
+                state.jump_to_offset(target);
+            }
+            Message::CursorLineStart => {
+                let target = motion::line_start(&state.content, offset(state));
+                state.jump_to_offset(target);
+            }
+            Message::CursorLineEnd => {
+                let target = motion::line_end_exclusive(&state.content, offset(state));
                 state.jump_to_offset(target);
             }
             Message::ToggleView | Message::ReadView => {
@@ -720,6 +740,8 @@ pub fn handle_editing_event(key: KeyEvent) -> Option<Message> {
         }
         KeyCode::Left => Some(Message::CursorLeft),
         KeyCode::Right => Some(Message::CursorRight),
+        KeyCode::Home => Some(Message::CursorLineStart),
+        KeyCode::End => Some(Message::CursorLineEnd),
         KeyCode::Esc => Some(Message::Exit),
         KeyCode::Backspace => Some(Message::Delete),
         KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => {
@@ -806,6 +828,48 @@ mod tests {
 
         update(Message::CursorWordBackward, size, &mut state);
         assert_eq!(state.cursor.source_offset(), 4, "b lands on start of 'bar'");
+    }
+
+    #[test]
+    fn insert_mode_home_end_move_to_line_bounds() {
+        let mut state = vim_edit_state("first\nhello world\n");
+        state.set_insert_mode(true);
+        let size = Size::new(40, 10);
+
+        update(Message::CursorDown, size, &mut state);
+        update(Message::CursorRight, size, &mut state);
+        update(Message::CursorRight, size, &mut state);
+
+        update(
+            handle_editing_event(KeyEvent::from(KeyCode::End)).unwrap(),
+            size,
+            &mut state,
+        );
+        assert_eq!(state.cursor.source_offset(), 17);
+
+        update(
+            handle_editing_event(KeyEvent::from(KeyCode::Home)).unwrap(),
+            size,
+            &mut state,
+        );
+        assert_eq!(state.cursor.source_offset(), 6);
+    }
+
+    #[test]
+    fn insert_mode_horizontal_motion_wraps_lines() {
+        let mut state = vim_edit_state("ab\ncd\n");
+        state.set_insert_mode(true);
+        let size = Size::new(40, 10);
+
+        update(Message::CursorRight, size, &mut state);
+        update(Message::CursorRight, size, &mut state);
+        assert_eq!(state.cursor.source_offset(), 2);
+
+        update(Message::CursorRight, size, &mut state);
+        assert_eq!(state.cursor.source_offset(), 3);
+
+        update(Message::CursorLeft, size, &mut state);
+        assert_eq!(state.cursor.source_offset(), 2);
     }
 
     #[test]
