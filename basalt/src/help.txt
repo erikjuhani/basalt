@@ -171,21 +171,26 @@ INTERFACE
 
       SUPPORTED OPERATIONS:
         • Character insertion
-        • Character deletion (backspace only)
+        • Character deletion (backspace and delete)
         • Navigation (arrow keys, word jumping)
         • Newline insertion (Enter)
 
       EDITING COMMANDS
 
         ‹Backspace›              Delete character before cursor
+        ‹Delete›                 Delete character after cursor
         ‹Enter›                  Insert newline
+        ‹Ctrl+K›                 Cut to end of line (to clipboard)
+        ‹Ctrl+X›                 Save note
         ‹Ctrl+E›                 Toggle to read mode
         ‹Esc›                    Exit edit mode
 
       CURSOR MOVEMENT
 
-        ‹→›                      Move forward one character
-        ‹←›                      Move backward one character
+        ‹→›                      Move forward one character (wraps lines)
+        ‹←›                      Move backward one character (wraps lines)
+        ‹Home›                   Move to start of line
+        ‹End›                    Move to end of line
         ‹↑›                      Move up one line
         ‹↓›                      Move down one line
         ‹Alt+→›                  Move forward by word

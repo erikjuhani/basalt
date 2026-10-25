@@ -452,6 +452,12 @@ pub fn update<'a>(
                 state.delete_char();
             }
             Message::DeleteForward => delete_forward(state, screen_size),
+            Message::Save => {
+                let cursor = offset(state);
+                state.exit_insert();
+                state.jump_to_offset(cursor);
+                return save(state);
+            }
             Message::CutToLineEnd => {
                 let content = state.live_content();
                 let start = offset(state);
@@ -788,6 +794,7 @@ pub fn handle_editing_event(key: KeyEvent) -> Option<Message> {
         KeyCode::Char('k') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             Some(Message::CutToLineEnd)
         }
+        KeyCode::Char('x') if key.modifiers.contains(KeyModifiers::CONTROL) => Some(Message::Save),
         KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             Some(Message::ToggleView)
         }
@@ -1035,6 +1042,33 @@ mod tests {
         );
 
         assert_eq!(state.live_content(), "@ab\n");
+    }
+
+    #[test]
+    fn insert_mode_ctrl_x_saves_and_keeps_editing() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("note.md");
+        std::fs::write(&path, "ab\n").unwrap();
+        let mut state = NoteEditorState::new("ab\n", "note", &path, &Symbols::unicode());
+        state.resize_viewport(Size::new(40, 10));
+        state.set_view(View::Edit(EditMode::Source));
+        state.set_insert_mode(true);
+        let size = Size::new(40, 10);
+        let ctrl_x = || {
+            handle_editing_event(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::CONTROL)).unwrap()
+        };
+        let key = |c| Message::KeyEvent(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
+
+        update(Message::CursorRight, size, &mut state);
+        update(key('x'), size, &mut state);
+        update(ctrl_x(), size, &mut state);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "axb\n");
+        assert!(state.insert_mode());
+        assert_eq!(state.cursor.source_offset(), 2);
+
+        update(key('y'), size, &mut state);
+        update(ctrl_x(), size, &mut state);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "axyb\n");
     }
 
     #[test]
