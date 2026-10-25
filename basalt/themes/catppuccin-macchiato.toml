@@ -23,6 +23,7 @@ line-highlight = "mantle"
 blockquote = "sapphire"
 list-marker = "mauve"
 task = "green"
+link = "blue"
 
 success = "green"
 info = "blue"

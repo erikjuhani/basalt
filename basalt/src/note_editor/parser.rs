@@ -2,9 +2,12 @@ use std::ops::{Deref, DerefMut};
 
 use pulldown_cmark::{CodeBlockKind, Event, Options, Tag, TagEnd};
 
-use crate::note_editor::{
-    ast::{self, Node, SourceRange, TaskKind},
-    rich_text::{RichText, Style, TextSegment},
+use crate::{
+    motion,
+    note_editor::{
+        ast::{self, Node, SourceRange, TaskKind},
+        rich_text::{RichText, Style, TextSegment},
+    },
 };
 
 pub struct Parser<'a> {
@@ -166,13 +169,13 @@ impl<'a> Parser<'a> {
                     text_segments.push(text_segment);
                 }
 
-                Event::Text(text) => {
-                    let mut text_segment = TextSegment::plain(&text);
-                    inline_styles.iter().for_each(|style| {
-                        text_segment.add_style(style);
-                    });
-                    text_segments.push(text_segment);
+                Event::End(
+                    TagEnd::Emphasis | TagEnd::Strong | TagEnd::Strikethrough | TagEnd::Link,
+                ) => {
+                    inline_styles.pop();
                 }
+
+                Event::Text(text) => text_segments.extend(styled_segments(&text, &inline_styles)),
 
                 Event::SoftBreak => {
                     let text_segment = TextSegment::empty_line();
@@ -299,17 +302,13 @@ impl<'a> Parser<'a> {
                         inline_styles.push(style);
                     }
                 }
-                Event::End(TagEnd::Emphasis | TagEnd::Strong | TagEnd::Strikethrough) => {
+                Event::End(
+                    TagEnd::Emphasis | TagEnd::Strong | TagEnd::Strikethrough | TagEnd::Link,
+                ) => {
                     inline_styles.pop();
                 }
                 Event::Code(text) => cell.push(TextSegment::styled(&text, Style::Code)),
-                Event::Text(text) => {
-                    let mut text_segment = TextSegment::plain(&text);
-                    inline_styles
-                        .iter()
-                        .for_each(|style| text_segment.add_style(style));
-                    cell.push(text_segment);
-                }
+                Event::Text(text) => cell.extend(styled_segments(&text, &inline_styles)),
                 Event::End(TagEnd::TableCell) => {
                     let text = RichText::from(std::mem::take(&mut cell));
                     if in_head {
@@ -345,7 +344,10 @@ impl<'a> Parser<'a> {
     }
 
     fn is_inline_tag(tag: &Tag) -> bool {
-        matches!(tag, Tag::Emphasis | Tag::Strong | Tag::Strikethrough)
+        matches!(
+            tag,
+            Tag::Emphasis | Tag::Strong | Tag::Strikethrough | Tag::Link { .. }
+        )
     }
 
     fn tags_match(start: &Tag, end: &TagEnd) -> bool {
@@ -373,9 +375,31 @@ impl<'a> Parser<'a> {
             Tag::Emphasis => Some(Style::Emphasis),
             Tag::Strong => Some(Style::Strong),
             Tag::Strikethrough => Some(Style::Strikethrough),
+            Tag::Link { .. } => Some(Style::Link),
             _ => None,
         }
     }
+}
+
+fn styled_segments(text: &str, inline_styles: &[Style]) -> Vec<TextSegment> {
+    let style = inline_styles.last().cloned();
+    if style == Some(Style::Link) {
+        return vec![TextSegment::styled(text, Style::Link)];
+    }
+
+    let mut segments = Vec::new();
+    let mut start = 0;
+    for url in motion::url_ranges(text) {
+        if url.start > start {
+            segments.push(TextSegment::new(&text[start..url.start], style.clone()));
+        }
+        segments.push(TextSegment::styled(&text[url.clone()], Style::Link));
+        start = url.end;
+    }
+    if start < text.len() || segments.is_empty() {
+        segments.push(TextSegment::new(&text[start..], style));
+    }
+    segments
 }
 
 /// Resolves a quote's callout kind and title. `pulldown_cmark` handles bare
@@ -470,6 +494,23 @@ mod tests {
             .collect();
 
         assert_eq!(sources, ["---\n"]);
+    }
+
+    #[test]
+    fn links_are_styled_and_show_their_label() {
+        let text = "a [[Note|alias]] b [label](https://x.com) **c https://y.com** d\n";
+        let [Node::Paragraph { text, .. }] = <[Node; 1]>::try_from(from_str(text)).unwrap() else {
+            panic!("expected a paragraph");
+        };
+        let links: Vec<_> = text
+            .segments()
+            .iter()
+            .filter(|segment| segment.style == Some(Style::Link))
+            .map(|segment| segment.content.as_str())
+            .collect();
+
+        assert_eq!(links, ["alias", "label", "https://y.com"]);
+        assert_eq!(text.plain_text(), "a alias b label c https://y.com d");
     }
 
     #[test]

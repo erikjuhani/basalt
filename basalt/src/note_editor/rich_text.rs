@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt, vec::IntoIter};
+use std::{borrow::Cow, fmt, ops::Range, vec::IntoIter};
 
 use pulldown_cmark::CowStr;
 
@@ -9,6 +9,7 @@ pub enum Style {
     Emphasis,
     Strong,
     Strikethrough,
+    Link,
 }
 
 impl fmt::Display for Style {
@@ -18,6 +19,7 @@ impl fmt::Display for Style {
             Style::Emphasis => write!(f, "Emphasis"),
             Style::Strong => write!(f, "Strong"),
             Style::Strikethrough => write!(f, "Strikethrough"),
+            Style::Link => write!(f, "Link"),
         }
     }
 }
@@ -131,6 +133,19 @@ impl RichText {
             [segment] => Cow::Borrowed(&segment.content),
             _ => Cow::Owned(self.to_string()),
         }
+    }
+
+    pub fn link_ranges(&self) -> Vec<Range<usize>> {
+        self.segments
+            .iter()
+            .scan(0, |start, segment| {
+                let range = *start..*start + segment.content.len();
+                *start = range.end;
+                Some((range, segment))
+            })
+            .filter(|(_, segment)| segment.style == Some(Style::Link))
+            .map(|(range, _)| range)
+            .collect()
     }
 }
 

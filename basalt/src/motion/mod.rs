@@ -541,16 +541,76 @@ fn bare_url_at(content: &str, offset: usize) -> Option<&str> {
         .find(char::is_whitespace)
         .map_or(content.len(), |index| offset + index);
 
-    let url = content[start..end]
-        .trim_start_matches(['(', '[', '<'])
-        .trim_end_matches([')', ']', '>', '.', ',', ';', '!', '?']);
+    let url = url_in(&content[start..end])?;
+    Some(&content[start + url.start..start + url.end])
+}
+
+fn url_in(token: &str) -> Option<Range<usize>> {
+    let trimmed = token.trim_start_matches(['(', '[', '<']);
+    let start = token.len() - trimmed.len();
+    let url = trimmed.trim_end_matches([')', ']', '>', '.', ',', ';', '!', '?']);
 
     let (scheme, rest) = url.split_once("://")?;
     let valid_scheme = !scheme.is_empty()
         && scheme
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || "+-.".contains(c));
-    (valid_scheme && !rest.is_empty()).then_some(url)
+    (valid_scheme && !rest.is_empty()).then_some(start..start + url.len())
+}
+
+pub fn url_ranges(content: &str) -> Vec<Range<usize>> {
+    content
+        .split(char::is_whitespace)
+        .filter_map(|token| {
+            let start = token.as_ptr() as usize - content.as_ptr() as usize;
+            url_in(token).map(|url| start + url.start..start + url.end)
+        })
+        .collect()
+}
+
+pub fn link_ranges(content: &str) -> Vec<Range<usize>> {
+    let mut ranges: Vec<Range<usize>> = Vec::new();
+    let mut push = |range: Range<usize>| {
+        if !ranges
+            .iter()
+            .any(|taken| taken.start < range.end && range.start < taken.end)
+        {
+            ranges.push(range);
+        }
+    };
+
+    let mut from = 0;
+    while let Some(open) = content[from..].find("[[").map(|index| from + index) {
+        let Some(close) = content[open + 2..].find("]]").map(|index| open + 2 + index) else {
+            break;
+        };
+        if !content[open..close].contains('\n') {
+            push(open..close + 2);
+        }
+        from = close + 2;
+    }
+
+    for (bracket, _) in content.match_indices("](") {
+        let line_start = content[..bracket].rfind('\n').map_or(0, |index| index + 1);
+        let Some(open) = content[line_start..bracket]
+            .rfind('[')
+            .map(|index| line_start + index)
+        else {
+            continue;
+        };
+        let url = bracket + 2;
+        let Some(close) = content[url..].find(')').map(|index| url + index) else {
+            continue;
+        };
+        if !content[url..close].contains('\n') {
+            push(open..close + 1);
+        }
+    }
+
+    url_ranges(content).into_iter().for_each(&mut push);
+
+    ranges.sort_by_key(|range| range.start);
+    ranges
 }
 
 fn last_match(content: &str, needle: &str, offset: usize) -> Option<usize> {
@@ -807,6 +867,32 @@ mod tests {
             link_at(text, text.find("x.com").unwrap()),
             Some(LinkTarget::Url("https://x.com".into()))
         );
+    }
+
+    #[test]
+    fn link_ranges_finds_every_link_kind() {
+        let text = "a [[Note|alias]] b [label](https://x.com) c https://y.com.";
+        let found: Vec<&str> = link_ranges(text)
+            .into_iter()
+            .map(|range| &text[range])
+            .collect();
+        assert_eq!(
+            found,
+            ["[[Note|alias]]", "[label](https://x.com)", "https://y.com"]
+        );
+    }
+
+    #[test]
+    fn link_ranges_ignores_unclosed_and_plain_text() {
+        assert!(link_ranges("just [[open and [label] (no)").is_empty());
+    }
+
+    #[test]
+    fn url_ranges_after_multibyte_whitespace() {
+        let text = "é\u{3000}https://x.com";
+        let ranges = url_ranges(text);
+        assert_eq!(ranges.len(), 1);
+        assert_eq!(&text[ranges[0].clone()], "https://x.com");
     }
 
     #[test]

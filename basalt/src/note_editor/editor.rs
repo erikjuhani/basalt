@@ -1024,6 +1024,17 @@ mod tests {
                 "#},
             ),
             (
+                "links",
+                indoc! { r#"## Links
+                Link to [[Internal note]], an [[Internal note|alias]] or a [[Internal note#Heading]].
+
+                Markdown links show their [label](https://example.com), bare URLs stay as written: https://example.com.
+
+                - A list item linking [[Another note]]
+                - [ ] A task with [a link](https://example.com)
+                "#},
+            ),
+            (
                 "code_blocks",
                 indoc! { r#"## Code blocks
                 To format code as a block, enclose it with three backticks or three tildes.
@@ -1257,6 +1268,47 @@ mod tests {
         assert_eq!(text_in(theme.syntax.constant), "1");
         let plain = cells.iter().find(|cell| cell.symbol() == "x").unwrap();
         assert_eq!(plain.fg, Color::Reset, "plain code keeps the text colour");
+    }
+
+    #[test]
+    fn test_links_are_underlined_in_the_link_colour() {
+        use crate::config::Theme;
+        use ratatui::{layout::Size, style::Modifier};
+
+        let content = "See [[Note|alias]] and [label](https://x.com)\n\nVisit https://y.com now\n";
+        let views = [
+            (View::Read, "aliaslabelhttps://y.com"),
+            (
+                View::Edit(EditMode::Source),
+                "[[Note|alias]][label](https://x.com)https://y.com",
+            ),
+        ];
+
+        for (view, expected) in views {
+            let mut state =
+                NoteEditorState::new(content, "", Path::new("test.md"), &Symbols::unicode());
+            state.resize_viewport(Size::new(60, 10));
+            state.set_view(view);
+
+            let mut terminal = Terminal::new(TestBackend::new(60, 10)).unwrap();
+            terminal
+                .draw(|frame| {
+                    NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut state)
+                })
+                .unwrap();
+
+            let link: String = terminal
+                .backend()
+                .buffer()
+                .content
+                .iter()
+                .filter(|cell| {
+                    cell.fg == Theme::default().link && cell.modifier.contains(Modifier::UNDERLINED)
+                })
+                .map(|cell| cell.symbol())
+                .collect();
+            assert_eq!(link, expected, "{view:?}");
+        }
     }
 
     #[test]
