@@ -21,6 +21,7 @@ pub mod text_counts;
 pub mod theme_selector;
 pub mod theme_selector_modal;
 pub mod toast;
+pub mod unsaved_modal;
 pub mod vault_selector;
 pub mod vault_selector_modal;
 pub mod vault_watcher;

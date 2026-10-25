@@ -23,7 +23,9 @@ DISCLAIMER
   modification.
 
   Quitting the application may feel a bit abrupt, as the application exits
-  immediately after pressing ‹q›. I have some plans to handle this differently
+  immediately after pressing ‹q›, unless an open note has unsaved changes. In
+  that case quitting, or closing a modified tab, first asks to save ‹s›,
+  discard ‹d› or cancel ‹esc›. I have some plans to handle this differently
   in the future. For example, through a series of button presses or by using
   command inputs similar to Vim's ‹:quit› or ‹:q›.
 
