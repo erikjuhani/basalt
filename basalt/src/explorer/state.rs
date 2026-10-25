@@ -242,6 +242,28 @@ impl ExplorerState {
         find(&self.items, &name)
     }
 
+    pub fn notes(&self) -> Vec<Note> {
+        fn collect(items: &[Item], notes: &mut Vec<Note>) {
+            for item in items {
+                match item {
+                    Item::File { note, .. } if is_markdown(note.path()) => notes.push(note.clone()),
+                    Item::File { .. } => {}
+                    Item::Directory { items, .. } => collect(items, notes),
+                }
+            }
+        }
+
+        fn is_markdown(path: &Path) -> bool {
+            path.extension().is_some_and(|ext| {
+                ext.eq_ignore_ascii_case("md") || ext.eq_ignore_ascii_case("markdown")
+            })
+        }
+
+        let mut notes = Vec::new();
+        collect(&self.items, &mut notes);
+        notes
+    }
+
     pub fn reveal_path(&mut self, path: &Path) {
         if self.select_path(path) {
             return;

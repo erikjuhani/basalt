@@ -1,0 +1,14 @@
+---
+source: basalt/src/completion/dropdown.rs
+expression: "render(Position::new(4, 1)).backend()"
+---
+"                                        "
+"                                        "
+"    ╭──────────────────────╮            "
+"    │▎Daily log            │            "
+"    │ Project ideas        │            "
+"    │ Reading list         │            "
+"    ╰──────────────────────╯            "
+"                                        "
+"                                        "
+"                                        "

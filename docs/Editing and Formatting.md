@@ -124,6 +124,14 @@ Wiki-links and standard markdown links are parsed:
 [External Link](https://example.com)
 ```
 
+Typing `[[` in edit mode opens a dropdown of the vault's notes at the cursor. The
+text typed after `[[` fuzzy-filters the list. `↑`/`↓` (or `Ctrl+P`/`Ctrl+N`) move
+the selection and `Enter` or `Tab` inserts the note and the closing `]]`. `Esc`
+closes the dropdown and keeps what you typed. After the note name, `#` switches to
+that note's headings (`[[#` lists the headings of the current note), and `|` stops
+completion so you can type an alias. Typing `]]`, deleting the `[[`, or moving the
+cursor out of the link also closes the dropdown.
+
 ## Text styling
 
 While [[Basalt]] parses bold, italic and strikethrough syntax, these styles are **not yet rendered visually** in the terminal:

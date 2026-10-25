@@ -301,6 +301,30 @@ impl<'a> NoteEditorState<'a> {
         self.text_buffer.as_ref()
     }
 
+    pub fn filepath(&self) -> &Path {
+        &self.filepath
+    }
+
+    pub fn cursor_line(&self) -> (usize, &str, &str) {
+        let (start, text) = match &self.text_buffer {
+            Some(buffer) => (buffer.source_range.start, buffer.content.as_str()),
+            None => (0, self.content.as_str()),
+        };
+        let cursor = self
+            .cursor
+            .source_offset()
+            .saturating_sub(start)
+            .min(text.len());
+        let cursor = text.floor_char_boundary(cursor);
+        let line_start = text[..cursor].rfind('\n').map_or(0, |i| i + 1);
+        let line_end = text[cursor..].find('\n').map_or(text.len(), |i| cursor + i);
+        (
+            start + line_start,
+            &text[line_start..cursor],
+            &text[cursor..line_end],
+        )
+    }
+
     fn block_source_range(&self, block_idx: usize) -> Option<Range<usize>> {
         let node = self.ast_nodes.get(block_idx)?;
         let start = if block_idx == 0 {

@@ -1,7 +1,9 @@
 mod search_modal;
 mod search_state;
 
+pub(crate) use search_modal::highlight;
 pub use search_modal::SearchModal;
+pub(crate) use search_state::fuzzy_rank;
 pub use search_state::SearchState;
 
 use basalt_core::obsidian::Vault;
