@@ -310,14 +310,22 @@ pub fn update<'a>(
         Message::CursorLeft
             if state.insert_mode() && state.live_content()[..offset(state)].ends_with('\n') =>
         {
-            let target = offset(state) - 1;
-            state.jump_to_offset(target);
+            let before = offset(state);
+            state.cursor_up(1);
+            if offset(state) != before {
+                let target = motion::line_end_exclusive(&state.live_content(), offset(state));
+                state.jump_to_offset(target);
+            }
         }
         Message::CursorRight
             if state.insert_mode() && state.live_content()[offset(state)..].starts_with('\n') =>
         {
-            let target = offset(state) + 1;
-            state.jump_to_offset(target);
+            let before = offset(state);
+            state.cursor_down(1);
+            if offset(state) != before {
+                let target = motion::line_start(&state.live_content(), offset(state));
+                state.jump_to_offset(target);
+            }
         }
         Message::CursorLeft => {
             let count = state.take_count().unwrap_or(1);
