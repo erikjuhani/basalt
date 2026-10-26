@@ -50,8 +50,8 @@ The `[note_editor]` table holds the editor settings and its key bindings:
 - `experimental`: enables the experimental editor. It is off by default.
 - `vim_mode`: enables the vim keybinding preset (see [Vim mode](#vim-mode)).
 - `default_mode`: the view a note opens in, `read` (default) or `edit`.
-- `autosave`: writes changes to disk without the save command. `off` (default) saves only on `Ctrl+X`. `on_idle` saves once no key has been pressed in the editor for `autosave_delay_ms`. `on_leave` saves when you leave the edit view, switch or close the tab, open another note or move focus to another pane. Unless `off`, modified notes are also saved on quit.
-- `autosave_delay_ms`: how long the editor waits before an `on_idle` save, `1000` by default.
+- `autosave`: writes changes to disk without the save command, off (`false`) by default. When on, a note is saved once no key has been pressed in the editor for `autosave_delay_ms`, when you leave the edit view, switch or close the tab, open another note or move focus to another pane, and on quit.
+- `autosave_delay_ms`: how long the editor waits after the last key press before saving, `1000` by default.
 
 ```toml
 [note_editor]
@@ -274,14 +274,11 @@ vim_mode = false
 # The view a note opens in: "read" or "edit". "edit" needs the experimental
 # editor; without it the note opens in "read".
 default_mode = "read"
-# Writes changes to disk without the save command:
-# - "off" (default): only save with note_editor_experimental_save.
-# - "on_idle": save once no key has been pressed in the editor for
-#   autosave_delay_ms.
-# - "on_leave": save when leaving the edit view, switching or closing the
-#   tab, opening another note or moving focus to another pane.
-# Modified notes are also saved on quit unless this is "off".
-autosave = "off"
+# Writes changes to disk without the save command. When on, a note is saved
+# once no key has been pressed in the editor for autosave_delay_ms, when
+# leaving the edit view, switching or closing the tab, opening another note,
+# moving focus to another pane, and on quit.
+autosave = false
 autosave_delay_ms = 1000
 key_bindings = [
  { key = "k", command = "note_editor_cursor_up" },

@@ -103,15 +103,6 @@ pub enum NoteEditorMode {
     Edit,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Autosave {
-    #[default]
-    Off,
-    OnIdle,
-    OnLeave,
-}
-
 /// How tabs sync with `.obsidian/workspace.json`. `Write` also corrupts that
 /// file if a bug slips through, since it is a file Obsidian also owns, so
 /// it is experimental.
@@ -132,7 +123,7 @@ pub struct Config<'a> {
     pub wrap: bool,
     pub line_numbers: LineNumbers,
     pub default_note_editor_mode: NoteEditorMode,
-    pub autosave: Autosave,
+    pub autosave: bool,
     pub autosave_delay: Duration,
     pub symbols: Symbols,
     pub theme: Theme,
@@ -313,7 +304,7 @@ struct TomlNoteEditor {
     #[serde(default)]
     default_mode: NoteEditorMode,
     #[serde(default)]
-    autosave: Autosave,
+    autosave: bool,
     #[serde(default = "default_autosave_delay_ms")]
     autosave_delay_ms: u64,
     #[serde(default)]
@@ -332,7 +323,7 @@ impl Default for TomlNoteEditor {
             experimental: false,
             vim_mode: false,
             default_mode: NoteEditorMode::default(),
-            autosave: Autosave::default(),
+            autosave: false,
             autosave_delay_ms: default_autosave_delay_ms(),
             key_bindings: KeyBindings::default(),
             read_key_bindings: KeyBindings::default(),
@@ -661,25 +652,18 @@ mod tests {
     #[test]
     fn autosave_defaults_to_off() {
         let config = Config::from(toml::from_str::<TomlConfig>("").unwrap());
-        assert_eq!(config.autosave, Autosave::Off);
+        assert!(!config.autosave);
         assert_eq!(config.autosave_delay, Duration::from_millis(1000));
     }
 
     #[test]
-    fn autosave_parses_mode_and_delay() {
+    fn autosave_parses_switch_and_delay() {
         let config = Config::from(
-            toml::from_str::<TomlConfig>(
-                "[note_editor]\nautosave = \"on_idle\"\nautosave_delay_ms = 250",
-            )
-            .unwrap(),
+            toml::from_str::<TomlConfig>("[note_editor]\nautosave = true\nautosave_delay_ms = 250")
+                .unwrap(),
         );
-        assert_eq!(config.autosave, Autosave::OnIdle);
+        assert!(config.autosave);
         assert_eq!(config.autosave_delay, Duration::from_millis(250));
-
-        let config = Config::from(
-            toml::from_str::<TomlConfig>("[note_editor]\nautosave = \"on_leave\"").unwrap(),
-        );
-        assert_eq!(config.autosave, Autosave::OnLeave);
     }
 
     #[test]

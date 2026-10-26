@@ -69,7 +69,7 @@ Set `vim_mode = true` in `[note_editor]`. The edit view then gains Normal and In
 
 `Ctrl+X` saves the note to disk and shows a confirmation toast. It works from read view and from Normal mode in [[Configuration|vim mode]], but not while typing in edit view.
 
-To save without `Ctrl+X`, set `autosave` in `[note_editor]` to `"on_idle"` or `"on_leave"` (see [[Configuration]]). Autosave writes only modified notes, includes text still being typed, and shows no toast. The tab title's modified marker clears once the note is written.
+To save without `Ctrl+X`, set `autosave = true` in `[note_editor]` (see [[Configuration]]). Autosave writes only modified notes, includes text still being typed, and shows no toast. The tab title's modified marker clears once the note is written.
 
 ## Limitations
 
