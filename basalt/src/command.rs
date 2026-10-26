@@ -6,7 +6,13 @@ use ratatui::{
     DefaultTerminal,
 };
 use serde::{Deserialize, Deserializer};
-use std::{io::stdout, process, time::Duration};
+use std::{
+    io::stdout,
+    process::{self, Stdio},
+    sync::{Arc, Mutex},
+    thread,
+    time::Duration,
+};
 use tracing::error;
 
 use crate::{
@@ -738,7 +744,7 @@ pub fn spawn_command<'a>(
 
 /// Opens a URL with the platform's default handler. Returns an error toast when
 /// the opener cannot be launched.
-pub fn open_url<'a>(url: &str) -> Option<Message<'a>> {
+pub fn open_url<'a>(url: &str, failures: &OpenerFailures) -> Option<Message<'a>> {
     let (opener, args): (&str, &[&str]) = {
         if cfg!(target_os = "macos") {
             ("open", &[])
@@ -749,8 +755,21 @@ pub fn open_url<'a>(url: &str) -> Option<Message<'a>> {
         }
     };
 
-    match process::Command::new(opener).args(args).arg(url).spawn() {
-        Ok(_) => None,
+    let mut command = process::Command::new(opener);
+    command.args(args).arg(url);
+
+    match quiet_spawn(command) {
+        Ok(child) => {
+            let failures = failures.clone();
+            let url = url.to_string();
+            thread::spawn(move || {
+                if let Some(failure) = opener_failure(child) {
+                    error!(failure, url, "url opener failed");
+                    failures.push(failure);
+                }
+            });
+            None
+        }
         Err(error) => {
             error!(?error, url, "failed to open url");
             Some(Message::Toast(toast::Message::Create(toast::Toast::error(
@@ -758,5 +777,89 @@ pub fn open_url<'a>(url: &str) -> Option<Message<'a>> {
                 Duration::from_secs(2),
             ))))
         }
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct OpenerFailures(Arc<Mutex<Vec<String>>>);
+
+impl OpenerFailures {
+    fn push(&self, failure: String) {
+        if let Ok(mut failures) = self.0.lock() {
+            failures.push(failure);
+        }
+    }
+
+    pub fn drain(&self) -> Vec<String> {
+        self.0
+            .lock()
+            .map(|mut failures| std::mem::take(&mut *failures))
+            .unwrap_or_default()
+    }
+}
+
+pub fn opener_failure_toast<'a>(failure: &str) -> Message<'a> {
+    Message::Toast(toast::Message::Create(toast::Toast::error(
+        &format!("Failed to open link: {failure}"),
+        Duration::from_secs(4),
+    )))
+}
+
+fn quiet_spawn(mut command: process::Command) -> std::io::Result<process::Child> {
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+}
+
+fn opener_failure(child: process::Child) -> Option<String> {
+    let output = match child.wait_with_output() {
+        Ok(output) => output,
+        Err(error) => return Some(error.to_string()),
+    };
+    if output.status.success() {
+        return None;
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let last_line = stderr.lines().map(str::trim).rfind(|line| !line.is_empty());
+    Some(last_line.map_or_else(|| output.status.to_string(), str::to_string))
+}
+
+#[cfg(all(test, unix))]
+mod opener_tests {
+    use super::*;
+
+    fn run(script: &str) -> Option<String> {
+        let mut command = process::Command::new("sh");
+        command.args(["-c", script]);
+        opener_failure(quiet_spawn(command).unwrap())
+    }
+
+    #[test]
+    fn a_successful_opener_reports_nothing() {
+        assert_eq!(run("echo noise; echo more noise >&2"), None);
+    }
+
+    #[test]
+    fn a_failing_opener_reports_its_last_error_line() {
+        assert_eq!(
+            run("echo 'www-browser: not found' >&2; echo 'elinks: not found' >&2; echo; exit 3"),
+            Some("elinks: not found".to_string())
+        );
+    }
+
+    #[test]
+    fn a_silent_failure_reports_the_exit_status() {
+        assert_eq!(run("exit 4"), Some("exit status: 4".to_string()));
+    }
+
+    #[test]
+    fn failures_drain_once() {
+        let failures = OpenerFailures::default();
+        failures.clone().push("boom".to_string());
+
+        assert_eq!(failures.drain(), ["boom"]);
+        assert!(failures.drain().is_empty());
     }
 }
