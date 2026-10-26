@@ -74,6 +74,8 @@ pub enum Message {
     ParagraphBackward,
     MatchingPair,
     FollowLink,
+    NextLink,
+    PreviousLink,
     CursorDocStart,
     CursorDocEnd,
     FindChar {
@@ -348,8 +350,11 @@ pub fn update<'a>(
         }
         Message::JumpToBlock(idx) => state.cursor_jump(idx),
         Message::FollowLink => {
-            return motion::link_at(&state.content, offset(state)).map(AppMessage::FollowLink);
+            let offset = state.read_link_offset().unwrap_or_else(|| offset(state));
+            return motion::link_at(&state.content, offset).map(AppMessage::FollowLink);
         }
+        Message::NextLink => state.jump_to_link(true),
+        Message::PreviousLink => state.jump_to_link(false),
         Message::CursorUp => {
             let count = state.take_count().unwrap_or(1);
             if state.pending_operator().is_some() {
@@ -818,6 +823,77 @@ mod tests {
         state.resize_viewport(Size::new(40, 10));
         state.set_view(View::Edit(EditMode::Source));
         state
+    }
+
+    fn read_state(content: &str) -> NoteEditorState<'static> {
+        let mut state =
+            NoteEditorState::new(content, "test", Path::new("test.md"), &Symbols::unicode());
+        state.resize_viewport(Size::new(80, 10));
+        state
+    }
+
+    fn followed(state: &mut NoteEditorState) -> Option<AppMessage<'static>> {
+        update(Message::FollowLink, Size::new(80, 10), state)
+    }
+
+    #[test]
+    fn test_follow_link_in_read_view_takes_the_first_link_on_the_line() {
+        let mut state = read_state("intro\n\nSee [[Note A|alias]] and https://x.com\n");
+        update(Message::CursorDown, Size::new(80, 10), &mut state);
+
+        assert_eq!(
+            followed(&mut state),
+            Some(AppMessage::FollowLink(LinkTarget::Wikilink(
+                "Note A".into()
+            )))
+        );
+    }
+
+    #[test]
+    fn test_next_and_previous_link_move_the_read_cursor() {
+        let content = "See [[Note A]] and [label](https://x.com)\n\n```\nhttps://code.example\n```\n\nthen https://y.com\n";
+        let mut state = read_state(content);
+        let size = Size::new(80, 10);
+
+        let mut visited = vec![];
+        for _ in 0..4 {
+            update(Message::NextLink, size, &mut state);
+            visited.push(followed(&mut state));
+        }
+        assert_eq!(
+            visited,
+            [
+                Some(AppMessage::FollowLink(LinkTarget::Wikilink(
+                    "Note A".into()
+                ))),
+                Some(AppMessage::FollowLink(LinkTarget::Url(
+                    "https://x.com".into()
+                ))),
+                Some(AppMessage::FollowLink(LinkTarget::Url(
+                    "https://y.com".into()
+                ))),
+                Some(AppMessage::FollowLink(LinkTarget::Url(
+                    "https://y.com".into()
+                ))),
+            ]
+        );
+
+        update(Message::PreviousLink, size, &mut state);
+        assert_eq!(
+            state.selected_link(),
+            content
+                .find("[label]")
+                .map(|start| start..content.find("\n").unwrap())
+        );
+    }
+
+    #[test]
+    fn test_link_navigation_is_inert_while_editing() {
+        let mut state = vim_edit_state("See [[Note A]]\n");
+        update(Message::NextLink, Size::new(40, 10), &mut state);
+
+        assert_eq!(state.cursor.source_offset(), 0);
+        assert_eq!(state.selected_link(), None);
     }
 
     #[test]

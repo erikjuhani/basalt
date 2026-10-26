@@ -304,6 +304,7 @@ pub struct VirtualDocument<'a> {
     line_to_block: Vec<usize>,
     cache_key: Option<LayoutKey>,
     code_cache: HashMap<u64, CodeTokens>,
+    selected_link: Option<SourceRange<usize>>,
 }
 
 impl<'a> VirtualDocument<'a> {
@@ -317,6 +318,13 @@ impl<'a> VirtualDocument<'a> {
     pub fn set_theme(&mut self, theme: &Theme) {
         if self.theme != *theme {
             self.theme = *theme;
+            self.cache_key = None;
+        }
+    }
+
+    pub fn set_selected_link(&mut self, link: Option<SourceRange<usize>>) {
+        if self.selected_link != link {
+            self.selected_link = link;
             self.cache_key = None;
         }
     }
@@ -424,6 +432,7 @@ impl<'a> VirtualDocument<'a> {
             symbols: &self.symbols,
             theme: &self.theme,
             code_cache: &mut code_cache,
+            selected_link: self.selected_link.clone(),
         };
 
         let (block_ranges, lines, line_to_block) = ast_nodes.iter().enumerate().fold(

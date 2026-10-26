@@ -415,6 +415,7 @@ mod tests {
             symbols: &symbols,
             theme: &theme,
             code_cache: &mut code_cache,
+            selected_link: None,
         };
         parser::from_str(content)
             .into_iter()

@@ -231,6 +231,61 @@ impl<'a> NoteEditorState<'a> {
         &self.viewport
     }
 
+    pub fn link_sources(&self) -> Vec<Range<usize>> {
+        self.ast_nodes
+            .iter()
+            .flat_map(ast::Node::link_sources)
+            .collect()
+    }
+
+    pub fn selected_link(&self) -> Option<Range<usize>> {
+        if self.is_editing() {
+            return None;
+        }
+        let offset = self.cursor.source_offset();
+        self.link_sources()
+            .into_iter()
+            .find(|link| link.contains(&offset))
+    }
+
+    pub fn read_link_offset(&self) -> Option<usize> {
+        if self.is_editing() {
+            return None;
+        }
+        let offset = self.cursor.source_offset();
+        let line_start = self.content[..offset]
+            .rfind('\n')
+            .map_or(0, |index| index + 1);
+        let line_end = self.content[offset..]
+            .find('\n')
+            .map_or(self.content.len(), |index| offset + index);
+        let links = self.link_sources();
+        links
+            .iter()
+            .find(|link| link.contains(&offset))
+            .or_else(|| {
+                links
+                    .iter()
+                    .find(|link| (line_start..line_end).contains(&link.start))
+            })
+            .map(|link| link.start)
+    }
+
+    pub fn jump_to_link(&mut self, forward: bool) {
+        if self.is_editing() {
+            return;
+        }
+        let offset = self.cursor.source_offset();
+        let links = self.link_sources();
+        let target = match forward {
+            true => links.iter().find(|link| link.start > offset),
+            false => links.iter().rev().find(|link| link.start < offset),
+        };
+        if let Some(link) = target {
+            self.jump_to_offset(link.start);
+        }
+    }
+
     pub fn is_editing(&self) -> bool {
         matches!(self.view, View::Edit(..))
     }
@@ -1075,6 +1130,8 @@ impl<'a> NoteEditorState<'a> {
 
         let current_block_idx = self.editing_block;
 
+        self.virtual_document
+            .set_selected_link(self.selected_link());
         self.virtual_document.layout(
             &self.filename,
             &self.content,

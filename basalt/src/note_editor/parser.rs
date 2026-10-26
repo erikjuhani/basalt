@@ -146,7 +146,7 @@ impl<'a> Parser<'a> {
 
                 Event::Start(inner_tag) if Self::is_inline_tag(&inner_tag) => {
                     if let Some(style) = Self::tag_to_style(&inner_tag) {
-                        inline_styles.push(style);
+                        inline_styles.push((style, source_range));
                     }
                 }
 
@@ -175,7 +175,16 @@ impl<'a> Parser<'a> {
                     inline_styles.pop();
                 }
 
-                Event::Text(text) => text_segments.extend(styled_segments(&text, &inline_styles)),
+                Event::Text(text) if matches!(tag, Tag::CodeBlock(..)) => {
+                    text_segments.push(TextSegment::plain(&text))
+                }
+
+                Event::Text(text) => text_segments.extend(styled_segments(
+                    &text,
+                    source_range,
+                    self.source,
+                    &inline_styles,
+                )),
 
                 Event::SoftBreak => {
                     let text_segment = TextSegment::empty_line();
@@ -289,7 +298,8 @@ impl<'a> Parser<'a> {
         let mut inline_styles = Vec::new();
         let mut in_head = false;
 
-        for (event, _) in self.by_ref() {
+        let source = self.source;
+        for (event, event_range) in self.by_ref() {
             match event {
                 Event::Start(Tag::TableHead) => in_head = true,
                 Event::Start(Tag::TableRow) => in_head = false,
@@ -299,7 +309,7 @@ impl<'a> Parser<'a> {
                 }
                 Event::Start(inner_tag) if Self::is_inline_tag(&inner_tag) => {
                     if let Some(style) = Self::tag_to_style(&inner_tag) {
-                        inline_styles.push(style);
+                        inline_styles.push((style, event_range));
                     }
                 }
                 Event::End(
@@ -308,7 +318,9 @@ impl<'a> Parser<'a> {
                     inline_styles.pop();
                 }
                 Event::Code(text) => cell.push(TextSegment::styled(&text, Style::Code)),
-                Event::Text(text) => cell.extend(styled_segments(&text, &inline_styles)),
+                Event::Text(text) => {
+                    cell.extend(styled_segments(&text, event_range, source, &inline_styles))
+                }
                 Event::End(TagEnd::TableCell) => {
                     let text = RichText::from(std::mem::take(&mut cell));
                     if in_head {
@@ -381,33 +393,50 @@ impl<'a> Parser<'a> {
     }
 }
 
-fn styled_segments(text: &str, inline_styles: &[Style]) -> Vec<TextSegment> {
+fn styled_segments(
+    text: &str,
+    text_range: SourceRange<usize>,
+    source: &str,
+    inline_styles: &[(Style, SourceRange<usize>)],
+) -> Vec<TextSegment> {
+    let styles: Vec<Style> = inline_styles.iter().map(|(style, _)| *style).collect();
+
     // A markdown or wiki link styles its whole text, so bare-URL detection would
     // only double-mark it.
-    if inline_styles.contains(&Style::Link) {
-        return vec![TextSegment::new(text, inline_styles.to_vec())];
+    if let Some((_, link)) = inline_styles
+        .iter()
+        .rev()
+        .find(|(style, _)| *style == Style::Link)
+    {
+        return vec![TextSegment::link(text, styles, link.clone())];
     }
 
-    let linked = |range: SourceRange<usize>| {
-        let mut styles = inline_styles.to_vec();
-        styles.push(Style::Link);
-        TextSegment::new(&text[range], styles)
-    };
-
+    let linked_styles = [styles.as_slice(), &[Style::Link]].concat();
+    let source_text = source.get(text_range.clone()).unwrap_or_default();
     let mut segments = Vec::new();
     let mut start = 0;
+    let mut source_from = 0;
     for url in motion::url_ranges(text) {
         if url.start > start {
-            segments.push(TextSegment::new(
-                &text[start..url.start],
-                inline_styles.to_vec(),
-            ));
+            segments.push(TextSegment::new(&text[start..url.start], styles.clone()));
         }
+        let url_text = &text[url.clone()];
+        let url_source = source_text
+            .get(source_from..)
+            .and_then(|rest| rest.find(url_text))
+            .map(|index| source_from + index)
+            .unwrap_or(url.start);
+        source_from = url_source + url_text.len();
+        let url_start = text_range.start + url_source;
+        segments.push(TextSegment::link(
+            url_text,
+            linked_styles.clone(),
+            url_start..url_start + url_text.len(),
+        ));
         start = url.end;
-        segments.push(linked(url));
     }
     if start < text.len() || segments.is_empty() {
-        segments.push(TextSegment::new(&text[start..], inline_styles.to_vec()));
+        segments.push(TextSegment::new(&text[start..], styles));
     }
     segments
 }
@@ -535,6 +564,21 @@ mod tests {
 
         assert_eq!(links, ["alias", "label", "https://y.com"]);
         assert_eq!(text.plain_text(), "a alias b label c https://y.com d");
+    }
+
+    #[test]
+    fn link_segments_point_at_their_source() {
+        let text = "a [[Note|alias]] b [label](https://x.com) c https://y.com\n\n```\nhttps://z.com\n```\n";
+        let sources: Vec<&str> = from_str(text)
+            .iter()
+            .flat_map(Node::link_sources)
+            .map(|range| &text[range])
+            .collect();
+
+        assert_eq!(
+            sources,
+            ["[[Note|alias]]", "[label](https://x.com)", "https://y.com"]
+        );
     }
 
     #[test]

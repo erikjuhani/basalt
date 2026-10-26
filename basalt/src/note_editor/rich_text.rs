@@ -30,6 +30,7 @@ pub struct TextSegment {
     /// The inline marks covering this segment, outermost first. Several apply at
     /// once for nested markup, so `**bold _italic_**` yields `[Strong, Emphasis]`.
     pub styles: Vec<Style>,
+    pub link: Option<Range<usize>>,
 }
 
 impl TextSegment {
@@ -37,6 +38,7 @@ impl TextSegment {
         Self {
             content: content.to_string(),
             styles,
+            link: None,
         }
     }
 
@@ -54,6 +56,13 @@ impl TextSegment {
 
     pub fn styled(content: &str, style: Style) -> Self {
         Self::new(content, vec![style])
+    }
+
+    pub fn link(content: &str, styles: Vec<Style>, source: Range<usize>) -> Self {
+        Self {
+            link: Some(source),
+            ..Self::new(content, styles)
+        }
     }
 }
 
@@ -137,11 +146,22 @@ impl RichText {
         })
     }
 
-    pub fn link_ranges(&self) -> Vec<Range<usize>> {
+    /// Link ranges in the flattened text, each paired with the source range of
+    /// its link. Adjacent segments of one link merge into a single range.
+    pub fn links(&self) -> Vec<(Range<usize>, Range<usize>)> {
         self.segment_ranges()
-            .filter(|(_, segment)| segment.has_style(Style::Link))
-            .map(|(range, _)| range)
-            .collect()
+            .filter_map(|(range, segment)| Some((range, segment.link.clone()?)))
+            .fold(Vec::new(), |mut links, (range, source)| {
+                match links.last_mut() {
+                    Some((last, last_source))
+                        if last.end == range.start && *last_source == source =>
+                    {
+                        last.end = range.end
+                    }
+                    _ => links.push((range, source)),
+                }
+                links
+            })
     }
 }
 
