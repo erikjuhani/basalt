@@ -560,10 +560,17 @@ fn url_in(token: &str) -> Option<Range<usize>> {
 
 pub fn url_ranges(content: &str) -> Vec<Range<usize>> {
     content
-        .split(char::is_whitespace)
+        .match_indices(char::is_whitespace)
+        .map(|(start, whitespace)| start..start + whitespace.len())
+        .chain(std::iter::once(content.len()..content.len()))
+        .scan(0, |token_start, whitespace| {
+            let token = *token_start..whitespace.start;
+            *token_start = whitespace.end;
+            Some(token)
+        })
         .filter_map(|token| {
-            let start = token.as_ptr() as usize - content.as_ptr() as usize;
-            url_in(token).map(|url| start + url.start..start + url.end)
+            url_in(&content[token.clone()])
+                .map(|url| token.start + url.start..token.start + url.end)
         })
         .collect()
 }

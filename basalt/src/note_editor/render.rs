@@ -13,7 +13,7 @@ use crate::{
     note_editor::{
         ast::{self, SourceRange},
         highlight::{self, Token},
-        rich_text::RichText,
+        rich_text::{self, RichText},
         text_wrap::wrap_preserve_trailing,
         virtual_document::{
             content_span, empty_virtual_line, synthetic_span, virtual_line, wrap_marker_span,
@@ -143,19 +143,87 @@ fn render_raw_line<'a>(
     )
 }
 
+/// A ratatui style over a byte range of inline text. In read mode the range
+/// addresses the flattened paragraph text; in edit mode it addresses the raw
+/// source line.
+type StyleRun = (Range<usize>, Style);
+
 fn link_style(theme: &Theme) -> Style {
     Style::new()
         .fg(theme.link)
         .add_modifier(Modifier::UNDERLINED)
 }
 
-fn style_links<'a>(
+/// Ratatui style for one inline mark, or `None` when the mark carries no style
+/// of its own ([`rich_text::Style::Link`] is turned into a run by [`link_runs`]
+/// instead, so it also covers the wikilinks and bare URLs the parser marks).
+fn inline_style(style: &rich_text::Style, theme: &Theme) -> Option<Style> {
+    use rich_text::Style::*;
+    match style {
+        Emphasis => Some(Style::new().add_modifier(Modifier::ITALIC)),
+        Strong => Some(Style::new().add_modifier(Modifier::BOLD)),
+        Strikethrough => Some(Style::new().add_modifier(Modifier::CROSSED_OUT)),
+        Code => Some(Style::new().bg(theme.code_bg)),
+        Link => None,
+    }
+}
+
+/// Style runs from a parsed [`RichText`], for read mode. A segment's marks
+/// compose into one style, so nested markup (bold inside italic) keeps both.
+/// Offsets address the flattened text, matching [`RichText::link_ranges`].
+fn segment_style_runs(text: &RichText, theme: &Theme) -> Vec<StyleRun> {
+    text.segment_ranges()
+        .filter_map(|(range, segment)| {
+            let style = segment
+                .styles
+                .iter()
+                .filter_map(|style| inline_style(style, theme))
+                .reduce(|style, mark| style.patch(mark))?;
+            Some((range, style))
+        })
+        .collect()
+}
+
+/// Style runs over raw source `text`, markers included, for live styling while
+/// editing. Reuses the CommonMark parser's offsets so ranges map 1:1 to the
+/// source and the cursor stays aligned.
+fn source_style_runs(text: &str, theme: &Theme) -> Vec<StyleRun> {
+    crate::note_editor::parser::inline_style_ranges(text)
+        .into_iter()
+        .filter_map(|(range, style)| Some((range, inline_style(&style, theme)?)))
+        .collect()
+}
+
+/// Link ranges as style runs, so links flow through [`style_runs`] like every
+/// other mark instead of needing a styling pass of their own.
+fn link_runs(links: &[Range<usize>], theme: &Theme) -> Vec<StyleRun> {
+    let style = link_style(theme);
+    links.iter().map(|range| (range.clone(), style)).collect()
+}
+
+/// Restricts style runs to `line` and rebases them to its start.
+fn shift_runs(runs: &[StyleRun], line: Range<usize>) -> Vec<StyleRun> {
+    runs.iter()
+        .filter(|(range, _)| range.start < line.end && line.start < range.end)
+        .map(|(range, style)| {
+            (
+                range.start.max(line.start) - line.start..range.end.min(line.end) - line.start,
+                *style,
+            )
+        })
+        .collect()
+}
+
+/// Splits already-wrapped `lines` into spans carrying `runs`, patching each
+/// sub-span with every run that covers it so overlapping marks (bold inside
+/// italic, a bare URL inside bold) compose. `base` is the source offset the
+/// runs are measured from.
+fn style_runs<'a>(
     lines: Vec<VirtualLine<'a>>,
     base: usize,
-    links: &[Range<usize>],
-    theme: &Theme,
+    runs: &[StyleRun],
 ) -> Vec<VirtualLine<'a>> {
-    if links.is_empty() {
+    if runs.is_empty() {
         return lines;
     }
     lines
@@ -168,7 +236,7 @@ fn style_links<'a>(
                     VirtualSpan::Content(content, range)
                         if range.start >= base && !content.content.is_empty() =>
                     {
-                        split_links(content, range, range.start - base, links, theme)
+                        split_runs(content, range, range.start - base, runs)
                     }
                     span => vec![span.clone()],
                 })
@@ -178,20 +246,18 @@ fn style_links<'a>(
         .collect()
 }
 
-fn split_links<'a>(
+fn split_runs<'a>(
     span: &Span<'a>,
     range: &SourceRange<usize>,
     offset: usize,
-    links: &[Range<usize>],
-    theme: &Theme,
+    runs: &[StyleRun],
 ) -> Vec<VirtualSpan<'a>> {
     let text = span.content.as_ref();
     let local = |at: usize| at.saturating_sub(offset).min(text.len());
     let mut cuts = vec![0, text.len()];
     cuts.extend(
-        links
-            .iter()
-            .flat_map(|link| [local(link.start), local(link.end)])
+        runs.iter()
+            .flat_map(|(run, _)| [local(run.start), local(run.end)])
             .filter(|&cut| text.is_char_boundary(cut)),
     );
     cuts.sort_unstable();
@@ -200,13 +266,10 @@ fn split_links<'a>(
     cuts.windows(2)
         .map(|cut| {
             let (start, end) = (cut[0], cut[1]);
-            let is_link = links
+            let style = runs
                 .iter()
-                .any(|link| link.start <= offset + start && offset + end <= link.end);
-            let style = match is_link {
-                true => span.style.patch(link_style(theme)),
-                false => span.style,
-            };
+                .filter(|(run, _)| run.start <= offset + start && offset + end <= run.end)
+                .fold(span.style, |style, (_, run_style)| style.patch(*run_style));
             let source_start = range.start + start;
             let source_end = (range.start + end).min(range.end).max(source_start);
             content_span!(
@@ -214,14 +277,6 @@ fn split_links<'a>(
                 source_start..source_end
             )
         })
-        .collect()
-}
-
-fn shift_links(links: &[Range<usize>], line: Range<usize>) -> Vec<Range<usize>> {
-    links
-        .iter()
-        .filter(|link| link.start < line.end && line.start < link.end)
-        .map(|link| link.start.max(line.start) - line.start..link.end.min(line.end) - line.start)
         .collect()
 }
 
@@ -374,23 +429,18 @@ fn edit_line<'a>(
     }
 
     if is_cursor {
-        // Raw, but keep the block-quote markers coloured.
+        // Raw markers stay visible so they can be edited, but inline marks
+        // (bold, italic, code, links) are still live-styled for a WYSIWYG feel.
+        let mut runs = source_style_runs(text, theme);
+        runs.extend(link_runs(&motion::link_ranges(text), theme));
         if let Some((prefix_len, _)) = quote_prefix(rest) {
-            return style_links(
-                vec![raw_quote_line(
-                    text, line_range, indent_len, prefix_len, quote,
-                )],
-                line_range.start,
-                &motion::link_ranges(text),
-                theme,
-            );
+            let lines = vec![raw_quote_line(
+                text, line_range, indent_len, prefix_len, quote,
+            )];
+            return style_runs(lines, line_range.start, &runs);
         }
-        return style_links(
-            render_raw_line(text, Span::default(), line_range, max_width, symbols),
-            line_range.start,
-            &motion::link_ranges(text),
-            theme,
-        );
+        let lines = render_raw_line(text, Span::default(), line_range, max_width, symbols);
+        return style_runs(lines, line_range.start, &runs);
     }
 
     decorate_line(text, line_range, max_width, quote, symbols, theme)
@@ -556,12 +606,10 @@ fn decorate_line<'a>(
             &RenderStyle::Visual,
             symbols,
         );
-        style_links(
-            lines,
-            content_range.start,
-            &motion::link_ranges(&text[content_start..]),
-            theme,
-        )
+        let rest = &text[content_start..];
+        let mut runs = source_style_runs(rest, theme);
+        runs.extend(link_runs(&motion::link_ranges(rest), theme));
+        style_runs(lines, content_range.start, &runs)
     };
 
     if let Some((checked, marker_len)) = task_marker(rest) {
@@ -861,6 +909,9 @@ pub fn render_raw<'a>(
     lines
 }
 
+// TODO: Bundle the shared render context (max_width, option, symbols, theme)
+// into a struct passed by reference. The same group threads through task, item
+// and decorate_line, so one type removes the argument count here and there.
 #[allow(clippy::too_many_arguments)]
 pub fn paragraph<'a>(
     content: &str,
@@ -875,7 +926,8 @@ pub fn paragraph<'a>(
     let lines = match option {
         RenderStyle::Raw => render_raw(content, source_range, max_width, prefix, symbols),
         RenderStyle::Visual | RenderStyle::Reader => {
-            let links = text.link_ranges();
+            let mut runs = segment_style_runs(text, theme);
+            runs.extend(link_runs(&text.link_ranges(), theme));
             let text = text.plain_text();
             let line_starts = text.split_inclusive('\n').scan(0, |start, line| {
                 let line_start = *start;
@@ -895,8 +947,8 @@ pub fn paragraph<'a>(
                         option,
                         symbols,
                     );
-                    let links = shift_links(&links, line_start..line_start + line.len());
-                    style_links(lines, line_range.start, &links, theme)
+                    let line_runs = shift_runs(&runs, line_start..line_start + line.len());
+                    style_runs(lines, line_range.start, &line_runs)
                 })
                 .collect::<Vec<_>>();
 
@@ -1107,7 +1159,8 @@ pub fn task<'a>(
                 return VirtualBlock::new(&[], source_range);
             };
 
-            let links = text.link_ranges();
+            let mut runs = segment_style_runs(text, theme);
+            runs.extend(link_runs(&text.link_ranges(), theme));
             let text = text.to_string();
             let (marker, text) = match kind {
                 ast::TaskKind::Unchecked => (
@@ -1124,7 +1177,7 @@ pub fn task<'a>(
                 ),
             };
 
-            let mut lines = style_links(
+            let mut lines = style_runs(
                 text_wrap(
                     &text,
                     prefix.clone(),
@@ -1135,8 +1188,7 @@ pub fn task<'a>(
                     symbols,
                 ),
                 source_range.start,
-                &links,
-                theme,
+                &runs,
             );
 
             lines.extend(rest.iter().flat_map(|node| {
@@ -1176,7 +1228,8 @@ pub fn item<'a>(
                 return VirtualBlock::new(&[], source_range);
             };
 
-            let links = text.link_ranges();
+            let mut runs = segment_style_runs(text, theme);
+            runs.extend(link_runs(&text.link_ranges(), theme));
             let text = text.to_string();
 
             let marker = match kind {
@@ -1191,7 +1244,7 @@ pub fn item<'a>(
                 }
             };
 
-            let mut lines = style_links(
+            let mut lines = style_runs(
                 text_wrap(
                     &text.into(),
                     // TODO: Make the visual marker a separate prefix so we do not repeat it
@@ -1203,8 +1256,7 @@ pub fn item<'a>(
                     symbols,
                 ),
                 source_range.start,
-                &links,
-                theme,
+                &runs,
             );
 
             lines.extend(rest.iter().flat_map(|node| {

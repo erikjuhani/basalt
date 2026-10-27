@@ -380,15 +380,20 @@ pub fn rich_text_to_sexp(rich_text: &RichText, indent_level: usize) -> String {
     rich_text
         .segments()
         .iter()
-        .map(|segment| match &segment.style {
-            Some(style) => format!(
-                "{:indent$}({} \"{}\")",
-                "",
-                style,
-                segment,
-                indent = indent_level
-            ),
-            None => format!("{:indent$}\"{}\"", "", segment, indent = indent_level),
+        .map(|segment| match segment.styles.as_slice() {
+            [] => format!("{:indent$}\"{}\"", "", segment, indent = indent_level),
+            styles => {
+                let names = styles
+                    .iter()
+                    .map(|style| style.to_string())
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                format!(
+                    "{:indent$}({names} \"{segment}\")",
+                    "",
+                    indent = indent_level
+                )
+            }
         })
         .collect::<Vec<_>>()
         .join("\n")

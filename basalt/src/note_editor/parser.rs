@@ -382,22 +382,32 @@ impl<'a> Parser<'a> {
 }
 
 fn styled_segments(text: &str, inline_styles: &[Style]) -> Vec<TextSegment> {
-    let style = inline_styles.last().cloned();
-    if style == Some(Style::Link) {
-        return vec![TextSegment::styled(text, Style::Link)];
+    // A markdown or wiki link styles its whole text, so bare-URL detection would
+    // only double-mark it.
+    if inline_styles.contains(&Style::Link) {
+        return vec![TextSegment::new(text, inline_styles.to_vec())];
     }
+
+    let linked = |range: SourceRange<usize>| {
+        let mut styles = inline_styles.to_vec();
+        styles.push(Style::Link);
+        TextSegment::new(&text[range], styles)
+    };
 
     let mut segments = Vec::new();
     let mut start = 0;
     for url in motion::url_ranges(text) {
         if url.start > start {
-            segments.push(TextSegment::new(&text[start..url.start], style.clone()));
+            segments.push(TextSegment::new(
+                &text[start..url.start],
+                inline_styles.to_vec(),
+            ));
         }
-        segments.push(TextSegment::styled(&text[url.clone()], Style::Link));
         start = url.end;
+        segments.push(linked(url));
     }
     if start < text.len() || segments.is_empty() {
-        segments.push(TextSegment::new(&text[start..], style));
+        segments.push(TextSegment::new(&text[start..], inline_styles.to_vec()));
     }
     segments
 }
@@ -449,6 +459,20 @@ fn resolve_callout(
 
 pub fn from_str(text: &str) -> Vec<Node> {
     Parser::new(text).parse()
+}
+
+/// Byte ranges of inline styled spans in `text`, markers included, for
+/// edit-mode live styling. The ranges come from the CommonMark parser's own
+/// offsets, so a span such as `**bold**` covers its delimiters and maps 1:1 to
+/// the source, which keeps the cursor aligned while editing.
+pub fn inline_style_ranges(text: &str) -> Vec<(SourceRange<usize>, Style)> {
+    Parser::new(text)
+        .filter_map(|(event, range)| match event {
+            Event::Start(tag) => Parser::tag_to_style(&tag).map(|style| (range, style)),
+            Event::Code(_) => Some((range, Style::Code)),
+            _ => None,
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -505,7 +529,7 @@ mod tests {
         let links: Vec<_> = text
             .segments()
             .iter()
-            .filter(|segment| segment.style == Some(Style::Link))
+            .filter(|segment| segment.has_style(Style::Link))
             .map(|segment| segment.content.as_str())
             .collect();
 
