@@ -725,6 +725,14 @@ pub fn handle_editing_event(key: KeyEvent) -> Option<Message> {
         KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             Some(Message::ToggleView)
         }
+        KeyCode::Char('x') if key.modifiers.contains(KeyModifiers::CONTROL) => Some(Message::Save),
+        // Windows reports AltGr as Ctrl+Alt, so those characters stay typeable.
+        KeyCode::Char(_)
+            if key.modifiers.contains(KeyModifiers::CONTROL)
+                && !key.modifiers.contains(KeyModifiers::ALT) =>
+        {
+            None
+        }
         _ => Some(Message::KeyEvent(key)),
     }
 }
@@ -1190,5 +1198,36 @@ mod tests {
             state.content, "one\ntwo\ntwo\n",
             "P pastes the line above the cursor"
         );
+    }
+
+    #[test]
+    fn edit_view_ctrl_x_saves() {
+        assert_eq!(
+            handle_editing_event(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::CONTROL)),
+            Some(Message::Save)
+        );
+    }
+
+    #[test]
+    fn edit_view_ignores_control_characters() {
+        ['o', 'v', 'z'].into_iter().for_each(|character| {
+            assert_eq!(
+                handle_editing_event(KeyEvent::new(
+                    KeyCode::Char(character),
+                    KeyModifiers::CONTROL
+                )),
+                None,
+                "ctrl+{character} inserts nothing"
+            );
+        });
+    }
+
+    #[test]
+    fn edit_view_inserts_altgr_characters() {
+        let key = KeyEvent::new(
+            KeyCode::Char('@'),
+            KeyModifiers::CONTROL | KeyModifiers::ALT,
+        );
+        assert_eq!(handle_editing_event(key), Some(Message::KeyEvent(key)));
     }
 }
