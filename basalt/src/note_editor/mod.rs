@@ -58,6 +58,8 @@ pub enum Message {
     ScrollToBottom,
     JumpToBlock(usize),
     Delete,
+    DeleteForward,
+    CutToLineEnd,
     InsertMode,
     VisualMode,
     VisualLineMode,
@@ -306,6 +308,26 @@ pub fn update<'a>(
     }
 
     match message {
+        Message::CursorLeft
+            if state.insert_mode() && state.live_content()[..offset(state)].ends_with('\n') =>
+        {
+            let before = offset(state);
+            state.cursor_up(1);
+            if offset(state) != before {
+                let target = motion::line_end_exclusive(&state.live_content(), offset(state));
+                state.jump_to_offset(target);
+            }
+        }
+        Message::CursorRight
+            if state.insert_mode() && state.live_content()[offset(state)..].starts_with('\n') =>
+        {
+            let before = offset(state);
+            state.cursor_down(1);
+            if offset(state) != before {
+                let target = motion::line_start(&state.live_content(), offset(state));
+                state.jump_to_offset(target);
+            }
+        }
         Message::CursorLeft => {
             let count = state.take_count().unwrap_or(1);
             if state.pending_operator().is_some() {
@@ -386,11 +408,19 @@ pub fn update<'a>(
     match state.view {
         View::Edit(..) if state.insert_mode() => match message {
             Message::CursorWordForward => {
-                let target = motion::word_forward(&state.content, offset(state), false);
+                let target = motion::word_forward(&state.live_content(), offset(state), false);
                 state.jump_to_offset(target);
             }
             Message::CursorWordBackward => {
-                let target = motion::word_backward(&state.content, offset(state), false);
+                let target = motion::word_backward(&state.live_content(), offset(state), false);
+                state.jump_to_offset(target);
+            }
+            Message::CursorLineStart => {
+                let target = motion::line_start(&state.live_content(), offset(state));
+                state.jump_to_offset(target);
+            }
+            Message::CursorLineEnd => {
+                let target = motion::line_end_exclusive(&state.live_content(), offset(state));
                 state.jump_to_offset(target);
             }
             Message::ToggleView | Message::ReadView => {
@@ -401,6 +431,9 @@ pub fn update<'a>(
             }
             Message::KeyEvent(key) => {
                 match key.code {
+                    KeyCode::Char(_)
+                        if key.modifiers.contains(KeyModifiers::CONTROL)
+                            != key.modifiers.contains(KeyModifiers::ALT) => {}
                     KeyCode::Char(c) => {
                         state.insert_char(c);
                     }
@@ -417,6 +450,31 @@ pub fn update<'a>(
             }
             Message::Delete => {
                 state.delete_char();
+            }
+            Message::DeleteForward => delete_forward(state, screen_size),
+            Message::Save => {
+                let cursor = offset(state);
+                state.exit_insert();
+                state.jump_to_offset(cursor);
+                return save(state);
+            }
+            Message::CutToLineEnd => {
+                let content = state.live_content();
+                let start = offset(state);
+                let line_end = motion::line_end_exclusive(&content, start);
+                let end = if line_end == start {
+                    (line_end + 1).min(content.len())
+                } else {
+                    line_end
+                };
+                let text = content[start..end].to_string();
+                drop(content);
+                if text.is_empty() {
+                    return None;
+                }
+                (0..text.chars().count()).for_each(|_| delete_forward(state, screen_size));
+                state.set_register(text.clone(), false);
+                return Some(AppMessage::CopyToClipboard(text));
             }
             Message::Exit => {
                 state.set_insert_mode(false);
@@ -708,6 +766,14 @@ pub fn update<'a>(
     None
 }
 
+fn delete_forward(state: &mut NoteEditorState, screen_size: Size) {
+    let before = offset(state);
+    update(Message::CursorRight, screen_size, state);
+    if offset(state) > before {
+        state.delete_char();
+    }
+}
+
 pub fn handle_editing_event(key: KeyEvent) -> Option<Message> {
     match key.code {
         KeyCode::Up => Some(Message::CursorUp),
@@ -720,8 +786,15 @@ pub fn handle_editing_event(key: KeyEvent) -> Option<Message> {
         }
         KeyCode::Left => Some(Message::CursorLeft),
         KeyCode::Right => Some(Message::CursorRight),
+        KeyCode::Home => Some(Message::CursorLineStart),
+        KeyCode::End => Some(Message::CursorLineEnd),
         KeyCode::Esc => Some(Message::Exit),
         KeyCode::Backspace => Some(Message::Delete),
+        KeyCode::Delete => Some(Message::DeleteForward),
+        KeyCode::Char('k') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            Some(Message::CutToLineEnd)
+        }
+        KeyCode::Char('x') if key.modifiers.contains(KeyModifiers::CONTROL) => Some(Message::Save),
         KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             Some(Message::ToggleView)
         }
@@ -806,6 +879,196 @@ mod tests {
 
         update(Message::CursorWordBackward, size, &mut state);
         assert_eq!(state.cursor.source_offset(), 4, "b lands on start of 'bar'");
+    }
+
+    #[test]
+    fn insert_mode_home_end_move_to_line_bounds() {
+        let mut state = vim_edit_state("first\nhello world\n");
+        state.set_insert_mode(true);
+        let size = Size::new(40, 10);
+
+        update(Message::CursorDown, size, &mut state);
+        update(Message::CursorRight, size, &mut state);
+        update(Message::CursorRight, size, &mut state);
+
+        update(
+            handle_editing_event(KeyEvent::from(KeyCode::End)).unwrap(),
+            size,
+            &mut state,
+        );
+        assert_eq!(state.cursor.source_offset(), 17);
+
+        update(
+            handle_editing_event(KeyEvent::from(KeyCode::Home)).unwrap(),
+            size,
+            &mut state,
+        );
+        assert_eq!(state.cursor.source_offset(), 6);
+    }
+
+    #[test]
+    fn insert_mode_horizontal_motion_wraps_lines() {
+        let mut state = vim_edit_state("ab\ncd\n");
+        state.set_insert_mode(true);
+        let size = Size::new(40, 10);
+
+        update(Message::CursorRight, size, &mut state);
+        update(Message::CursorRight, size, &mut state);
+        assert_eq!(state.cursor.source_offset(), 2);
+
+        update(Message::CursorRight, size, &mut state);
+        assert_eq!(state.cursor.source_offset(), 3);
+
+        update(Message::CursorLeft, size, &mut state);
+        assert_eq!(state.cursor.source_offset(), 2);
+    }
+
+    #[test]
+    fn insert_mode_motions_see_uncommitted_edits() {
+        let mut state = vim_edit_state("ab\ncd\n");
+        state.set_insert_mode(true);
+        let size = Size::new(40, 10);
+
+        for character in "xxxxxxxxxx".chars() {
+            update(
+                Message::KeyEvent(KeyEvent::new(KeyCode::Char(character), KeyModifiers::NONE)),
+                size,
+                &mut state,
+            );
+        }
+
+        update(Message::CursorLineEnd, size, &mut state);
+        assert_eq!(state.cursor.source_offset(), 12);
+
+        update(Message::CursorRight, size, &mut state);
+        assert_eq!(state.cursor.source_offset(), 13);
+
+        update(Message::CursorLeft, size, &mut state);
+        update(Message::CursorLineStart, size, &mut state);
+        assert_eq!(state.cursor.source_offset(), 0);
+
+        update(Message::CursorLineEnd, size, &mut state);
+        update(Message::CursorWordBackward, size, &mut state);
+        assert_eq!(state.cursor.source_offset(), 0);
+    }
+
+    #[test]
+    fn insert_mode_home_end_on_heading() {
+        for content in ["# Title\n\nbody\n", "text\n\n## Heading", "## Heading"] {
+            let mut state = vim_edit_state(content);
+            state.set_insert_mode(true);
+            let size = Size::new(40, 10);
+            for _ in 0..4 {
+                update(Message::CursorDown, size, &mut state);
+                update(Message::CursorLineEnd, size, &mut state);
+                update(Message::CursorRight, size, &mut state);
+                update(Message::CursorLineStart, size, &mut state);
+                update(Message::CursorLineEnd, size, &mut state);
+                update(
+                    Message::KeyEvent(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE)),
+                    size,
+                    &mut state,
+                );
+                update(Message::CursorLineStart, size, &mut state);
+                update(Message::CursorLeft, size, &mut state);
+                update(Message::CursorLineEnd, size, &mut state);
+                update(Message::DeleteForward, size, &mut state);
+            }
+        }
+    }
+
+    #[test]
+    fn insert_mode_delete_removes_char_after_cursor() {
+        let mut state = vim_edit_state("ab\ncd\n");
+        state.set_insert_mode(true);
+        let size = Size::new(40, 10);
+        let delete = || handle_editing_event(KeyEvent::from(KeyCode::Delete)).unwrap();
+
+        update(delete(), size, &mut state);
+        assert_eq!(state.live_content(), "b\ncd\n");
+        assert_eq!(state.cursor.source_offset(), 0);
+
+        update(Message::CursorLineEnd, size, &mut state);
+        update(delete(), size, &mut state);
+        assert_eq!(state.live_content(), "bcd\n");
+        assert_eq!(state.cursor.source_offset(), 1);
+    }
+
+    #[test]
+    fn insert_mode_ctrl_k_cuts_to_line_end() {
+        let mut state = vim_edit_state("ab cd\nef\n");
+        state.set_insert_mode(true);
+        let size = Size::new(40, 10);
+        let ctrl_k = || {
+            handle_editing_event(KeyEvent::new(KeyCode::Char('k'), KeyModifiers::CONTROL)).unwrap()
+        };
+
+        update(Message::CursorRight, size, &mut state);
+        update(Message::CursorRight, size, &mut state);
+        assert_eq!(
+            update(ctrl_k(), size, &mut state),
+            Some(AppMessage::CopyToClipboard(" cd".to_string()))
+        );
+        assert_eq!(state.live_content(), "ab\nef\n");
+
+        assert_eq!(
+            update(ctrl_k(), size, &mut state),
+            Some(AppMessage::CopyToClipboard("\n".to_string()))
+        );
+        assert_eq!(state.live_content(), "abef\n");
+        assert_eq!(state.cursor.source_offset(), 2);
+    }
+
+    #[test]
+    fn insert_mode_ignores_control_and_alt_characters() {
+        let mut state = vim_edit_state("ab\n");
+        state.set_insert_mode(true);
+        let size = Size::new(40, 10);
+
+        for modifiers in [KeyModifiers::CONTROL, KeyModifiers::ALT] {
+            update(
+                Message::KeyEvent(KeyEvent::new(KeyCode::Char('x'), modifiers)),
+                size,
+                &mut state,
+            );
+        }
+        update(
+            Message::KeyEvent(KeyEvent::new(
+                KeyCode::Char('@'),
+                KeyModifiers::CONTROL | KeyModifiers::ALT,
+            )),
+            size,
+            &mut state,
+        );
+
+        assert_eq!(state.live_content(), "@ab\n");
+    }
+
+    #[test]
+    fn insert_mode_ctrl_x_saves_and_keeps_editing() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("note.md");
+        std::fs::write(&path, "ab\n").unwrap();
+        let mut state = NoteEditorState::new("ab\n", "note", &path, &Symbols::unicode());
+        state.resize_viewport(Size::new(40, 10));
+        state.set_view(View::Edit(EditMode::Source));
+        state.set_insert_mode(true);
+        let size = Size::new(40, 10);
+        let ctrl_x = || {
+            handle_editing_event(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::CONTROL)).unwrap()
+        };
+        let key = |c| Message::KeyEvent(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
+
+        update(Message::CursorRight, size, &mut state);
+        update(key('x'), size, &mut state);
+        update(ctrl_x(), size, &mut state);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "axb\n");
+        assert!(state.insert_mode());
+        assert_eq!(state.cursor.source_offset(), 2);
+
+        update(key('y'), size, &mut state);
+        update(ctrl_x(), size, &mut state);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "axyb\n");
     }
 
     #[test]

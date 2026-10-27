@@ -991,7 +991,7 @@ impl<'a> NoteEditorState<'a> {
     /// [`Self::relayout_on_block_change`] this preserves a precise mid-block
     /// target, so it is the primitive every vim motion moves through.
     pub fn jump_to_offset(&mut self, offset: usize) {
-        let offset = cursor::snap_to_char_boundary(&self.content, offset);
+        let offset = cursor::snap_to_char_boundary(&self.live_content(), offset);
 
         if matches!(self.view, View::Edit(..)) {
             if let Some(block) = self.block_index_for_offset(offset) {
