@@ -115,7 +115,7 @@ impl StatefulWidget for SearchModal {
     }
 }
 
-fn highlight(
+pub(crate) fn highlight(
     text: &str,
     ranges: &[Range<usize>],
     base: Style,

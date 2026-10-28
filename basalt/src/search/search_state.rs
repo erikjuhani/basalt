@@ -264,20 +264,39 @@ fn split_lines(content: &str) -> impl Iterator<Item = (usize, String)> + '_ {
 }
 
 fn rank(query: &str, index: &SearchIndex) -> Vec<SearchResult> {
+    fuzzy_rank(query, &index.lines, |line| &line.text, MAX_RESULTS)
+        .into_iter()
+        .map(|(position, match_ranges)| {
+            let line = &index.lines[position];
+            SearchResult {
+                note: index.notes[line.note_index].clone(),
+                line_index: line.line_index,
+                text: line.text.clone(),
+                match_ranges,
+            }
+        })
+        .collect()
+}
+
+pub(crate) fn fuzzy_rank<T>(
+    query: &str,
+    candidates: &[T],
+    text: impl Fn(&T) -> &str,
+    limit: usize,
+) -> Vec<(usize, Vec<Range<usize>>)> {
     let config = Config::default().matching(Matching::Fuzzy);
 
-    let mut matches: Vec<Match> = index
-        .lines
+    let mut matches: Vec<Match> = candidates
         .iter()
-        .map(|line| line.text.as_str())
+        .map(&text)
         .fuzzy_match(query, &config)
         .collect();
     radix_sort_matches(&mut matches);
-    matches.truncate(MAX_RESULTS);
+    matches.truncate(limit);
 
     let survivors: Vec<&str> = matches
         .iter()
-        .map(|matched| index.lines[matched.index as usize].text.as_str())
+        .map(|matched| text(&candidates[matched.index as usize]))
         .collect();
 
     survivors
@@ -285,13 +304,10 @@ fn rank(query: &str, index: &SearchIndex) -> Vec<SearchResult> {
         .copied()
         .fuzzy_match_indices(query, &config)
         .map(|found| {
-            let line = &index.lines[matches[found.index as usize].index as usize];
-            SearchResult {
-                note: index.notes[line.note_index].clone(),
-                line_index: line.line_index,
-                text: line.text.clone(),
-                match_ranges: coalesce(&found.indices),
-            }
+            (
+                matches[found.index as usize].index as usize,
+                coalesce(&found.indices),
+            )
         })
         .collect()
 }

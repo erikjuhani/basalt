@@ -29,6 +29,7 @@ use std::{
 
 use crate::{
     command,
+    completion::{self, CompletionState, Dropdown},
     config::{
         self, symbol::Symbols, Config, Keystroke, LineNumbers, NoteEditorMode, TabsSync, Theme,
     },
@@ -101,6 +102,7 @@ pub struct AppState<'a> {
     splash_modal: SplashModalState<'a>,
     help_modal: HelpModalState,
     search: SearchState,
+    completion: CompletionState,
     vault_selector_modal: VaultSelectorModalState<'a>,
     debug_log_modal: DebugLogModalState,
     theme_selector_modal: ThemeSelectorModalState,
@@ -180,6 +182,7 @@ pub enum Message<'a> {
     Toast(toast::Message),
     Input(input::Message),
     Search(search::Message),
+    Completion(completion::Message),
     Splash(splash_modal::Message),
     Explorer(explorer::Message),
     NoteEditor(note_editor::Message),
@@ -943,7 +946,15 @@ impl<'a> App<'a> {
                     .is_some_and(|editor| editor.is_editing() && editor.insert_mode()) =>
             {
                 state.pending_keys.clear();
-                note_editor::handle_editing_event(key_event).map(Message::NoteEditor)
+                state
+                    .tabs
+                    .active_editor()
+                    .filter(|editor| state.completion.is_active_for(editor))
+                    .and_then(|_| completion::handle_key_event(key_event, &state.completion))
+                    .map(Message::Completion)
+                    .or_else(|| {
+                        note_editor::handle_editing_event(key_event).map(Message::NoteEditor)
+                    })
             }
             ActivePane::Input if state.input_modal.is_editing() => {
                 state.pending_keys.clear();
@@ -1356,7 +1367,12 @@ impl<'a> App<'a> {
             Message::NoteEditor(message) => {
                 let size = state.screen_size;
                 if let Some(editor) = state.tabs.active_editor_mut() {
-                    return note_editor::update(message, size, editor);
+                    let opened = completion::opens_completion(&message);
+                    let result = note_editor::update(message, size, editor);
+                    completion::sync(&mut state.completion, editor, opened, || {
+                        state.explorer.notes()
+                    });
+                    return result;
                 }
                 // With no open tab there is no editor to update, but pane
                 // navigation must still work so the user isn't trapped in the
@@ -1375,6 +1391,15 @@ impl<'a> App<'a> {
                         Some(Message::Outline(outline::Message::Toggle))
                     }
                     _ => None,
+                };
+            }
+            Message::Completion(message) => {
+                return match state.tabs.active_editor_mut() {
+                    Some(editor) => completion::update(message, &mut state.completion, editor),
+                    None => {
+                        state.completion.hide();
+                        None
+                    }
                 };
             }
             Message::Input(message) => return input::update(message, &mut state.input_modal),
@@ -1453,6 +1478,16 @@ impl<'a> App<'a> {
             }
         }
         Outline.render(outline, buf, &mut state.outline);
+
+        let cursor = state
+            .tabs
+            .active_editor()
+            .filter(|editor| state.completion.is_active_for(editor))
+            .and_then(|editor| editor.terminal_cursor);
+        if let Some(cursor) = cursor {
+            let border_modal = self.config.symbols.border_modal.into();
+            Dropdown::new(border_modal, theme, cursor).render(content, buf, &mut state.completion);
+        }
 
         let (word_count, char_count) = state
             .tabs

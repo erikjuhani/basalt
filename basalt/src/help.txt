@@ -185,6 +185,14 @@ INTERFACE
         ‹Ctrl+E›                 Toggle to read mode
         ‹Esc›                    Exit edit mode
 
+      LINK COMPLETION
+
+        ‹[[›                     Open note completion at the cursor
+        ‹↑ ↓› ‹Ctrl+P N›         Move the selection
+        ‹Enter› ‹Tab›            Insert the selected note and close with ]]
+        ‹Esc›                    Close the dropdown, keep the typed text
+        ‹#›                      Complete headings of the typed note
+
       CURSOR MOVEMENT
 
         ‹→›                      Move forward one character (wraps lines)
