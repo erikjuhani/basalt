@@ -22,6 +22,7 @@ code-bg = "bg1"
 blockquote = "magenta"
 list-marker = "gray"
 task = "magenta"
+link = "blue"
 
 success = "green"
 info = "blue"

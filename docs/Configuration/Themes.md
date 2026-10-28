@@ -86,6 +86,7 @@ gold = "#f6c177"
 | `blockquote` | Block-quote bar and text |
 | `list-marker` | List bullets and ordered-list numbers |
 | `task` | Task check-box marker |
+| `link` | Wikilinks, markdown links and bare URLs (always underlined) |
 | `mode-insert` | Status-bar mode block: insert / edit |
 | `mode-normal` | Status-bar mode block: vim normal |
 | `mode-read` | Status-bar mode block: read-only |

@@ -1024,6 +1024,17 @@ mod tests {
                 "#},
             ),
             (
+                "links",
+                indoc! { r#"## Links
+                Link to [[Internal note]], an [[Internal note|alias]] or a [[Internal note#Heading]].
+
+                Markdown links show their [label](https://example.com), bare URLs stay as written: https://example.com.
+
+                - A list item linking [[Another note]]
+                - [ ] A task with [a link](https://example.com)
+                "#},
+            ),
+            (
                 "code_blocks",
                 indoc! { r#"## Code blocks
                 To format code as a block, enclose it with three backticks or three tildes.
@@ -1257,6 +1268,233 @@ mod tests {
         assert_eq!(text_in(theme.syntax.constant), "1");
         let plain = cells.iter().find(|cell| cell.symbol() == "x").unwrap();
         assert_eq!(plain.fg, Color::Reset, "plain code keeps the text colour");
+    }
+
+    #[test]
+    fn test_links_are_underlined_in_the_link_colour() {
+        use crate::config::Theme;
+        use ratatui::{layout::Size, style::Modifier};
+
+        let content = "See [[Note|alias]] and [label](https://x.com)\n\nVisit https://y.com now\n";
+        let views = [
+            (View::Read, "aliaslabelhttps://y.com"),
+            (
+                View::Edit(EditMode::Source),
+                "[[Note|alias]][label](https://x.com)https://y.com",
+            ),
+        ];
+
+        for (view, expected) in views {
+            let mut state =
+                NoteEditorState::new(content, "", Path::new("test.md"), &Symbols::unicode());
+            state.resize_viewport(Size::new(60, 10));
+            state.set_view(view);
+
+            let mut terminal = Terminal::new(TestBackend::new(60, 10)).unwrap();
+            terminal
+                .draw(|frame| {
+                    NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut state)
+                })
+                .unwrap();
+
+            let link: String = terminal
+                .backend()
+                .buffer()
+                .content
+                .iter()
+                .filter(|cell| {
+                    cell.fg == Theme::default().link && cell.modifier.contains(Modifier::UNDERLINED)
+                })
+                .map(|cell| cell.symbol())
+                .collect();
+            assert_eq!(link, expected, "{view:?}");
+        }
+    }
+
+    #[test]
+    fn test_inline_emphasis_renders_with_modifiers() {
+        use ratatui::{layout::Size, style::Modifier};
+
+        let mut state = NoteEditorState::new(
+            "A **bold** and *italic* and ~~struck~~ word.",
+            "",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.resize_viewport(Size::new(60, 10));
+        state.set_view(View::Read);
+
+        let mut terminal = Terminal::new(TestBackend::new(60, 10)).unwrap();
+        terminal
+            .draw(|frame| {
+                NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut state)
+            })
+            .unwrap();
+
+        let text_with = |modifier: Modifier| -> String {
+            terminal
+                .backend()
+                .buffer()
+                .content
+                .iter()
+                .filter(|cell| cell.modifier.contains(modifier))
+                .map(|cell| cell.symbol())
+                .collect()
+        };
+
+        assert_eq!(text_with(Modifier::BOLD), "bold");
+        assert_eq!(text_with(Modifier::ITALIC), "italic");
+        assert_eq!(text_with(Modifier::CROSSED_OUT), "struck");
+    }
+
+    #[test]
+    fn test_inline_code_renders_with_code_background() {
+        use crate::config::Theme;
+        use ratatui::layout::Size;
+
+        let code_bg = Color::Rgb(5, 6, 7);
+        let render = |view: View| -> String {
+            let mut state = NoteEditorState::new(
+                "A `snippet` here.",
+                "",
+                Path::new("test.md"),
+                &Symbols::unicode(),
+            );
+            state.set_theme(&Theme {
+                code_bg,
+                ..Theme::default()
+            });
+            state.resize_viewport(Size::new(40, 6));
+            state.set_view(view);
+
+            let mut terminal = Terminal::new(TestBackend::new(40, 6)).unwrap();
+            terminal
+                .draw(|frame| {
+                    NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut state)
+                })
+                .unwrap();
+            terminal
+                .backend()
+                .buffer()
+                .content
+                .iter()
+                .filter(|cell| cell.bg == code_bg)
+                .map(|cell| cell.symbol())
+                .collect()
+        };
+
+        // Read mode drops the backticks; edit mode keeps them so they stay editable.
+        assert_eq!(render(View::Read), "snippet");
+        assert_eq!(render(View::Edit(EditMode::Source)), "`snippet`");
+    }
+
+    #[test]
+    fn test_edit_mode_styles_inline_markdown_keeping_markers() {
+        use ratatui::{layout::Size, style::Modifier};
+
+        // Line 1 holds the cursor (rendered raw); line 2 is decorated. Both keep
+        // their markers and still style inline marks.
+        let mut state = NoteEditorState::new(
+            "alpha **bold** beta\ngamma *italic* delta",
+            "",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.resize_viewport(Size::new(60, 10));
+        state.set_view(View::Edit(EditMode::Source));
+
+        let mut terminal = Terminal::new(TestBackend::new(60, 10)).unwrap();
+        terminal
+            .draw(|frame| {
+                NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut state)
+            })
+            .unwrap();
+
+        let buffer = terminal.backend().buffer();
+        let text_with = |modifier: Modifier| -> String {
+            buffer
+                .content
+                .iter()
+                .filter(|cell| cell.modifier.contains(modifier))
+                .map(|cell| cell.symbol())
+                .collect()
+        };
+
+        // Markers stay in place; the whole token carries the style.
+        assert_eq!(text_with(Modifier::BOLD), "**bold**");
+        assert_eq!(text_with(Modifier::ITALIC), "*italic*");
+    }
+
+    #[test]
+    fn test_edit_mode_composes_nested_inline_styles() {
+        use ratatui::{layout::Size, style::Modifier};
+
+        // The inner span sits inside both strong and emphasis, so it carries both
+        // modifiers; the emphasis delimiters are part of that span too.
+        let mut state = NoteEditorState::new(
+            "A **bold _and italic_** word.",
+            "",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.resize_viewport(Size::new(60, 10));
+        state.set_view(View::Edit(EditMode::Source));
+
+        let mut terminal = Terminal::new(TestBackend::new(60, 10)).unwrap();
+        terminal
+            .draw(|frame| {
+                NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut state)
+            })
+            .unwrap();
+
+        let both: String = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .filter(|cell| {
+                cell.modifier.contains(Modifier::BOLD) && cell.modifier.contains(Modifier::ITALIC)
+            })
+            .map(|cell| cell.symbol())
+            .collect();
+
+        assert_eq!(both, "_and italic_");
+    }
+
+    #[test]
+    fn test_read_mode_composes_nested_inline_styles() {
+        use ratatui::{layout::Size, style::Modifier};
+
+        // Read mode hides the markers, and the inner text still carries both the
+        // outer strong and the inner emphasis.
+        let mut state = NoteEditorState::new(
+            "A **bold _and italic_** word.",
+            "",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.resize_viewport(Size::new(60, 10));
+        state.set_view(View::Read);
+
+        let mut terminal = Terminal::new(TestBackend::new(60, 10)).unwrap();
+        terminal
+            .draw(|frame| {
+                NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut state)
+            })
+            .unwrap();
+
+        let both: String = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .filter(|cell| {
+                cell.modifier.contains(Modifier::BOLD) && cell.modifier.contains(Modifier::ITALIC)
+            })
+            .map(|cell| cell.symbol())
+            .collect();
+
+        assert_eq!(both, "and italic");
     }
 
     #[test]

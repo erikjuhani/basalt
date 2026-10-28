@@ -1,0 +1,24 @@
+---
+source: basalt/src/note_editor/editor.rs
+expression: terminal.backend()
+---
+"╭──────────────────────────────────────────────────────────────────────────────╮"
+"│ 𝓵𝓲𝓷𝓴𝓼                                                                        │"
+"│ ════════════════════════════════════════════════════════════════════════════ │"
+"│                                                                              │"
+"│▎Links                                                                        │"
+"│ ──────────────────────────────────────────────────────────────────────────── │"
+"│ Link to Internal note, an alias or a Internal note#Heading.                  │"
+"│                                                                              │"
+"│ Markdown links show their label, bare URLs stay as written:                  │"
+"│ ⤷ https://example.com.                                                       │"
+"│                                                                              │"
+"│ ● A list item linking Another note                                           │"
+"│ □ A task with a link                                                         │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"│                                                                              │"
+"╰──────────────────────────────────────────────────────────────────────────────╯"

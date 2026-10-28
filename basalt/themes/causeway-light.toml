@@ -22,6 +22,7 @@ code-bg = "surface"
 blockquote = "tide"
 list-marker = "seaweed"
 task = "seaweed"
+link = "tide"
 
 success = "seaweed"
 info = "tide"

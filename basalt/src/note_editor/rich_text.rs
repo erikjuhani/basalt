@@ -1,14 +1,15 @@
-use std::{borrow::Cow, fmt, vec::IntoIter};
+use std::{borrow::Cow, fmt, ops::Range, vec::IntoIter};
 
 use pulldown_cmark::CowStr;
 
 /// A style that can be applied to [`TextSegment`] (code, emphasis, strikethrough, strong).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Style {
     Code,
     Emphasis,
     Strong,
     Strikethrough,
+    Link,
 }
 
 impl fmt::Display for Style {
@@ -18,6 +19,7 @@ impl fmt::Display for Style {
             Style::Emphasis => write!(f, "Emphasis"),
             Style::Strong => write!(f, "Strong"),
             Style::Strikethrough => write!(f, "Strikethrough"),
+            Style::Link => write!(f, "Link"),
         }
     }
 }
@@ -25,40 +27,33 @@ impl fmt::Display for Style {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct TextSegment {
     pub content: String,
-    pub style: Option<Style>,
+    /// The inline marks covering this segment, outermost first. Several apply at
+    /// once for nested markup, so `**bold _italic_**` yields `[Strong, Emphasis]`.
+    pub styles: Vec<Style>,
 }
 
 impl TextSegment {
-    pub fn new(content: &str, style: Option<Style>) -> Self {
+    pub fn new(content: &str, styles: Vec<Style>) -> Self {
         Self {
             content: content.to_string(),
-            style,
+            styles,
         }
     }
 
-    pub fn add_style(&mut self, style: &Style) {
-        self.style = Some(style.clone());
+    pub fn has_style(&self, style: Style) -> bool {
+        self.styles.contains(&style)
     }
 
     pub fn empty_line() -> Self {
-        Self {
-            content: '\n'.to_string(),
-            style: None,
-        }
+        Self::new("\n", Vec::new())
     }
 
     pub fn plain(content: &str) -> Self {
-        Self {
-            content: content.to_string(),
-            style: None,
-        }
+        Self::new(content, Vec::new())
     }
 
     pub fn styled(content: &str, style: Style) -> Self {
-        Self {
-            content: content.to_string(),
-            style: Some(style),
-        }
+        Self::new(content, vec![style])
     }
 }
 
@@ -131,6 +126,22 @@ impl RichText {
             [segment] => Cow::Borrowed(&segment.content),
             _ => Cow::Owned(self.to_string()),
         }
+    }
+
+    /// Each segment paired with its byte range in the flattened text.
+    pub fn segment_ranges(&self) -> impl Iterator<Item = (Range<usize>, &TextSegment)> {
+        self.segments.iter().scan(0, |start, segment| {
+            let range = *start..*start + segment.content.len();
+            *start = range.end;
+            Some((range, segment))
+        })
+    }
+
+    pub fn link_ranges(&self) -> Vec<Range<usize>> {
+        self.segment_ranges()
+            .filter(|(_, segment)| segment.has_style(Style::Link))
+            .map(|(range, _)| range)
+            .collect()
     }
 }
 

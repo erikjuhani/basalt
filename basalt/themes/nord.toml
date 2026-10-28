@@ -22,6 +22,7 @@ code-bg = "polar1"
 blockquote = "frost-teal"
 list-marker = "frost-blue"
 task = "green"
+link = "frost-deep"
 
 success = "green"
 info = "frost-deep"

@@ -39,6 +39,7 @@ pub struct Theme {
     pub list_marker: Color,
     /// Task check-box marker.
     pub task: Color,
+    pub link: Color,
     /// Editor mode indicator: insert / edit (writing).
     pub mode_insert: Color,
     /// Editor mode indicator: vim normal.
@@ -206,6 +207,7 @@ impl Default for Theme {
             blockquote: Color::Magenta,
             list_marker: Color::DarkGray,
             task: Color::Magenta,
+            link: Color::Blue,
             mode_insert: Color::Green,
             mode_normal: Color::Gray,
             mode_read: Color::Gray,
@@ -276,6 +278,7 @@ struct TomlTheme {
     blockquote: Option<String>,
     list_marker: Option<String>,
     task: Option<String>,
+    link: Option<String>,
     mode_insert: Option<String>,
     mode_normal: Option<String>,
     mode_read: Option<String>,
@@ -395,6 +398,7 @@ impl From<TomlTheme> for Theme {
             blockquote: color(value.blockquote, default.blockquote),
             list_marker: color(value.list_marker, default.list_marker),
             task: color(value.task, default.task),
+            link: color(value.link, default.link),
             mode_insert: color(value.mode_insert, default.mode_insert),
             mode_normal: color(value.mode_normal, default.mode_normal),
             mode_read: color(value.mode_read, default.mode_read),

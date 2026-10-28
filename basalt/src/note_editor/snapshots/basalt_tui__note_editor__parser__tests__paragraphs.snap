@@ -18,7 +18,7 @@ A blank line between lines of text creates separate paragraphs. This is the defa
 (paragraph @14..178
   "To create paragraphs in Markdown, use a "
   (Strong "blank line")
-  (Strong " to separate blocks of text. Each block of text separated by a blank line is treated as a distinct paragraph."))
+  " to separate blocks of text. Each block of text separated by a blank line is treated as a distinct paragraph.")
 (paragraph @179..200
   "This is a paragraph.")
 (paragraph @201..228

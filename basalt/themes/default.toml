@@ -22,6 +22,7 @@ line-highlight = "none"
 blockquote = "magenta"
 list-marker = "darkgray"
 task = "magenta"
+link = "blue"
 
 success = "green"
 info = "blue"
