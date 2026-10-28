@@ -12,7 +12,10 @@ use std::{
 use basalt_core::obsidian::VaultFilter;
 use notify_debouncer_full::{
     new_debouncer,
-    notify::{RecommendedWatcher, RecursiveMode, WatcherKind},
+    notify::{
+        event::{EventKind, ModifyKind},
+        RecommendedWatcher, RecursiveMode, WatcherKind,
+    },
     DebounceEventResult, Debouncer, RecommendedCache,
 };
 
@@ -51,6 +54,7 @@ impl VaultWatcher {
             let Ok(events) = result else { return };
             let paths: Vec<PathBuf> = events
                 .iter()
+                .filter(|event| changes_tree(&event.kind))
                 .flat_map(|event| event.paths.iter())
                 .filter(|p| !is_ignored(&event_root, &event_filter, p))
                 .cloned()
@@ -170,6 +174,15 @@ fn subdirs(root: &Path, filter: &VaultFilter, dir: &Path) -> Vec<PathBuf> {
             dirs
         })
         .collect()
+}
+
+/// Returns false for events that leave the vault's tree as it was: reads, and writes to the
+/// content or metadata of an existing entry.
+fn changes_tree(kind: &EventKind) -> bool {
+    !matches!(
+        kind,
+        EventKind::Access(_) | EventKind::Modify(ModifyKind::Data(_) | ModifyKind::Metadata(_))
+    )
 }
 
 /// Returns true for a directory that is not a symlink.
@@ -321,6 +334,52 @@ mod tests {
         );
     }
 
+    fn received_within(watcher: &mut VaultWatcher, polls: usize) -> bool {
+        (0..polls).any(|_| {
+            std::thread::sleep(DEBOUNCE);
+            watcher.drain()
+        })
+    }
+
+    #[test]
+    fn reads_and_content_writes_do_not_change_the_tree() {
+        use notify_debouncer_full::notify::event::{
+            AccessKind, CreateKind, DataChange, MetadataKind, RemoveKind, RenameMode,
+        };
+
+        assert!(!changes_tree(&EventKind::Access(AccessKind::Any)));
+        assert!(!changes_tree(&EventKind::Modify(ModifyKind::Data(
+            DataChange::Any
+        ))));
+        assert!(!changes_tree(&EventKind::Modify(ModifyKind::Metadata(
+            MetadataKind::Any
+        ))));
+        assert!(changes_tree(&EventKind::Create(CreateKind::File)));
+        assert!(changes_tree(&EventKind::Remove(RemoveKind::Any)));
+        assert!(changes_tree(&EventKind::Modify(ModifyKind::Name(
+            RenameMode::Both
+        ))));
+        assert!(changes_tree(&EventKind::Modify(ModifyKind::Any)));
+        assert!(changes_tree(&EventKind::Any));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn watcher_ignores_reads_and_edits_but_reports_new_notes() {
+        let dir = tempdir().unwrap();
+        let note = dir.path().join("note.md");
+        fs::write(&note, "").unwrap();
+
+        let mut watcher = VaultWatcher::new(dir.path(), VaultFilter::default()).unwrap();
+        std::thread::sleep(DEBOUNCE);
+        fs::read_to_string(&note).unwrap();
+        fs::write(&note, "edited").unwrap();
+        assert!(!received_within(&mut watcher, 4));
+
+        fs::write(dir.path().join("other.md"), "").unwrap();
+        assert!(received_within(&mut watcher, 20));
+    }
+
     #[cfg(unix)]
     #[test]
     fn watcher_reports_changes_in_a_vault_opened_through_a_symlink() {
@@ -333,10 +392,6 @@ mod tests {
         std::thread::sleep(DEBOUNCE);
         fs::write(link.join("note.md"), "").unwrap();
 
-        let received = (0..20).any(|_| {
-            std::thread::sleep(DEBOUNCE);
-            watcher.drain()
-        });
-        assert!(received);
+        assert!(received_within(&mut watcher, 20));
     }
 }
