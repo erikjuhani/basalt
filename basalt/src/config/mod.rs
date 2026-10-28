@@ -132,6 +132,7 @@ pub struct Config<'a> {
     pub input_modal: ConfigSection<'a>,
     pub help_modal: ConfigSection<'a>,
     pub note_editor: ConfigSection<'a>,
+    pub note_editor_read: ConfigSection<'a>,
     pub search: ConfigSection<'a>,
     pub vault_selector_modal: ConfigSection<'a>,
     pub debug_log_modal: ConfigSection<'a>,
@@ -189,6 +190,10 @@ impl Config<'_> {
             input_modal: ConfigSection::from_toml(value.input_modal, leader),
             help_modal: ConfigSection::from_toml(value.help_modal, leader),
             note_editor: ConfigSection::from_key_bindings(value.note_editor.key_bindings, leader),
+            note_editor_read: ConfigSection::from_key_bindings(
+                value.note_editor.read_key_bindings,
+                leader,
+            ),
             search: ConfigSection::from_toml(value.search, leader),
             vault_selector_modal: ConfigSection::from_toml(value.vault_selector_modal, leader),
             debug_log_modal: ConfigSection::from_toml(value.debug_log_modal, leader),
@@ -213,6 +218,8 @@ impl Config<'_> {
         self.outline.merge_key_bindings(config.outline);
         self.input_modal.merge_key_bindings(config.input_modal);
         self.note_editor.merge_key_bindings(config.note_editor);
+        self.note_editor_read
+            .merge_key_bindings(config.note_editor_read);
         self.search.merge_key_bindings(config.search);
         self.help_modal.merge_key_bindings(config.help_modal);
         self.vault_selector_modal
@@ -233,6 +240,8 @@ impl Config<'_> {
         self.outline.replace_key_bindings(config.outline);
         self.input_modal.replace_key_bindings(config.input_modal);
         self.note_editor.replace_key_bindings(config.note_editor);
+        self.note_editor_read
+            .replace_key_bindings(config.note_editor_read);
         self.search.replace_key_bindings(config.search);
         self.help_modal.replace_key_bindings(config.help_modal);
         self.vault_selector_modal
@@ -290,6 +299,8 @@ struct TomlNoteEditor {
     default_mode: NoteEditorMode,
     #[serde(default)]
     key_bindings: KeyBindings,
+    #[serde(default)]
+    read_key_bindings: KeyBindings,
 }
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Default)]
@@ -578,6 +589,22 @@ mod tests {
         toml::from_str::<TomlConfig>(VIM_CONFIGURATION_STR)
             .map(Config::from)
             .expect("bundled vim.toml should parse");
+    }
+
+    #[test]
+    fn read_key_bindings_are_separate_from_note_editor_key_bindings() {
+        let config: Config = toml::from_str::<TomlConfig>(
+            "[note_editor]\nread_key_bindings = [{ key = \"]\", command = \"note_editor_next_link\" }]",
+        )
+        .unwrap()
+        .into();
+        let key = [Keystroke::from(KeyCode::Char(']'))];
+
+        assert_eq!(
+            config.note_editor_read.sequence_to_message(&key),
+            Some(Message::NoteEditor(crate::note_editor::Message::NextLink))
+        );
+        assert_eq!(config.note_editor.sequence_to_message(&key), None);
     }
 
     #[test]

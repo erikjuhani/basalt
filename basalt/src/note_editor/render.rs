@@ -170,7 +170,7 @@ fn inline_style(style: &rich_text::Style, theme: &Theme) -> Option<Style> {
 
 /// Style runs from a parsed [`RichText`], for read mode. A segment's marks
 /// compose into one style, so nested markup (bold inside italic) keeps both.
-/// Offsets address the flattened text, matching [`RichText::link_ranges`].
+/// Offsets address the flattened text, matching [`RichText::links`].
 fn segment_style_runs(text: &RichText, theme: &Theme) -> Vec<StyleRun> {
     text.segment_ranges()
         .filter_map(|(range, segment)| {
@@ -199,6 +199,22 @@ fn source_style_runs(text: &str, theme: &Theme) -> Vec<StyleRun> {
 fn link_runs(links: &[Range<usize>], theme: &Theme) -> Vec<StyleRun> {
     let style = link_style(theme);
     links.iter().map(|range| (range.clone(), style)).collect()
+}
+
+/// Link runs from a parsed [`RichText`], for read mode. The link whose source
+/// range is `selected_link` renders reversed.
+fn rich_link_runs(
+    text: &RichText,
+    selected_link: Option<&Range<usize>>,
+    theme: &Theme,
+) -> Vec<StyleRun> {
+    text.links()
+        .into_iter()
+        .map(|(range, source)| match Some(&source) == selected_link {
+            true => (range, link_style(theme).add_modifier(Modifier::REVERSED)),
+            false => (range, link_style(theme)),
+        })
+        .collect()
 }
 
 /// Restricts style runs to `line` and rebases them to its start.
@@ -922,12 +938,13 @@ pub fn paragraph<'a>(
     option: &RenderStyle,
     symbols: &Symbols,
     theme: &Theme,
+    selected_link: Option<&Range<usize>>,
 ) -> VirtualBlock<'a> {
     let lines = match option {
         RenderStyle::Raw => render_raw(content, source_range, max_width, prefix, symbols),
         RenderStyle::Visual | RenderStyle::Reader => {
             let mut runs = segment_style_runs(text, theme);
-            runs.extend(link_runs(&text.link_ranges(), theme));
+            runs.extend(rich_link_runs(text, selected_link, theme));
             let text = text.plain_text();
             let line_starts = text.split_inclusive('\n').scan(0, |start, line| {
                 let line_start = *start;
@@ -973,6 +990,7 @@ pub struct RenderContext<'c> {
     pub symbols: &'c Symbols,
     pub theme: &'c Theme,
     pub code_cache: &'c mut CodeCache,
+    pub selected_link: Option<Range<usize>>,
 }
 
 pub fn code_block<'a>(
@@ -1160,7 +1178,7 @@ pub fn task<'a>(
             };
 
             let mut runs = segment_style_runs(text, theme);
-            runs.extend(link_runs(&text.link_ranges(), theme));
+            runs.extend(rich_link_runs(text, context.selected_link.as_ref(), theme));
             let text = text.to_string();
             let (marker, text) = match kind {
                 ast::TaskKind::Unchecked => (
@@ -1229,7 +1247,7 @@ pub fn item<'a>(
             };
 
             let mut runs = segment_style_runs(text, theme);
-            runs.extend(link_runs(&text.link_ranges(), theme));
+            runs.extend(rich_link_runs(text, context.selected_link.as_ref(), theme));
             let text = text.to_string();
 
             let marker = match kind {
@@ -1952,6 +1970,7 @@ pub fn render_node<'a>(
             option,
             symbols,
             theme,
+            context.selected_link.as_ref(),
         ),
         CodeBlock {
             lang,

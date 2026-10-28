@@ -1498,6 +1498,38 @@ mod tests {
     }
 
     #[test]
+    fn test_selected_link_is_reversed_in_read_view() {
+        use ratatui::{layout::Size, style::Modifier};
+
+        let mut state = NoteEditorState::new(
+            "See [[Note|alias]] and [label](https://x.com)\n",
+            "",
+            Path::new("test.md"),
+            &Symbols::unicode(),
+        );
+        state.resize_viewport(Size::new(60, 6));
+        state.jump_to_link(true);
+        state.jump_to_link(true);
+
+        let mut terminal = Terminal::new(TestBackend::new(60, 6)).unwrap();
+        terminal
+            .draw(|frame| {
+                NoteEditor::default().render(frame.area(), frame.buffer_mut(), &mut state)
+            })
+            .unwrap();
+
+        let reversed: String = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .filter(|cell| cell.modifier.contains(Modifier::REVERSED))
+            .map(|cell| cell.symbol())
+            .collect();
+        assert_eq!(reversed, "label");
+    }
+
+    #[test]
     fn test_line_highlight_can_be_disabled() {
         use crate::config::Theme;
         use ratatui::layout::Size;

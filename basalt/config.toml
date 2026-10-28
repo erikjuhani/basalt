@@ -68,7 +68,11 @@
 # note_editor_switch_pane_next: switches focus to next pane
 # note_editor_switch_pane_previous: switches focus to previous pane
 # note_editor_follow_link: follows the link under the cursor: travels to a
-#   wikilink's note (creating it if missing) or opens a URL in the browser
+#   wikilink's note (creating it if missing) or opens a URL in the browser.
+#   In read view, follows the first link on the cursor's line when the
+#   cursor is not on a link
+# note_editor_next_link: moves the read view cursor to the next link
+# note_editor_previous_link: moves the read view cursor to the previous link
 
 # Experimental note editor commands:
 # note_editor_experimental_set_edit_view: changes to edit view
@@ -277,6 +281,11 @@ key_bindings = [
  { key = "alt+f", command = "note_editor_experimental_cursor_word_forward" },
  # 'b' translates to arrow key left
  { key = "alt+b", command = "note_editor_experimental_cursor_word_backward" },
+]
+# Key bindings that apply only in read view, checked before key_bindings.
+read_key_bindings = [
+ { key = "]", command = "note_editor_next_link" },
+ { key = "[", command = "note_editor_previous_link" },
 ]
 
 [input_modal]

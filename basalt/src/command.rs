@@ -116,6 +116,8 @@ pub(crate) enum Command {
     NoteEditorParagraphBackward,
     NoteEditorMatchingPair,
     NoteEditorFollowLink,
+    NoteEditorNextLink,
+    NoteEditorPreviousLink,
     NoteEditorCursorDocStart,
     NoteEditorCursorDocEnd,
     NoteEditorFindForward,
@@ -287,6 +289,8 @@ fn str_to_command(s: &str) -> Option<Command> {
         "note_editor_paragraph_backward" => Some(Command::NoteEditorParagraphBackward),
         "note_editor_matching_pair" => Some(Command::NoteEditorMatchingPair),
         "note_editor_follow_link" => Some(Command::NoteEditorFollowLink),
+        "note_editor_next_link" => Some(Command::NoteEditorNextLink),
+        "note_editor_previous_link" => Some(Command::NoteEditorPreviousLink),
         "note_editor_cursor_doc_start" => Some(Command::NoteEditorCursorDocStart),
         "note_editor_cursor_doc_end" => Some(Command::NoteEditorCursorDocEnd),
         "note_editor_find_forward" => Some(Command::NoteEditorFindForward),
@@ -566,6 +570,10 @@ impl From<Command> for Message<'_> {
                 Message::NoteEditor(note_editor::Message::MatchingPair)
             }
             Command::NoteEditorFollowLink => Message::NoteEditor(note_editor::Message::FollowLink),
+            Command::NoteEditorNextLink => Message::NoteEditor(note_editor::Message::NextLink),
+            Command::NoteEditorPreviousLink => {
+                Message::NoteEditor(note_editor::Message::PreviousLink)
+            }
             Command::NoteEditorCursorDocStart => {
                 Message::NoteEditor(note_editor::Message::CursorDocStart)
             }

@@ -219,6 +219,24 @@ impl Node {
         }
     }
 
+    pub fn link_sources(&self) -> Vec<SourceRange<usize>> {
+        let texts: Vec<&RichText> = match self {
+            Self::Heading { text, .. } | Self::Paragraph { text, .. } => vec![text],
+            Self::Table { head, rows, .. } => head.iter().chain(rows.iter().flatten()).collect(),
+            Self::List { nodes, .. }
+            | Self::Item { nodes, .. }
+            | Self::Task { nodes, .. }
+            | Self::BlockQuote { nodes, .. } => {
+                return nodes.iter().flat_map(Self::link_sources).collect()
+            }
+            Self::CodeBlock { .. } => vec![],
+        };
+        texts
+            .into_iter()
+            .flat_map(|text| text.links().into_iter().map(|(_, source)| source))
+            .collect()
+    }
+
     pub fn rich_text(&self) -> Option<&RichText> {
         match self {
             Self::Heading { text, .. }

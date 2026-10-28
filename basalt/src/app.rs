@@ -964,6 +964,29 @@ impl<'a> App<'a> {
                 state.pending_keys.clear();
                 search::handle_key_event(key_event).map(Message::Search)
             }
+            ActivePane::NoteEditor
+                if state
+                    .tabs
+                    .active_editor()
+                    .is_some_and(|editor| !editor.is_editing()) =>
+            {
+                let key = Keystroke::from(key_event);
+                state.pending_keys.push(key.clone());
+                if let Some(message) = config
+                    .note_editor_read
+                    .sequence_to_message(&state.pending_keys)
+                {
+                    state.pending_keys.clear();
+                    return Some(message);
+                }
+                state.pending_keys.pop();
+                App::handle_pending_keys(
+                    key,
+                    config,
+                    ActivePane::NoteEditor,
+                    &mut state.pending_keys,
+                )
+            }
             active => App::handle_pending_keys(
                 Keystroke::from(key_event),
                 config,
