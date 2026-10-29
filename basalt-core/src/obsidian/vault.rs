@@ -596,9 +596,10 @@ impl Vault {
     /// ```
     pub fn entries(&self) -> Vec<VaultEntry> {
         let filter = self.filter();
-        let is_ignored = |path: &Path, is_dir| filter.is_ignored(path, is_dir);
 
-        match VaultEntry::walk(&self.path, &is_ignored) {
+        match VaultEntry::walk(&self.path, move |path, is_dir| {
+            filter.is_ignored(path, is_dir)
+        }) {
             Ok(VaultEntry::Directory { entries, .. }) => entries,
             _ => vec![],
         }
@@ -616,9 +617,11 @@ impl Vault {
             }
         }
         let filter = VaultFilter::default();
-        VaultEntry::walk(&self.path, &|path, is_dir| filter.is_ignored(path, is_dir))
-            .map(flatten)
-            .unwrap_or_default()
+        VaultEntry::walk(&self.path, move |path, is_dir| {
+            filter.is_ignored(path, is_dir)
+        })
+        .map(flatten)
+        .unwrap_or_default()
     }
 
     /// Resolves a wiki link target (`[[name]]`) to a note by base name, matched
