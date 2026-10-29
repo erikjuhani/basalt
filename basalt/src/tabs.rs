@@ -1,4 +1,8 @@
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::HashMap,
+    io,
+    path::{Path, PathBuf},
+};
 
 use crate::{app::SelectedNote, config::Theme, note_editor::state::NoteEditorState};
 
@@ -32,6 +36,17 @@ impl<'a> TabEditor<'a> {
 pub struct Tab<'a> {
     pub note: SelectedNote,
     pub editor: TabEditor<'a>,
+}
+
+impl Tab<'_> {
+    fn autosave(&mut self) -> Option<io::Result<PathBuf>> {
+        let editor = self.editor.loaded_mut()?;
+        match editor.autosave() {
+            Ok(false) => None,
+            Ok(true) => Some(Ok(self.note.path().to_path_buf())),
+            Err(error) => Some(Err(error)),
+        }
+    }
 }
 
 #[derive(Default, Clone)]
@@ -148,6 +163,14 @@ impl<'a> Tabs<'a> {
             self.tabs.remove(self.active);
             self.active = self.active.min(self.tabs.len().saturating_sub(1));
         }
+    }
+
+    pub fn autosave_active(&mut self) -> Option<io::Result<PathBuf>> {
+        self.tabs.get_mut(self.active).and_then(Tab::autosave)
+    }
+
+    pub fn autosave_all(&mut self) -> Vec<io::Result<PathBuf>> {
+        self.tabs.iter_mut().filter_map(Tab::autosave).collect()
     }
 
     pub fn rename(&mut self, old: &Path, new: &Path, name: &str) {
@@ -353,5 +376,45 @@ mod tests {
 
         let labels: Vec<String> = tabs.titles().into_iter().map(|(label, ..)| label).collect();
         assert_eq!(labels, ["alpha/note", "beta/note", "unique"]);
+    }
+
+    fn edited_tab(dir: &Path, name: &str) -> Tab<'static> {
+        let path = dir.join(format!("{name}.md"));
+        let mut editor = NoteEditorState::new("", name, &path, &Symbols::unicode());
+        editor.splice(0..0, name);
+        Tab {
+            note: SelectedNote::new(name, &path, ""),
+            editor: TabEditor::Loaded(Box::new(editor)),
+        }
+    }
+
+    #[test]
+    fn autosave_active_writes_only_the_focused_tab() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut tabs = Tabs::default();
+        tabs.open(edited_tab(dir.path(), "a"));
+        tabs.open(edited_tab(dir.path(), "b"));
+
+        let written = tabs.autosave_active().unwrap().unwrap();
+
+        assert_eq!(written, dir.path().join("b.md"));
+        assert_eq!(std::fs::read_to_string(&written).unwrap(), "b");
+        assert!(!dir.path().join("a.md").exists());
+        assert!(tabs.autosave_active().is_none());
+    }
+
+    #[test]
+    fn autosave_all_writes_every_modified_tab() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut tabs = Tabs::default();
+        tabs.open(edited_tab(dir.path(), "a"));
+        tabs.open(tab("clean"));
+        tabs.open_pending(pending_note("pending"));
+        tabs.open(edited_tab(dir.path(), "b"));
+
+        let written: Vec<PathBuf> = tabs.autosave_all().into_iter().flatten().collect();
+
+        assert_eq!(written, [dir.path().join("a.md"), dir.path().join("b.md")]);
+        assert!(tabs.titles().iter().all(|(_, _, modified)| !modified));
     }
 }

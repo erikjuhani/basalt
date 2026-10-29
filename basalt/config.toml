@@ -248,6 +248,12 @@ vim_mode = false
 # The view a note opens in: "read" or "edit". "edit" needs the experimental
 # editor; without it the note opens in "read".
 default_mode = "read"
+# Writes changes to disk without the save command. When on, a note is saved
+# once no key has been pressed in the editor for autosave_delay_ms, when
+# leaving the edit view, switching or closing the tab, opening another note,
+# moving focus to another pane, and on quit.
+autosave = false
+autosave_delay_ms = 1000
 key_bindings = [
  { key = "k", command = "note_editor_cursor_up" },
  { key = "j", command = "note_editor_cursor_down" },
