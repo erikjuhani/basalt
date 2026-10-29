@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::Path};
+use std::{collections::HashMap, io, path::Path};
 
 use crate::{app::SelectedNote, config::Theme, note_editor::state::NoteEditorState};
 
@@ -32,6 +32,18 @@ impl<'a> TabEditor<'a> {
 pub struct Tab<'a> {
     pub note: SelectedNote,
     pub editor: TabEditor<'a>,
+}
+
+impl Tab<'_> {
+    fn save(&mut self) -> io::Result<()> {
+        let Some(editor) = self.editor.loaded_mut() else {
+            return Ok(());
+        };
+        editor.commit_text_buffer();
+        editor.save_to_file()?;
+        self.note.set_content(&editor.content);
+        Ok(())
+    }
 }
 
 #[derive(Default, Clone)]
@@ -71,6 +83,27 @@ impl<'a> Tabs<'a> {
         self.tabs
             .get_mut(self.active)
             .and_then(|tab| tab.editor.loaded_mut())
+    }
+
+    pub fn modified_count(&self) -> usize {
+        self.tabs.iter().filter(|tab| tab.editor.modified()).count()
+    }
+
+    pub fn active_modified(&self) -> bool {
+        self.tabs
+            .get(self.active)
+            .is_some_and(|tab| tab.editor.modified())
+    }
+
+    pub fn save_modified(&mut self) -> io::Result<()> {
+        self.tabs
+            .iter_mut()
+            .filter(|tab| tab.editor.modified())
+            .try_for_each(Tab::save)
+    }
+
+    pub fn save_active(&mut self) -> io::Result<()> {
+        self.tabs.get_mut(self.active).map_or(Ok(()), Tab::save)
     }
 
     pub fn active_is_pending(&self) -> bool {
@@ -342,6 +375,71 @@ mod tests {
         let titles = tabs.titles();
 
         assert_eq!(titles, [("a".to_string(), true, false)]);
+    }
+
+    fn dirty_tab_at(path: &Path) -> Tab<'static> {
+        let name = path.file_stem().and_then(|stem| stem.to_str()).unwrap();
+        let mut editor = NoteEditorState::new("", name, path, &Symbols::unicode());
+        editor.splice(0..0, name);
+        Tab {
+            note: SelectedNote::new(name, path, ""),
+            editor: TabEditor::Loaded(Box::new(editor)),
+        }
+    }
+
+    #[test]
+    fn modified_count_covers_every_tab() {
+        let mut tabs = Tabs::default();
+        tabs.open(dirty_tab_at(Path::new("/vault/a.md")));
+        tabs.open(tab("b"));
+        tabs.open(dirty_tab_at(Path::new("/vault/c.md")));
+        tabs.open_pending(pending_note("d"));
+        tabs.next();
+
+        assert_eq!(tabs.modified_count(), 2);
+        assert!(!tabs.active_modified());
+        tabs.prev();
+        assert!(tabs.active_modified());
+    }
+
+    #[test]
+    fn save_modified_writes_every_dirty_tab() {
+        let dir = tempfile::tempdir().unwrap();
+        let (a, b) = (dir.path().join("a.md"), dir.path().join("b.md"));
+        let mut tabs = Tabs::default();
+        tabs.open(dirty_tab_at(&a));
+        tabs.open(dirty_tab_at(&b));
+
+        tabs.save_modified().unwrap();
+
+        assert_eq!(tabs.modified_count(), 0);
+        assert_eq!(std::fs::read_to_string(&a).unwrap(), "a");
+        assert_eq!(std::fs::read_to_string(&b).unwrap(), "b");
+        assert_eq!(tabs.active_note().map(SelectedNote::content), Some("b"));
+    }
+
+    #[test]
+    fn save_active_leaves_other_tabs_dirty() {
+        let dir = tempfile::tempdir().unwrap();
+        let (a, b) = (dir.path().join("a.md"), dir.path().join("b.md"));
+        let mut tabs = Tabs::default();
+        tabs.open(dirty_tab_at(&a));
+        tabs.open(dirty_tab_at(&b));
+
+        tabs.save_active().unwrap();
+
+        assert_eq!(tabs.modified_count(), 1);
+        assert!(!a.exists());
+        assert_eq!(std::fs::read_to_string(&b).unwrap(), "b");
+    }
+
+    #[test]
+    fn save_modified_reports_write_failures() {
+        let mut tabs = Tabs::default();
+        tabs.open(dirty_tab_at(Path::new("/nonexistent-basalt-dir/a.md")));
+
+        assert!(tabs.save_modified().is_err());
+        assert_eq!(tabs.modified_count(), 1);
     }
 
     #[test]

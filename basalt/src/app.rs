@@ -52,6 +52,7 @@ use crate::{
     text_counts::{CharCount, WordCount},
     theme_selector_modal::{self, ThemeSelectorModal, ThemeSelectorModalState},
     toast::{self, Toast, TOAST_WIDTH},
+    unsaved_modal::{self, PendingAction, UnsavedModal, UnsavedModalState},
     vault_selector_modal::{self, VaultSelectorModal, VaultSelectorModalState},
     vault_watcher::VaultWatcher,
 };
@@ -106,6 +107,7 @@ pub struct AppState<'a> {
     vault_selector_modal: VaultSelectorModalState<'a>,
     debug_log_modal: DebugLogModalState,
     theme_selector_modal: ThemeSelectorModalState,
+    unsaved_modal: UnsavedModalState,
 }
 
 impl<'a> AppState<'a> {
@@ -191,6 +193,7 @@ pub enum Message<'a> {
     VaultSelectorModal(vault_selector_modal::Message),
     DebugLog(debug_log::Message),
     ThemeSelectorModal(theme_selector_modal::Message),
+    UnsavedModal(unsaved_modal::Message),
     PreviewTheme(Theme),
     SaveTheme(String),
 }
@@ -257,6 +260,14 @@ impl SelectedNote {
 
     pub fn set_path(&mut self, path: &Path) {
         self.path = path.to_path_buf();
+    }
+
+    pub fn content(&self) -> &str {
+        &self.content
+    }
+
+    pub fn set_content(&mut self, content: &str) {
+        content.clone_into(&mut self.content);
     }
 }
 
@@ -504,6 +515,60 @@ fn focus_active_editor(state: &mut AppState) {
     if let Some(editor) = state.tabs.active_editor_mut() {
         editor.set_active(focused);
     }
+}
+
+fn request_quit(state: &mut AppState) {
+    match state.tabs.modified_count() {
+        0 => state.is_running = false,
+        count => state.unsaved_modal.open(PendingAction::Quit, count),
+    }
+}
+
+fn request_close_tab(state: &mut AppState, config: &Config) {
+    if state.tabs.active_modified() {
+        state.unsaved_modal.open(PendingAction::CloseTab, 1);
+    } else {
+        close_tab(state, config);
+    }
+}
+
+fn close_tab(state: &mut AppState, config: &Config) {
+    state.tabs.close_active();
+    hydrate_active_tab(state, config);
+    focus_active_editor(state);
+    sync_explorer_to_active_tab(state);
+    rebuild_outline(state, config);
+    state.workspace_dirty = true;
+}
+
+fn resolve_unsaved<'a>(
+    state: &mut AppState,
+    config: &Config,
+    message: unsaved_modal::Message,
+) -> Option<Message<'a>> {
+    let action = state.unsaved_modal.take()?;
+    match message {
+        unsaved_modal::Message::Cancel => return None,
+        unsaved_modal::Message::Discard => {}
+        unsaved_modal::Message::Save => {
+            let saved = match action {
+                PendingAction::Quit => state.tabs.save_modified(),
+                PendingAction::CloseTab => state.tabs.save_active(),
+            };
+            if let Err(error) = saved {
+                error!(?error, "failed to save before {action:?}");
+                return Some(Message::Toast(toast::Message::Create(toast::Toast::error(
+                    "Failed to save file",
+                    Duration::from_secs(2),
+                ))));
+            }
+        }
+    }
+    match action {
+        PendingAction::Quit => state.is_running = false,
+        PendingAction::CloseTab => close_tab(state, config),
+    }
+    None
 }
 
 fn sync_explorer_to_active_tab(state: &mut AppState) {
@@ -924,6 +989,11 @@ impl<'a> App<'a> {
         state: &mut AppState<'_>,
         key_event: KeyEvent,
     ) -> Option<Message<'a>> {
+        if state.unsaved_modal.is_visible() {
+            state.pending_keys.clear();
+            return unsaved_modal::handle_key_event(key_event).map(Message::UnsavedModal);
+        }
+
         // Vim normal-mode inputs no static binding can express: a pending
         // replace/find/text-object target, or count digits.
         if matches!(state.active_component(), ActivePane::NoteEditor) {
@@ -1047,7 +1117,7 @@ impl<'a> App<'a> {
                     }
                 }
             }
-            Message::Quit => state.is_running = false,
+            Message::Quit => request_quit(state),
             Message::Resize(size) => state.screen_size = size,
             Message::RefreshVault { rename, select } => {
                 if let Some((old, new)) = &rename {
@@ -1257,14 +1327,8 @@ impl<'a> App<'a> {
                 rebuild_outline(state, config);
                 state.workspace_dirty = true;
             }
-            Message::CloseTab => {
-                state.tabs.close_active();
-                hydrate_active_tab(state, config);
-                focus_active_editor(state);
-                sync_explorer_to_active_tab(state);
-                rebuild_outline(state, config);
-                state.workspace_dirty = true;
-            }
+            Message::CloseTab => request_close_tab(state, config),
+            Message::UnsavedModal(message) => return resolve_unsaved(state, config, message),
             Message::Exec(command) => {
                 let (note_name, note_path) = state
                     .tabs
@@ -1588,6 +1652,11 @@ impl<'a> App<'a> {
             let border_modal = self.config.symbols.border_modal.into();
             HelpModal::new(border_modal, theme).render(area, buf, &mut state.help_modal);
         }
+
+        if state.unsaved_modal.is_visible() {
+            let border_modal = self.config.symbols.border_modal.into();
+            UnsavedModal::new(border_modal, theme).render(area, buf, &mut state.unsaved_modal);
+        }
     }
 
     fn render_toasts(&self, area: Rect, buf: &mut Buffer, state: &mut AppState<'a>) {
@@ -1622,5 +1691,219 @@ impl<'a> StatefulWidget for &App<'a> {
             .style(Style::new().bg(state.theme.background))
             .render(area, buf);
         self.render_main(area, buf, state);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ratatui::crossterm::event::KeyModifiers;
+    use tempfile::TempDir;
+
+    use super::*;
+
+    fn state_with_notes<'a>(config: &Config, dir: &TempDir, names: &[&str]) -> AppState<'a> {
+        let mut state = AppState {
+            is_running: true,
+            ..Default::default()
+        };
+        for name in names {
+            let path = dir.path().join(format!("{name}.md"));
+            fs::write(&path, "").unwrap();
+            open_note(&mut state, config, SelectedNote::new(name, &path, ""));
+        }
+        state
+    }
+
+    fn edit_active(state: &mut AppState, text: &str) {
+        state.tabs.active_editor_mut().unwrap().splice(0..0, text);
+    }
+
+    fn press<'c>(config: &'c Config, state: &mut AppState, code: KeyCode) -> Option<Message<'c>> {
+        App::handle_key_event(config, state, KeyEvent::new(code, KeyModifiers::NONE))
+    }
+
+    #[test]
+    fn quit_without_edits_stops_immediately() {
+        let config = Config::default();
+        let dir = tempfile::tempdir().unwrap();
+        let mut state = state_with_notes(&config, &dir, &["a"]);
+
+        request_quit(&mut state);
+
+        assert!(!state.is_running);
+        assert!(!state.unsaved_modal.is_visible());
+    }
+
+    #[test]
+    fn quit_with_edits_in_a_background_tab_asks_first() {
+        let config = Config::default();
+        let dir = tempfile::tempdir().unwrap();
+        let mut state = state_with_notes(&config, &dir, &["a", "b"]);
+        state.tabs.prev();
+        edit_active(&mut state, "draft");
+        state.tabs.next();
+
+        request_quit(&mut state);
+
+        assert!(state.is_running);
+        assert!(state.unsaved_modal.is_visible());
+    }
+
+    #[test]
+    fn cancel_keeps_running_and_keeps_edits() {
+        let config = Config::default();
+        let dir = tempfile::tempdir().unwrap();
+        let mut state = state_with_notes(&config, &dir, &["a"]);
+        edit_active(&mut state, "draft");
+        request_quit(&mut state);
+
+        resolve_unsaved(&mut state, &config, unsaved_modal::Message::Cancel);
+
+        assert!(state.is_running);
+        assert!(!state.unsaved_modal.is_visible());
+        assert_eq!(state.tabs.modified_count(), 1);
+    }
+
+    #[test]
+    fn discard_quits_without_writing() {
+        let config = Config::default();
+        let dir = tempfile::tempdir().unwrap();
+        let mut state = state_with_notes(&config, &dir, &["a"]);
+        edit_active(&mut state, "draft");
+        request_quit(&mut state);
+
+        resolve_unsaved(&mut state, &config, unsaved_modal::Message::Discard);
+
+        assert!(!state.is_running);
+        assert_eq!(fs::read_to_string(dir.path().join("a.md")).unwrap(), "");
+    }
+
+    #[test]
+    fn save_writes_every_tab_then_quits() {
+        let config = Config::default();
+        let dir = tempfile::tempdir().unwrap();
+        let mut state = state_with_notes(&config, &dir, &["a", "b"]);
+        edit_active(&mut state, "second");
+        state.tabs.prev();
+        edit_active(&mut state, "first");
+        request_quit(&mut state);
+
+        resolve_unsaved(&mut state, &config, unsaved_modal::Message::Save);
+
+        assert!(!state.is_running);
+        assert_eq!(
+            fs::read_to_string(dir.path().join("a.md")).unwrap(),
+            "first"
+        );
+        assert_eq!(
+            fs::read_to_string(dir.path().join("b.md")).unwrap(),
+            "second"
+        );
+    }
+
+    #[test]
+    fn failed_save_keeps_running() {
+        let config = Config::default();
+        let dir = tempfile::tempdir().unwrap();
+        let mut state = state_with_notes(&config, &dir, &["a"]);
+        edit_active(&mut state, "draft");
+        fs::remove_dir_all(dir.path()).unwrap();
+        request_quit(&mut state);
+
+        let message = resolve_unsaved(&mut state, &config, unsaved_modal::Message::Save);
+
+        assert!(state.is_running);
+        assert!(matches!(message, Some(Message::Toast(_))));
+        assert_eq!(state.tabs.modified_count(), 1);
+    }
+
+    #[test]
+    fn close_tab_without_edits_closes_immediately() {
+        let config = Config::default();
+        let dir = tempfile::tempdir().unwrap();
+        let mut state = state_with_notes(&config, &dir, &["a", "b"]);
+
+        request_close_tab(&mut state, &config);
+
+        assert_eq!(state.tabs.len(), 1);
+        assert!(!state.unsaved_modal.is_visible());
+    }
+
+    #[test]
+    fn close_tab_ignores_edits_in_other_tabs() {
+        let config = Config::default();
+        let dir = tempfile::tempdir().unwrap();
+        let mut state = state_with_notes(&config, &dir, &["a", "b"]);
+        state.tabs.prev();
+        edit_active(&mut state, "draft");
+        state.tabs.next();
+
+        request_close_tab(&mut state, &config);
+
+        assert_eq!(state.tabs.len(), 1);
+        assert_eq!(state.tabs.modified_count(), 1);
+    }
+
+    #[test]
+    fn close_dirty_tab_asks_then_discards() {
+        let config = Config::default();
+        let dir = tempfile::tempdir().unwrap();
+        let mut state = state_with_notes(&config, &dir, &["a", "b"]);
+        edit_active(&mut state, "draft");
+
+        request_close_tab(&mut state, &config);
+        assert_eq!(state.tabs.len(), 2);
+        assert!(state.unsaved_modal.is_visible());
+
+        resolve_unsaved(&mut state, &config, unsaved_modal::Message::Discard);
+
+        assert_eq!(state.tabs.len(), 1);
+        assert!(state.is_running);
+        assert_eq!(fs::read_to_string(dir.path().join("b.md")).unwrap(), "");
+    }
+
+    #[test]
+    fn close_dirty_tab_saves_only_that_tab() {
+        let config = Config::default();
+        let dir = tempfile::tempdir().unwrap();
+        let mut state = state_with_notes(&config, &dir, &["a", "b"]);
+        state.tabs.prev();
+        edit_active(&mut state, "other");
+        state.tabs.next();
+        edit_active(&mut state, "draft");
+        request_close_tab(&mut state, &config);
+
+        resolve_unsaved(&mut state, &config, unsaved_modal::Message::Save);
+
+        assert_eq!(state.tabs.len(), 1);
+        assert!(state.is_running);
+        assert_eq!(fs::read_to_string(dir.path().join("a.md")).unwrap(), "");
+        assert_eq!(
+            fs::read_to_string(dir.path().join("b.md")).unwrap(),
+            "draft"
+        );
+        assert_eq!(state.tabs.modified_count(), 1);
+    }
+
+    #[test]
+    fn modal_swallows_global_bindings() {
+        let mut config = Config::default();
+        config
+            .global
+            .merge_key_bindings([("q".to_string(), Message::Quit)].into());
+        let dir = tempfile::tempdir().unwrap();
+        let mut state = state_with_notes(&config, &dir, &["a"]);
+        edit_active(&mut state, "draft");
+        assert_eq!(
+            press(&config, &mut state, KeyCode::Char('q')),
+            Some(Message::Quit)
+        );
+        request_quit(&mut state);
+
+        assert_eq!(press(&config, &mut state, KeyCode::Char('q')), None);
+        assert_eq!(
+            press(&config, &mut state, KeyCode::Char('d')),
+            Some(Message::UnsavedModal(unsaved_modal::Message::Discard))
+        );
     }
 }
