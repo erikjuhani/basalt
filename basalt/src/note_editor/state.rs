@@ -173,6 +173,7 @@ pub struct NoteEditorState<'a> {
     line_numbers: LineNumbers,
     editor_enabled: bool,
     modified: bool,
+    autosaved_content: Option<String>,
     viewport: Viewport,
     selection: Option<Selection>,
     yank_flash: Option<YankFlash>,
@@ -213,6 +214,7 @@ impl<'a> NoteEditorState<'a> {
             line_numbers: LineNumbers::default(),
             editor_enabled: false,
             modified: false,
+            autosaved_content: None,
             selection: None,
             yank_flash: None,
             pending_count: None,
@@ -694,7 +696,19 @@ impl<'a> NoteEditorState<'a> {
     }
 
     pub fn modified(&self) -> bool {
-        self.modified || self.text_buffer().is_some_and(|buffer| buffer.modified)
+        let edited = self.modified || self.text_buffer().is_some_and(|buffer| buffer.modified);
+        edited
+            && self
+                .autosaved_content
+                .as_ref()
+                .is_none_or(|saved| *saved != self.current_content())
+    }
+
+    pub fn current_content(&self) -> Cow<'_, str> {
+        match self.text_buffer() {
+            Some(buffer) if buffer.modified => Cow::Owned(buffer.write(&self.content)),
+            _ => Cow::Borrowed(&self.content),
+        }
     }
 
     pub fn selection(&self) -> Option<Selection> {
@@ -1259,8 +1273,24 @@ impl<'a> NoteEditorState<'a> {
             let mut file = File::create(&self.filepath)?;
             file.write_all(self.content.as_bytes())?;
             self.modified = false;
+            self.autosaved_content = None;
         }
         Ok(())
+    }
+
+    pub fn autosave(&mut self) -> io::Result<bool> {
+        if !self.modified() {
+            return Ok(false);
+        }
+        let content = self.current_content().into_owned();
+        File::create(&self.filepath)?.write_all(content.as_bytes())?;
+        if self.text_buffer().is_some_and(|buffer| buffer.modified) {
+            self.autosaved_content = Some(content);
+        } else {
+            self.modified = false;
+            self.autosaved_content = None;
+        }
+        Ok(true)
     }
 
     /// The shift amount can be positive (insertion) or negative (deletion).
@@ -1303,6 +1333,62 @@ mod tests {
     use super::*;
     use ratatui::layout::Size;
     use std::path::Path;
+
+    fn insert_editor(path: &Path, content: &str) -> NoteEditorState<'static> {
+        let mut state = NoteEditorState::new(content, "note", path, &Symbols::unicode());
+        state.set_editor_enabled(true);
+        state.resize_viewport(Size::new(40, 10));
+        state.set_view(View::Edit(EditMode::Source));
+        state.set_insert_mode(true);
+        state
+    }
+
+    #[test]
+    fn autosave_skips_unmodified_note() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("note.md");
+        let mut state = insert_editor(&path, "hello\n");
+
+        assert!(!state.autosave().unwrap());
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn autosave_writes_uncommitted_insert_edits_and_stays_in_insert_mode() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("note.md");
+        let mut state = insert_editor(&path, "hello\n");
+        state.insert_char('X');
+
+        assert!(state.autosave().unwrap());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "Xhello\n");
+        assert!(state.insert_mode());
+        assert!(!state.modified());
+        assert!(!state.autosave().unwrap());
+
+        state.insert_char('Y');
+        assert!(state.modified());
+        assert!(state.autosave().unwrap());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "XYhello\n");
+
+        state.exit_insert();
+        assert!(!state.modified());
+        assert_eq!(state.content, "XYhello\n");
+    }
+
+    #[test]
+    fn autosave_clears_modified_outside_insert_mode() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("note.md");
+        let mut state = insert_editor(&path, "hello\n");
+        state.insert_char('X');
+        state.exit_insert();
+        assert!(state.modified());
+
+        assert!(state.autosave().unwrap());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "Xhello\n");
+        assert!(!state.modified());
+    }
 
     fn assert_cursor_visible(state: &NoteEditorState, context: &str) {
         let cursor_screen_row = state.cursor_screen_row();
