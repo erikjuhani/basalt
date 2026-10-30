@@ -4,6 +4,21 @@
 
 [[Basalt]] runs on Windows, macOS and Linux.
 
+## Features
+
+The demo above shows these features in order:
+
+1. Browse the vault in the [[Explorer]].
+2. Open notes in [[User interface|tabs]] and cycle through them with `H` and `L`.
+3. Read rendered markdown with [[Editing and Formatting|callouts, tables, task lists and highlighted code]].
+4. Jump to a heading with the [[Outline]].
+5. [[Search]] the text of every note in the vault.
+6. Edit with [[Configuration|vim motions, operators and text objects]].
+7. Insert a wiki-link with [[Editor (experimental)|link completion]], then follow it with `gx`.
+8. Select lines and yank them to the clipboard.
+9. Preview [[Themes]] live with `Space` then `t`.
+10. Open the help with `?`.
+
 ## Overview
 
 [[Basalt]] lets you browse vaults, read notes and edit markdown without leaving the terminal. When you leave the terminal to use a different app, your flow breaks, especially when writing. [[Basalt]] fills that gap by giving you quick access to your notes and vaults with a single command.
