@@ -65,6 +65,19 @@ Set `vim_mode = true` in `[note_editor]`. The edit view then gains Normal and In
 
 `NORMAL` is a configurable mode, so `Ctrl+X` saves there. It also carries the full vim preset: motions, operators, registers, undo and redo. See [[Configuration]] for the complete list.
 
+## Link completion
+
+When you type `[[` in edit view, a dropdown lists the notes in the vault. Type more of the name to filter the list. The filter is fuzzy, so the characters must appear in order but do not need to be next to each other. In vim mode, the dropdown opens in Insert mode only.
+
+- Type `#` after a note name to list the headings of that note, for example `[[Themes#`.
+- Type `[[#` to list the headings of the current note.
+
+| Mapping                        | Description                            |
+| ------------------------------ | -------------------------------------- |
+| `↑` / `↓`, `Ctrl+P` / `Ctrl+N` | Move the selection                     |
+| `Enter`, `Tab`                 | Insert the selected link with its `]]` |
+| `Esc`                          | Close the dropdown                     |
+
 ## Saving
 
 `Ctrl+X` saves the note to disk and shows a confirmation toast. It works from read view and from Normal mode in [[Configuration|vim mode]], but not while typing in edit view.
