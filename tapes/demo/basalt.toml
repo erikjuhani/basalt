@@ -1,0 +1,11 @@
+[note_editor]
+experimental = true
+vim_mode = true
+
+[tabs]
+sync = "off"
+
+[symbols]
+preset = "nerd-font"
+wrap_marker = ""
+title_font_style = "script"
