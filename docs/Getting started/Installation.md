@@ -90,7 +90,7 @@ Each open note gets its own tab in the bar along the top, keeping its cursor and
 
 ## Switching vaults
 
-Press `Space` then `v` to open the vault selector and switch to a different vault.
+Press `Ctrl+O` to open the vault selector and switch to a different vault.
 
 ## Getting help
 

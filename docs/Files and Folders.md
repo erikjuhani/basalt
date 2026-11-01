@@ -14,7 +14,7 @@ You can override the configuration directory by setting the `OBSIDIAN_CONFIG_DIR
 
 ## Switching vaults
 
-Press `Space` then `v` to open the vault selector and switch between vaults.
+Press `Ctrl+O` to open the vault selector and switch between vaults.
 
 ## File types
 
@@ -53,7 +53,7 @@ basalt path/to/note.md
 
 If the file does not exist, [[Basalt]] creates it as an empty file. A file path takes precedence over any vault.
 
-To return to a vault, press `Space` then `v` and select a vault. The [[Explorer]] then appears.
+To return to a vault, press `Ctrl+O` and select a vault. The [[Explorer]] then appears.
 
 ![[file-mode.avif]]
 

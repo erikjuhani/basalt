@@ -13,7 +13,6 @@ Use `j`/`k` or arrow keys to move through the headings. Press `Enter` to expand 
 | `Enter`           | Expand or collapse heading           |
 | `g`               | Jump to selected heading in editor   |
 | `t`               | Toggle explorer pane                 |
+| `o`               | Toggle outline pane                  |
 | `Tab`             | Switch to next pane                  |
 | `Shift+Tab`       | Switch to previous pane              |
-| `Ctrl+B`          | Toggle explorer pane                 |
-| `Ctrl+O`          | Toggle outline pane                  |
