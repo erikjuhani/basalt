@@ -37,7 +37,6 @@ VAULT SELECTION
     ‹q›,        Quit the application
     ‹Ctrl+C›
     ‹?›         Show this help
-    ‹Leader›‹d› Toggle debug log overlay
     ‹k›         Move selection up
     ‹j›         Move selection down
     ‹↩ Enter›   Select and open the highlighted vault
@@ -45,9 +44,8 @@ VAULT SELECTION
     ‹Tab›       Switch to next pane
     ‹Shift+Tab› Switch to previous pane
 
-  The vault selection can be brought up as a modal by hitting ‹Leader›‹v›
-  after the startup screen. ‹Leader› is ‹Space› unless it is changed with
-  `leader` in the configuration file.
+  The vault selection can be brought up as a modal by hitting ‹Ctrl+O›
+  after the startup screen (the Obsidian quick switcher key).
 
 INTERFACE
 
@@ -76,10 +74,11 @@ INTERFACE
       ‹k / j›     Move selection up / down
       ‹↑ / ↓›     Move selection up / down
       ‹s›         Toggle note sorting
-      ‹n›         Create new untitled note
+      ‹Ctrl+N›    Create new untitled note
       ‹N›         Create new untitled folder
       ‹r›         Rename selected note or directory
       ‹t›         Toggle explorer panel visibility
+      ‹o›         Toggle outline panel visibility
       ‹← / h›     Hide explorer panel
       ‹→ / l›     Expand explorer panel
       ‹↩ Enter›   Select and view the highlighted note
@@ -87,12 +86,18 @@ INTERFACE
       ‹Tab›       Switch to next pane
       ‹Shift+Tab› Switch to previous pane
 
-      ‹Leader›‹s› Search notes across the vault
-      ‹Leader›‹v› Toggle vault selector modal
-      ‹Leader›‹t› Toggle theme selector (previews themes live)
-      ‹Ctrl+B›    Toggle explorer panel visibility
+      ‹Ctrl+O›    Toggle vault selector modal
       ‹Ctrl+U›    Scroll up half a page
       ‹Ctrl+D›    Scroll down half a page
+
+      Leader menu (works in any pane). ‹Leader› is ‹Space› unless changed
+      with `leader` in the configuration file:
+
+      ‹Leader›‹s› Search notes across the vault
+      ‹Leader›‹t› Toggle theme selector (previews themes live)
+      ‹Leader›‹d› Toggle debug log overlay
+      ‹Leader›‹e› Open the current note in $EDITOR
+      ‹Leader›‹o› Open the current note in Obsidian
 
   OUTLINE PANE
 
@@ -118,11 +123,10 @@ INTERFACE
       ‹Tab›       Switch to next pane
       ‹Shift+Tab› Switch to previous pane
 
-      ‹Ctrl+O›    Toggle outline pane visibility
-      ‹Leader›‹s› Search notes across the vault
-      ‹Leader›‹v› Toggle vault selector modal
-      ‹Leader›‹t› Toggle theme selector (previews themes live)
-      ‹Ctrl+B›    Toggle explorer pane visibility
+      ‹o›         Toggle outline pane visibility
+      ‹t›         Toggle explorer pane visibility
+      ‹Ctrl+O›    Toggle vault selector modal
+      ‹Leader›…   Basalt commands: search, theme, debug log, editor, Obsidian
 
   NOTE EDITOR PANE
 
@@ -145,20 +149,20 @@ INTERFACE
         ‹Alt+←›     Move cursor left by word
         ‹Alt+→›     Move cursor right by word
         ‹t›         Toggle explorer panel visibility
+        ‹o›         Toggle outline panel visibility
 
         ‹Tab›       Switch to next pane
         ‹Shift+Tab› Switch to previous pane
 
-        ‹Leader›‹s› Search notes across the vault
-        ‹Leader›‹v› Toggle vault selector modal
-        ‹Ctrl+B›    Toggle explorer panel visibility
+        ‹Ctrl+O›    Toggle vault selector modal
         ‹Ctrl+U›    Scroll up half a page
         ‹Ctrl+D›    Scroll down half a page
+        ‹Leader›…   Basalt commands: search, theme, debug log, editor, Obsidian
 
         EXPERIMENTAL EDITOR (when enabled):
         ‹i›         Enter edit mode
         ‹Shift+R›   Enter read mode
-        ‹Ctrl+X›    Save note
+        ‹Ctrl+S›    Save note
         ‹Esc›       Exit current mode
 
     EDIT MODE (Experimental)
