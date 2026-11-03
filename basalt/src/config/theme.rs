@@ -54,6 +54,7 @@ pub struct Theme {
     pub info: Color,
     pub warning: Color,
     pub error: Color,
+    pub folder: TextStyle,
     /// Per-pane background and border overrides.
     pub explorer: Pane,
     pub note_editor: Pane,
@@ -253,6 +254,10 @@ impl Default for Theme {
             info: Color::Blue,
             warning: Color::Yellow,
             error: Color::Red,
+            folder: TextStyle {
+                color: None,
+                modifier: Modifier::BOLD,
+            },
             explorer: pane,
             note_editor: pane,
             outline: pane,
@@ -324,6 +329,7 @@ struct TomlTheme {
     info: Option<String>,
     warning: Option<String>,
     error: Option<String>,
+    folder: Option<TomlTextStyle>,
     #[serde(default)]
     explorer: TomlPane,
     #[serde(default)]
@@ -509,6 +515,7 @@ impl From<TomlTheme> for Theme {
             info: color(value.info, default.info),
             warning: color(value.warning, default.warning),
             error: color(value.error, default.error),
+            folder: resolve_text_style(palette, value.folder, default.folder),
             explorer: resolve_pane(palette, value.explorer, pane_default),
             note_editor: resolve_pane(palette, value.note_editor, pane_default),
             outline: resolve_pane(palette, value.outline, pane_default),
@@ -790,6 +797,33 @@ mod tests {
         assert_eq!(kept.heading_2.modifier, Modifier::BOLD);
         let cleared = parse_theme("heading-1 = { modifiers = [] }");
         assert_eq!(cleared.heading_1.modifier, Modifier::empty());
+    }
+
+    #[test]
+    fn folder_style_defaults_to_bold() {
+        assert_eq!(Theme::default().folder.modifier, Modifier::BOLD);
+        assert_eq!(Theme::default().folder.color, None);
+        assert_eq!(
+            parse_theme("accent = \"red\"").folder.modifier,
+            Modifier::BOLD
+        );
+    }
+
+    #[test]
+    fn folder_style_parses_modifiers_and_color() {
+        let theme = parse_theme(
+            r##"
+            folder = { color = "accent", modifiers = ["italic", "underline"] }
+
+            [palette]
+            accent = "#ff00ff"
+        "##,
+        );
+        assert_eq!(
+            theme.folder.modifier,
+            Modifier::ITALIC | Modifier::UNDERLINED
+        );
+        assert_eq!(theme.folder.color, Some(Color::Rgb(255, 0, 255)));
     }
 
     #[test]

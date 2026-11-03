@@ -176,17 +176,18 @@ impl Explorer<'_> {
                     }))
                 }
                 Item::Directory { expanded, name, .. } => {
+                    let folder = Span::styled(name.as_str(), theme.folder.to_style());
                     ListItem::new(Line::from(match (is_open, expanded) {
                         (true, true) => [
                             indentation,
                             format!("{} ", symbols.tree_expanded).fg(theme.muted),
-                            name.into(),
+                            folder,
                         ]
                         .to_vec(),
                         (true, false) => [
                             indentation,
                             format!("{} ", symbols.tree_collapsed).fg(theme.muted),
-                            name.into(),
+                            folder,
                         ]
                         .to_vec(),
                         (false, true) => {
