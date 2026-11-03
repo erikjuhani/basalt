@@ -1,7 +1,11 @@
 use std::{collections::HashMap, fs::read_to_string, str::FromStr};
 
 use etcetera::{choose_base_strategy, BaseStrategy};
-use ratatui::{style::Color, widgets, widgets::Borders};
+use ratatui::{
+    style::{Color, Modifier, Style},
+    widgets,
+    widgets::Borders,
+};
 use serde::Deserialize;
 
 /// Semantic colour roles for the whole UI. Every hard-coded colour in the
@@ -24,21 +28,21 @@ pub struct Theme {
     pub border_active: Color,
     pub border_type: Option<BorderKind>,
     pub border_edges: Edges,
-    pub heading_1: Color,
-    pub heading_2: Color,
-    pub heading_3: Color,
-    pub heading_4: Color,
-    pub heading_5: Color,
-    pub heading_6: Color,
+    pub heading_1: TextStyle,
+    pub heading_2: TextStyle,
+    pub heading_3: TextStyle,
+    pub heading_4: TextStyle,
+    pub heading_5: TextStyle,
+    pub heading_6: TextStyle,
     /// Background for fenced code blocks.
     pub code_bg: Color,
     pub line_highlight: Option<Color>,
     /// Block-quote bar and text.
-    pub blockquote: Color,
+    pub blockquote: TextStyle,
     /// List bullets and ordered-list numbers.
-    pub list_marker: Color,
+    pub list_marker: TextStyle,
     /// Task check-box marker.
-    pub task: Color,
+    pub task: TextStyle,
     pub link: Color,
     /// Editor mode indicator: insert / edit (writing).
     pub mode_insert: Color,
@@ -147,6 +151,40 @@ impl Pane {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Default)]
+pub struct TextStyle {
+    pub color: Option<Color>,
+    pub modifier: Modifier,
+}
+
+impl TextStyle {
+    const fn color(color: Color) -> Self {
+        Self {
+            color: Some(color),
+            modifier: Modifier::empty(),
+        }
+    }
+
+    const fn bold(color: Color) -> Self {
+        Self {
+            color: Some(color),
+            modifier: Modifier::BOLD,
+        }
+    }
+
+    pub fn to_style(self) -> Style {
+        let style = Style::new().add_modifier(self.modifier);
+        match self.color {
+            Some(color) => style.fg(color),
+            None => style,
+        }
+    }
+
+    pub fn fg(self) -> Color {
+        self.color.unwrap_or(Color::Reset)
+    }
+}
+
 /// Background and foreground for the status bar (which has no border).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StatusBar {
@@ -196,17 +234,17 @@ impl Default for Theme {
             border_active: Color::Reset,
             border_type: None,
             border_edges: Edges::All,
-            heading_1: Color::Reset,
-            heading_2: Color::Yellow,
-            heading_3: Color::Cyan,
-            heading_4: Color::Magenta,
-            heading_5: Color::Reset,
-            heading_6: Color::Reset,
+            heading_1: TextStyle::bold(Color::Reset),
+            heading_2: TextStyle::bold(Color::Yellow),
+            heading_3: TextStyle::bold(Color::Cyan),
+            heading_4: TextStyle::bold(Color::Magenta),
+            heading_5: TextStyle::color(Color::Reset),
+            heading_6: TextStyle::color(Color::Reset),
             code_bg: Color::Black,
             line_highlight: None,
-            blockquote: Color::Magenta,
-            list_marker: Color::DarkGray,
-            task: Color::Magenta,
+            blockquote: TextStyle::color(Color::Magenta),
+            list_marker: TextStyle::color(Color::DarkGray),
+            task: TextStyle::color(Color::Magenta),
             link: Color::Blue,
             mode_insert: Color::Green,
             mode_normal: Color::Gray,
@@ -235,8 +273,8 @@ impl Default for Theme {
 }
 
 impl Theme {
-    /// Heading colour for a level (`1..=6`); out-of-range falls back to [`text`].
-    pub fn heading(&self, level: usize) -> Color {
+    /// Heading style for a level (`1..=6`); out-of-range falls back to [`text`].
+    pub fn heading(&self, level: usize) -> TextStyle {
         match level {
             1 => self.heading_1,
             2 => self.heading_2,
@@ -244,7 +282,7 @@ impl Theme {
             4 => self.heading_4,
             5 => self.heading_5,
             6 => self.heading_6,
-            _ => self.text,
+            _ => TextStyle::color(self.text),
         }
     }
 }
@@ -267,17 +305,17 @@ struct TomlTheme {
     border_active: Option<String>,
     border_type: Option<BorderKind>,
     border_edges: Option<Edges>,
-    heading_1: Option<String>,
-    heading_2: Option<String>,
-    heading_3: Option<String>,
-    heading_4: Option<String>,
-    heading_5: Option<String>,
-    heading_6: Option<String>,
+    heading_1: Option<TomlTextStyle>,
+    heading_2: Option<TomlTextStyle>,
+    heading_3: Option<TomlTextStyle>,
+    heading_4: Option<TomlTextStyle>,
+    heading_5: Option<TomlTextStyle>,
+    heading_6: Option<TomlTextStyle>,
     code_bg: Option<String>,
     line_highlight: Option<String>,
-    blockquote: Option<String>,
-    list_marker: Option<String>,
-    task: Option<String>,
+    blockquote: Option<TomlTextStyle>,
+    list_marker: Option<TomlTextStyle>,
+    task: Option<TomlTextStyle>,
     link: Option<String>,
     mode_insert: Option<String>,
     mode_normal: Option<String>,
@@ -320,6 +358,36 @@ struct TomlPane {
     border_edges: Option<Edges>,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum ModifierName {
+    Bold,
+    Italic,
+    Underline,
+    Dim,
+}
+
+impl ModifierName {
+    fn modifier(self) -> Modifier {
+        match self {
+            ModifierName::Bold => Modifier::BOLD,
+            ModifierName::Italic => Modifier::ITALIC,
+            ModifierName::Underline => Modifier::UNDERLINED,
+            ModifierName::Dim => Modifier::DIM,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(untagged)]
+enum TomlTextStyle {
+    Color(String),
+    Style {
+        color: Option<String>,
+        modifiers: Option<Vec<ModifierName>>,
+    },
+}
+
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 struct TomlStatusBar {
@@ -344,6 +412,41 @@ fn darken(color: Color) -> Color {
             Color::Rgb(scale(r), scale(g), scale(b))
         }
         _ => Color::Black,
+    }
+}
+
+fn resolve_opt(
+    palette: &HashMap<String, String>,
+    role: Option<String>,
+    fallback: Option<Color>,
+) -> Option<Color> {
+    match role {
+        Some(color) => {
+            let literal = palette.get(&color).unwrap_or(&color);
+            Color::from_str(literal).ok().or(fallback)
+        }
+        None => fallback,
+    }
+}
+
+/// A bare colour, or a table without `modifiers`, keeps the default modifiers so
+/// existing themes render unchanged.
+fn resolve_text_style(
+    palette: &HashMap<String, String>,
+    toml: Option<TomlTextStyle>,
+    default: TextStyle,
+) -> TextStyle {
+    let (color, modifiers) = match toml {
+        None => return default,
+        Some(TomlTextStyle::Color(color)) => (Some(color), None),
+        Some(TomlTextStyle::Style { color, modifiers }) => (color, modifiers),
+    };
+    TextStyle {
+        color: resolve_opt(palette, color, default.color),
+        modifier: modifiers.map_or(default.modifier, |list| {
+            list.into_iter()
+                .fold(Modifier::empty(), |set, name| set | name.modifier())
+        }),
     }
 }
 
@@ -383,21 +486,21 @@ impl From<TomlTheme> for Theme {
             border_active: pane_default.border_active,
             border_type: pane_default.border_type,
             border_edges: pane_default.border_edges,
-            heading_1: color(value.heading_1, default.heading_1),
-            heading_2: color(value.heading_2, default.heading_2),
-            heading_3: color(value.heading_3, default.heading_3),
-            heading_4: color(value.heading_4, default.heading_4),
-            heading_5: color(value.heading_5, default.heading_5),
-            heading_6: color(value.heading_6, default.heading_6),
+            heading_1: resolve_text_style(palette, value.heading_1, default.heading_1),
+            heading_2: resolve_text_style(palette, value.heading_2, default.heading_2),
+            heading_3: resolve_text_style(palette, value.heading_3, default.heading_3),
+            heading_4: resolve_text_style(palette, value.heading_4, default.heading_4),
+            heading_5: resolve_text_style(palette, value.heading_5, default.heading_5),
+            heading_6: resolve_text_style(palette, value.heading_6, default.heading_6),
             code_bg: color(value.code_bg, default.code_bg),
             line_highlight: if value.line_highlight.as_deref() == Some("none") {
                 None
             } else {
                 Some(color(value.line_highlight, darken(background)))
             },
-            blockquote: color(value.blockquote, default.blockquote),
-            list_marker: color(value.list_marker, default.list_marker),
-            task: color(value.task, default.task),
+            blockquote: resolve_text_style(palette, value.blockquote, default.blockquote),
+            list_marker: resolve_text_style(palette, value.list_marker, default.list_marker),
+            task: resolve_text_style(palette, value.task, default.task),
             link: color(value.link, default.link),
             mode_insert: color(value.mode_insert, default.mode_insert),
             mode_normal: color(value.mode_normal, default.mode_normal),
@@ -657,6 +760,36 @@ mod tests {
         assert_eq!(theme.explorer.border_edges.to_borders(), Borders::RIGHT);
         // Unset panes keep the default (all edges).
         assert_eq!(theme.note_editor.border_edges, Edges::All);
+    }
+
+    #[test]
+    fn legacy_colour_string_keeps_default_modifiers() {
+        let theme = parse_theme("heading-2 = \"green\"");
+        assert_eq!(theme.heading_2.color, Some(Color::Green));
+        assert_eq!(theme.heading_2.modifier, Modifier::BOLD);
+    }
+
+    #[test]
+    fn text_style_table_overrides_colour_and_modifiers() {
+        let theme = parse_theme(
+            r##"
+            heading-1 = { color = "#abcdef", modifiers = ["italic"] }
+            list-marker = { modifiers = ["underline"] }
+        "##,
+        );
+        assert_eq!(theme.heading_1.color, Some(Color::Rgb(0xab, 0xcd, 0xef)));
+        assert_eq!(theme.heading_1.modifier, Modifier::ITALIC);
+        assert_eq!(theme.list_marker.color, Theme::default().list_marker.color);
+        assert_eq!(theme.list_marker.modifier, Modifier::UNDERLINED);
+    }
+
+    #[test]
+    fn table_modifiers_replace_default_only_when_present() {
+        let kept = parse_theme(r#"heading-2 = { color = "green" }"#);
+        assert_eq!(kept.heading_2.color, Some(Color::Green));
+        assert_eq!(kept.heading_2.modifier, Modifier::BOLD);
+        let cleared = parse_theme("heading-1 = { modifiers = [] }");
+        assert_eq!(cleared.heading_1.modifier, Modifier::empty());
     }
 
     #[test]
