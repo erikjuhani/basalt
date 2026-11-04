@@ -8,6 +8,8 @@ use ratatui::{
 
 use crate::{config::Theme, note_editor::state::Mode};
 
+const STATUSBAR_RIGHT_WIDTH: u16 = 192;
+
 /// Perceived brightness of an RGB colour (0..255). `None` for terminal-default
 /// or ANSI colours, whose real value the app can't know.
 fn luminance(color: Color) -> Option<f32> {
@@ -80,9 +82,12 @@ impl<'a> StatefulWidget for StatusBar<'a> {
             .style(Style::new().bg(bar.background))
             .render(area, buf);
 
-        let [left, right] = Layout::horizontal([Constraint::Fill(1), Constraint::Length(28)])
-            .flex(Flex::SpaceBetween)
-            .areas(area);
+        let [left, right] = Layout::horizontal([
+            Constraint::Fill(1),
+            Constraint::Length(STATUSBAR_RIGHT_WIDTH),
+        ])
+        .flex(Flex::SpaceBetween)
+        .areas(area);
 
         // A rectangular mode block, then the active pane name.
         let mode = state.mode;
