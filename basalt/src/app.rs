@@ -417,7 +417,11 @@ fn record_autosaves(state: &mut AppState, results: impl IntoIterator<Item = Resu
 
 fn leaves_note(state: &AppState, message: &Message) -> bool {
     match message {
-        Message::TabNext | Message::TabPrevious | Message::CloseTab | Message::OpenVault(_) => true,
+        Message::TabNext
+        | Message::TabPrevious
+        | Message::CloseTab
+        | Message::Exec(_)
+        | Message::Spawn(_) => true,
         Message::SelectNote(note) => state
             .tabs
             .active_note()
@@ -430,10 +434,17 @@ fn leaves_note(state: &AppState, message: &Message) -> bool {
 }
 
 fn autosave_on_leave(config: &Config, state: &mut AppState, message: &Message) {
-    if config.autosave && leaves_note(state, message) {
-        let result = state.tabs.autosave_active();
-        record_autosaves(state, result);
+    if !config.autosave {
+        return;
     }
+    let results = match message {
+        Message::OpenVault(_) => state.tabs.autosave_all(),
+        message if leaves_note(state, message) => {
+            state.tabs.autosave_active().into_iter().collect()
+        }
+        _ => return,
+    };
+    record_autosaves(state, results);
 }
 
 fn schedule_idle_autosave(config: &Config, state: &mut AppState, now: Instant) {
@@ -935,13 +946,16 @@ impl<'a> App<'a> {
             }
         }
 
-        if config.autosave {
-            let results = state.tabs.autosave_all();
-            record_autosaves(&mut state, results);
-        }
-
         if config.tabs_sync == TabsSync::Write {
             save_workspace(&state);
+        }
+
+        if config.autosave {
+            state
+                .tabs
+                .autosave_all()
+                .into_iter()
+                .try_for_each(|result| result.map(drop))?;
         }
 
         Ok(())
@@ -1746,6 +1760,28 @@ mod tests {
         );
 
         assert_eq!(fs::read_to_string(dir.path().join("a.md")).unwrap(), "a");
+    }
+
+    #[test]
+    fn leaving_saves_before_running_an_external_command() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut state = state_with_edited_tabs(dir.path(), &["a"]);
+
+        autosave_on_leave(&config(true), &mut state, &Message::Exec("vi".into()));
+
+        assert_eq!(fs::read_to_string(dir.path().join("a.md")).unwrap(), "a");
+    }
+
+    #[test]
+    fn opening_a_vault_saves_every_modified_tab() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut state = state_with_edited_tabs(dir.path(), &["a", "b"]);
+        let vault = Vault::default();
+
+        autosave_on_leave(&config(true), &mut state, &Message::OpenVault(&vault));
+
+        assert_eq!(fs::read_to_string(dir.path().join("a.md")).unwrap(), "a");
+        assert_eq!(fs::read_to_string(dir.path().join("b.md")).unwrap(), "b");
     }
 
     #[test]
