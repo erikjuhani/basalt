@@ -7,7 +7,8 @@ use ratatui::{
 };
 use serde::{Deserialize, Deserializer};
 use std::{
-    io::stdout,
+    fs::File,
+    io::{self, stdout, Read, Seek},
     process::{self, Stdio},
     sync::{Arc, Mutex},
     thread,
@@ -743,7 +744,8 @@ pub fn spawn_command<'a>(
 }
 
 /// Opens a URL with the platform's default handler. Returns an error toast when
-/// the opener cannot be launched.
+/// the opener cannot be launched. Failures after launch arrive later through
+/// `failures`.
 pub fn open_url<'a>(url: &str, failures: &OpenerFailures) -> Option<Message<'a>> {
     let (opener, args): (&str, &[&str]) = {
         if cfg!(target_os = "macos") {
@@ -759,11 +761,11 @@ pub fn open_url<'a>(url: &str, failures: &OpenerFailures) -> Option<Message<'a>>
     command.args(args).arg(url);
 
     match quiet_spawn(command) {
-        Ok(child) => {
+        Ok((child, stderr)) => {
             let failures = failures.clone();
             let url = url.to_string();
             thread::spawn(move || {
-                if let Some(failure) = opener_failure(child) {
+                if let Some(failure) = opener_failure(child, stderr) {
                     error!(failure, url, "url opener failed");
                     failures.push(failure);
                 }
@@ -805,25 +807,41 @@ pub fn opener_failure_toast<'a>(failure: &str) -> Message<'a> {
     )))
 }
 
-fn quiet_spawn(mut command: process::Command) -> std::io::Result<process::Child> {
-    command
+const STDERR_LIMIT: u64 = 64 * 1024;
+
+/// Sends stderr to an anonymous file, not a pipe. A handler that the opener
+/// starts inherits stderr and can outlive both the opener and Basalt; with a
+/// pipe it would hold the reader until it exits and get SIGPIPE after Basalt
+/// quits.
+fn quiet_spawn(mut command: process::Command) -> io::Result<(process::Child, File)> {
+    let stderr = tempfile::tempfile()?;
+    let child = command
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .spawn()
+        .stderr(stderr.try_clone()?)
+        .spawn()?;
+    Ok((child, stderr))
 }
 
-fn opener_failure(child: process::Child) -> Option<String> {
-    let output = match child.wait_with_output() {
-        Ok(output) => output,
+fn opener_failure(mut child: process::Child, stderr: File) -> Option<String> {
+    let status = match child.wait() {
+        Ok(status) => status,
         Err(error) => return Some(error.to_string()),
     };
-    if output.status.success() {
+    if status.success() {
         return None;
     }
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stderr = read_head(stderr).unwrap_or_default();
+    let stderr = String::from_utf8_lossy(&stderr);
     let last_line = stderr.lines().map(str::trim).rfind(|line| !line.is_empty());
-    Some(last_line.map_or_else(|| output.status.to_string(), str::to_string))
+    Some(last_line.map_or_else(|| status.to_string(), str::to_string))
+}
+
+fn read_head(mut file: File) -> io::Result<Vec<u8>> {
+    file.rewind()?;
+    let mut bytes = Vec::new();
+    file.take(STDERR_LIMIT).read_to_end(&mut bytes)?;
+    Ok(bytes)
 }
 
 #[cfg(all(test, unix))]
@@ -833,7 +851,8 @@ mod opener_tests {
     fn run(script: &str) -> Option<String> {
         let mut command = process::Command::new("sh");
         command.args(["-c", script]);
-        opener_failure(quiet_spawn(command).unwrap())
+        let (child, stderr) = quiet_spawn(command).unwrap();
+        opener_failure(child, stderr)
     }
 
     #[test]
@@ -852,6 +871,17 @@ mod opener_tests {
     #[test]
     fn a_silent_failure_reports_the_exit_status() {
         assert_eq!(run("exit 4"), Some("exit status: 4".to_string()));
+    }
+
+    #[test]
+    fn a_background_child_does_not_delay_the_report() {
+        let start = std::time::Instant::now();
+
+        assert_eq!(
+            run("sleep 10 & echo 'no handler' >&2; exit 1"),
+            Some("no handler".to_string())
+        );
+        assert!(start.elapsed() < Duration::from_secs(5));
     }
 
     #[test]
