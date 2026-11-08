@@ -4,7 +4,7 @@ pub mod symbol;
 pub mod theme;
 
 use core::fmt;
-use std::{collections::BTreeMap, fs::read_to_string};
+use std::{collections::BTreeMap, fs::read_to_string, time::Duration};
 
 use etcetera::{choose_base_strategy, home_dir, BaseStrategy};
 use key_binding::{KeyBinding, KeySpec, Leader};
@@ -123,6 +123,8 @@ pub struct Config<'a> {
     pub wrap: bool,
     pub line_numbers: LineNumbers,
     pub default_note_editor_mode: NoteEditorMode,
+    pub autosave: bool,
+    pub autosave_delay: Duration,
     pub symbols: Symbols,
     pub theme: Theme,
     pub global: ConfigSection<'a>,
@@ -181,6 +183,8 @@ impl Config<'_> {
             tabs_sync: value.tabs.sync,
             vim_mode: value.note_editor.vim_mode,
             default_note_editor_mode: value.note_editor.default_mode,
+            autosave: value.note_editor.autosave,
+            autosave_delay: Duration::from_millis(value.note_editor.autosave_delay_ms),
             wrap: value.wrap.unwrap_or(true),
             line_numbers: value.line_numbers,
             global: ConfigSection::from_toml(value.global, leader),
@@ -212,6 +216,8 @@ impl Config<'_> {
         self.wrap = config.wrap;
         self.line_numbers = config.line_numbers;
         self.default_note_editor_mode = config.default_note_editor_mode;
+        self.autosave = config.autosave;
+        self.autosave_delay = config.autosave_delay;
         self.global.merge_key_bindings(config.global);
         self.explorer.merge_key_bindings(config.explorer);
         self.splash.merge_key_bindings(config.splash);
@@ -289,7 +295,7 @@ struct TomlConfigSection {
 }
 
 /// The `[note_editor]` table: the editor settings plus its key bindings.
-#[derive(Clone, Debug, PartialEq, Deserialize, Default)]
+#[derive(Clone, Debug, PartialEq, Deserialize)]
 struct TomlNoteEditor {
     #[serde(default)]
     experimental: bool,
@@ -298,9 +304,31 @@ struct TomlNoteEditor {
     #[serde(default)]
     default_mode: NoteEditorMode,
     #[serde(default)]
+    autosave: bool,
+    #[serde(default = "default_autosave_delay_ms")]
+    autosave_delay_ms: u64,
+    #[serde(default)]
     key_bindings: KeyBindings,
     #[serde(default)]
     read_key_bindings: KeyBindings,
+}
+
+fn default_autosave_delay_ms() -> u64 {
+    1000
+}
+
+impl Default for TomlNoteEditor {
+    fn default() -> Self {
+        Self {
+            experimental: false,
+            vim_mode: false,
+            default_mode: NoteEditorMode::default(),
+            autosave: false,
+            autosave_delay_ms: default_autosave_delay_ms(),
+            key_bindings: KeyBindings::default(),
+            read_key_bindings: KeyBindings::default(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Default)]
@@ -619,6 +647,23 @@ mod tests {
             toml::from_str::<TomlConfig>("[note_editor]\ndefault_mode = \"edit\"").unwrap(),
         );
         assert_eq!(config.default_note_editor_mode, NoteEditorMode::Edit);
+    }
+
+    #[test]
+    fn autosave_defaults_to_off() {
+        let config = Config::from(toml::from_str::<TomlConfig>("").unwrap());
+        assert!(!config.autosave);
+        assert_eq!(config.autosave_delay, Duration::from_millis(1000));
+    }
+
+    #[test]
+    fn autosave_parses_switch_and_delay() {
+        let config = Config::from(
+            toml::from_str::<TomlConfig>("[note_editor]\nautosave = true\nautosave_delay_ms = 250")
+                .unwrap(),
+        );
+        assert!(config.autosave);
+        assert_eq!(config.autosave_delay, Duration::from_millis(250));
     }
 
     #[test]

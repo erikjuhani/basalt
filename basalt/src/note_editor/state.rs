@@ -173,6 +173,7 @@ pub struct NoteEditorState<'a> {
     line_numbers: LineNumbers,
     editor_enabled: bool,
     modified: bool,
+    autosaved_buffer: Option<String>,
     viewport: Viewport,
     selection: Option<Selection>,
     yank_flash: Option<YankFlash>,
@@ -213,6 +214,7 @@ impl<'a> NoteEditorState<'a> {
             line_numbers: LineNumbers::default(),
             editor_enabled: false,
             modified: false,
+            autosaved_buffer: None,
             selection: None,
             yank_flash: None,
             pending_count: None,
@@ -439,13 +441,15 @@ impl<'a> NoteEditorState<'a> {
     /// Write the current text_buffer back to self.content if it was modified,
     /// re-parse AST nodes. Returns Some if content changed.
     pub fn commit_text_buffer(&mut self) -> Option<()> {
+        let autosaved = self.autosaved_buffer.take();
         let buffer = self.text_buffer()?;
         if buffer.modified {
             let new_content = buffer.write(&self.content);
             let changed = self.content != new_content;
+            let on_disk = autosaved.is_some_and(|saved| saved == buffer.content);
             self.content = new_content;
             self.ast_nodes = parser::from_str(&self.content);
-            self.modified = self.modified || changed;
+            self.modified = (self.modified || changed) && !on_disk;
             Some(())
         } else {
             None
@@ -694,7 +698,10 @@ impl<'a> NoteEditorState<'a> {
     }
 
     pub fn modified(&self) -> bool {
-        self.modified || self.text_buffer().is_some_and(|buffer| buffer.modified)
+        match (self.text_buffer(), &self.autosaved_buffer) {
+            (Some(buffer), Some(saved)) if buffer.modified => buffer.content != *saved,
+            (buffer, _) => self.modified || buffer.is_some_and(|buffer| buffer.modified),
+        }
     }
 
     pub fn selection(&self) -> Option<Selection> {
@@ -892,6 +899,7 @@ impl<'a> NoteEditorState<'a> {
         self.ast_nodes = parser::from_str(&self.content);
         self.modified = true;
         self.text_buffer = None;
+        self.autosaved_buffer = None;
         self.editing_block = None;
         self.jump_to_offset(snapshot.offset.min(self.content.len()));
     }
@@ -1259,8 +1267,21 @@ impl<'a> NoteEditorState<'a> {
             let mut file = File::create(&self.filepath)?;
             file.write_all(self.content.as_bytes())?;
             self.modified = false;
+            self.autosaved_buffer = None;
         }
         Ok(())
+    }
+
+    pub fn autosave(&mut self) -> io::Result<bool> {
+        if !self.modified() {
+            return Ok(false);
+        }
+        File::create(&self.filepath)?.write_all(self.live_content().as_bytes())?;
+        match self.text_buffer().filter(|buffer| buffer.modified) {
+            Some(buffer) => self.autosaved_buffer = Some(buffer.content.clone()),
+            None => self.modified = false,
+        }
+        Ok(true)
     }
 
     /// The shift amount can be positive (insertion) or negative (deletion).
@@ -1303,6 +1324,62 @@ mod tests {
     use super::*;
     use ratatui::layout::Size;
     use std::path::Path;
+
+    fn insert_editor(path: &Path, content: &str) -> NoteEditorState<'static> {
+        let mut state = NoteEditorState::new(content, "note", path, &Symbols::unicode());
+        state.set_editor_enabled(true);
+        state.resize_viewport(Size::new(40, 10));
+        state.set_view(View::Edit(EditMode::Source));
+        state.set_insert_mode(true);
+        state
+    }
+
+    #[test]
+    fn autosave_skips_unmodified_note() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("note.md");
+        let mut state = insert_editor(&path, "hello\n");
+
+        assert!(!state.autosave().unwrap());
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn autosave_writes_uncommitted_insert_edits_and_stays_in_insert_mode() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("note.md");
+        let mut state = insert_editor(&path, "hello\n");
+        state.insert_char('X');
+
+        assert!(state.autosave().unwrap());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "Xhello\n");
+        assert!(state.insert_mode());
+        assert!(!state.modified());
+        assert!(!state.autosave().unwrap());
+
+        state.insert_char('Y');
+        assert!(state.modified());
+        assert!(state.autosave().unwrap());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "XYhello\n");
+
+        state.exit_insert();
+        assert!(!state.modified());
+        assert_eq!(state.content, "XYhello\n");
+    }
+
+    #[test]
+    fn autosave_clears_modified_outside_insert_mode() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("note.md");
+        let mut state = insert_editor(&path, "hello\n");
+        state.insert_char('X');
+        state.exit_insert();
+        assert!(state.modified());
+
+        assert!(state.autosave().unwrap());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "Xhello\n");
+        assert!(!state.modified());
+    }
 
     fn assert_cursor_visible(state: &NoteEditorState, context: &str) {
         let cursor_screen_row = state.cursor_screen_row();
