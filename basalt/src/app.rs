@@ -607,9 +607,12 @@ fn resolve_unsaved<'a>(
     config: &Config,
     message: unsaved_modal::Message,
 ) -> Option<Message<'a>> {
-    let action = state.unsaved_modal.take()?;
+    let action = state.unsaved_modal.action()?;
     match message {
-        unsaved_modal::Message::Cancel => return None,
+        unsaved_modal::Message::Cancel => {
+            state.unsaved_modal.take();
+            return None;
+        }
         unsaved_modal::Message::Discard => {}
         unsaved_modal::Message::Save => {
             let saved = match action {
@@ -625,6 +628,7 @@ fn resolve_unsaved<'a>(
             }
         }
     }
+    state.unsaved_modal.take();
     match action {
         PendingAction::Quit => state.is_running = false,
         PendingAction::CloseTab => close_tab(state, config),
@@ -2037,6 +2041,7 @@ mod tests {
         let message = resolve_unsaved(&mut state, &config, unsaved_modal::Message::Save);
 
         assert!(state.is_running);
+        assert!(state.unsaved_modal.is_visible());
         assert!(matches!(message, Some(Message::Toast(_))));
         assert_eq!(state.tabs.modified_count(), 1);
     }

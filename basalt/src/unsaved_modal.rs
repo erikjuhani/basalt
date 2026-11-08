@@ -24,9 +24,9 @@ pub enum Message {
 
 pub fn handle_key_event(key: KeyEvent) -> Option<Message> {
     match key.code {
-        KeyCode::Char('s' | 'S') | KeyCode::Enter => Some(Message::Save),
+        KeyCode::Char('s' | 'S') => Some(Message::Save),
         KeyCode::Char('d' | 'D') => Some(Message::Discard),
-        KeyCode::Char('c' | 'C') | KeyCode::Esc => Some(Message::Cancel),
+        KeyCode::Esc => Some(Message::Cancel),
         _ => None,
     }
 }
@@ -43,6 +43,10 @@ impl UnsavedModalState {
 
     pub fn open(&mut self, action: PendingAction, count: usize) {
         self.pending = Some((action, count));
+    }
+
+    pub fn action(&self) -> Option<PendingAction> {
+        self.pending.map(|(action, _)| action)
     }
 
     pub fn take(&mut self) -> Option<PendingAction> {
@@ -135,9 +139,9 @@ mod tests {
     fn keys_map_to_choices() {
         let cases = [
             (KeyCode::Char('s'), Some(Message::Save)),
-            (KeyCode::Enter, Some(Message::Save)),
+            (KeyCode::Enter, None),
             (KeyCode::Char('d'), Some(Message::Discard)),
-            (KeyCode::Char('c'), Some(Message::Cancel)),
+            (KeyCode::Char('c'), None),
             (KeyCode::Char('n'), None),
             (KeyCode::Char('y'), None),
             (KeyCode::Esc, Some(Message::Cancel)),
