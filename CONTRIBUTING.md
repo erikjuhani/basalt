@@ -151,6 +151,8 @@ The primary CI workflow runs on every pull request and push to main:
 | Step | Description |
 |------|-------------|
 | **Format check** | Verifies code formatting with `make fmt-check` |
+| **Deny** | Checks dependency licenses and security advisories with [cargo-deny](https://github.com/EmbarkStudios/cargo-deny) |
+| **Machete** | Detects unused dependencies with [cargo-machete](https://github.com/bnjbvr/cargo-machete) |
 | **Cargo check** | Validates the code compiles without errors |
 | **Clippy** | Runs the Rust linter with warnings treated as errors |
 | **Tests** | Runs the workspace test suite with cargo-nextest |
