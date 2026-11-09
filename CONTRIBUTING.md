@@ -159,6 +159,10 @@ The primary CI workflow runs on every pull request and push to main:
 | **Doc tests** | Runs the doc tests, which cargo-nextest does not support |
 | **Build & Package** | Builds the binary and verifies it can be packaged |
 
+The Deny step reads `deny.toml`. If a dependency update adds a license that is not on the allow list, the step fails. Check that the license is acceptable, then add it to `allow` in `deny.toml`.
+
+The `cargo-nextest`, `cargo-deny` and `cargo-machete` versions in `test.yml` are pinned. Update them by hand.
+
 ### Workflow Security (`workflow-security.yml`)
 
 A security-focused workflow that checks the GitHub Actions configuration:
