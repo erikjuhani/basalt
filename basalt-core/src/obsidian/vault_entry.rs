@@ -1,8 +1,8 @@
 use std::{
     cmp::Reverse,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, Mutex},
     thread,
 };
 
@@ -31,9 +31,26 @@ impl VaultEntry {
             Self::File(note) => note.name(),
         }
     }
+
+    fn path(&self) -> &Path {
+        match self {
+            Self::Directory { path, .. } => path,
+            Self::File(note) => note.path(),
+        }
+    }
 }
 
 impl VaultEntry {
+    /// Walks `path` into a [`VaultEntry`], recursing into directories.
+    ///
+    /// `skip` is called once with the path of each directory entry, relative to `path`, and
+    /// whether the entry is a directory, before the entry is read. A skipped directory is never
+    /// descended into. The entries of each directory are sorted by file name.
+    ///
+    /// Symbolic links below `path` are not followed into directories: a symlinked file is
+    /// included as a note, while a symlinked directory or a dangling symlink is left out. This
+    /// keeps the walk inside the vault and safe from symlink loops. `path` itself may be a
+    /// symlink.
     pub(crate) fn walk(
         path: &Path,
         skip: impl Fn(&Path, bool) -> bool + Send + Sync + 'static,
@@ -45,14 +62,19 @@ impl VaultEntry {
 
         let root = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
         let skip = Arc::new(skip);
+        let skipped_directories = Arc::new(Mutex::new(HashSet::new()));
         let mut tree = TreeBuilder::default();
 
-        for entry in parallel_walk(&root, Arc::clone(&skip)) {
+        for entry in parallel_walk(&root, Arc::clone(&skip), Arc::clone(&skipped_directories)) {
             let entry_path = entry.path();
             let relative = entry_path.strip_prefix(&root).unwrap_or(&entry_path);
             let path = path.join(relative);
             match kind(&entry, &path) {
-                Some(Kind::Directory) if !skip(relative, true) => tree.add_directory(path),
+                Some(Kind::Directory)
+                    if !skipped_directories.lock().unwrap().contains(relative) =>
+                {
+                    tree.add_directory(path)
+                }
                 Some(Kind::Note) if !skip(relative, false) => tree.add_note(path)?,
                 _ => {}
             }
@@ -83,12 +105,23 @@ fn kind(entry: &dua_core::Entry, path: &Path) -> Option<Kind> {
 fn parallel_walk(
     root: &Path,
     skip: Arc<impl Fn(&Path, bool) -> bool + Send + Sync + 'static>,
+    skipped_directories: Arc<Mutex<HashSet<PathBuf>>>,
 ) -> impl Iterator<Item = dua_core::Entry> {
     let descend_root = root.to_path_buf();
     let descend = move |entry: &dua_core::Entry| {
+        if entry.depth == 0 {
+            return true;
+        }
         let path = entry.path();
         let relative = path.strip_prefix(&descend_root).unwrap_or(&path);
-        entry.depth == 0 || !skip(relative, true)
+        let is_skipped = skip(relative, true);
+        if is_skipped {
+            skipped_directories
+                .lock()
+                .unwrap()
+                .insert(relative.to_path_buf());
+        }
+        !is_skipped
     };
     let threads = thread::available_parallelism().map_or(1, |n| n.get().min(MAX_THREADS));
 
@@ -133,10 +166,12 @@ impl TreeBuilder {
     }
 
     fn directory(&mut self, path: &Path) -> Result<VaultEntry> {
+        let mut entries = self.entries_by_parent.remove(path).unwrap_or_default();
+        entries.sort_by(|left, right| left.path().file_name().cmp(&right.path().file_name()));
         Ok(VaultEntry::Directory {
             name: directory_name(path)?,
             path: path.to_path_buf(),
-            entries: self.entries_by_parent.remove(path).unwrap_or_default(),
+            entries,
         })
     }
 
@@ -235,6 +270,28 @@ mod tests {
     }
 
     #[test]
+    fn walk_sorts_entries_by_file_name() {
+        let dir = tempdir().unwrap();
+        for folder in ["b", "d"] {
+            fs::create_dir(dir.path().join(folder)).unwrap();
+        }
+        for note in ["c.md", "a.md", "a.txt", "e.md"] {
+            fs::write(dir.path().join(note), "").unwrap();
+        }
+
+        let Ok(VaultEntry::Directory { entries, .. }) = VaultEntry::walk(dir.path(), |_, _| false)
+        else {
+            panic!("expected a directory");
+        };
+
+        let paths: Vec<&Path> = entries.iter().map(VaultEntry::path).collect();
+        assert_eq!(
+            paths,
+            ["a.md", "a.txt", "b", "c.md", "d", "e.md"].map(|name| dir.path().join(name))
+        );
+    }
+
+    #[test]
     fn walk_does_not_descend_into_skipped_directories() {
         let dir = tempdir().unwrap();
         fs::create_dir_all(dir.path().join("skipped/nested")).unwrap();
@@ -255,7 +312,6 @@ mod tests {
         assert_eq!(names(&entries), ["kept"]);
         let mut visited = visited.lock().unwrap().clone();
         visited.sort();
-        visited.dedup();
         assert_eq!(
             visited,
             [PathBuf::from("kept.md"), PathBuf::from("skipped")]
