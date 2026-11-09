@@ -1,0 +1,14 @@
+---
+source: basalt/src/unsaved_modal.rs
+expression: terminal.backend()
+---
+"                                                            "
+"    ╭ Unsaved changes ─────────────────────────────────╮    "
+"    │                                                  │    "
+"    │ Unsaved changes in 3 notes.                      │    "
+"    │ Save before quitting?                            │    "
+"    │                                                  │    "
+"    │ s save   d discard   esc cancel                  │    "
+"    │                                                  │    "
+"    ╰──────────────────────────────────────────────────╯    "
+"                                                            "
