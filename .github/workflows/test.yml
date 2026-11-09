@@ -35,10 +35,10 @@ jobs:
     - name: Toolchain
       run: rustup toolchain install
 
-    - name: Install nextest
+    - name: Install tools
       uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
       with:
-        tool: nextest
+        tool: cargo-nextest@0.9.151,cargo-deny@0.20.2,cargo-machete@0.9.2
 
     - name: Cache
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -51,6 +51,12 @@ jobs:
 
     - name: Format check
       run: make fmt-check
+
+    - name: Deny
+      run: cargo deny check
+
+    - name: Machete
+      run: cargo machete --with-metadata
 
     - name: Check
       run: cargo check --locked --profile ci --workspace --all-targets

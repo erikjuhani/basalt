@@ -151,11 +151,17 @@ The primary CI workflow runs on every pull request and push to main:
 | Step | Description |
 |------|-------------|
 | **Format check** | Verifies code formatting with `make fmt-check` |
+| **Deny** | Checks dependency licenses and security advisories with [cargo-deny](https://github.com/EmbarkStudios/cargo-deny) |
+| **Machete** | Detects unused dependencies with [cargo-machete](https://github.com/bnjbvr/cargo-machete) |
 | **Cargo check** | Validates the code compiles without errors |
 | **Clippy** | Runs the Rust linter with warnings treated as errors |
 | **Tests** | Runs the workspace test suite with cargo-nextest |
 | **Doc tests** | Runs the doc tests, which cargo-nextest does not support |
 | **Build & Package** | Builds the binary and verifies it can be packaged |
+
+The Deny step reads `deny.toml`. If a dependency update adds a license that is not on the allow list, the step fails. Check that the license is acceptable, then add it to `allow` in `deny.toml`.
+
+The `cargo-nextest`, `cargo-deny` and `cargo-machete` versions in `test.yml` are pinned. Update them by hand.
 
 ### Workflow Security (`workflow-security.yml`)
 
