@@ -391,7 +391,7 @@ mod tests {
             parser,
             render::{render_node, RenderContext, RenderStyle},
             text_buffer::TextBuffer,
-            virtual_document::CodeCache,
+            virtual_document::{CodeCache, ImageContext},
         },
     };
 
@@ -407,6 +407,7 @@ mod tests {
         let symbols = Symbols::unicode();
         let theme = Theme::default();
         let mut code_cache = CodeCache::default();
+        let images = ImageContext::default();
         let mut context = RenderContext {
             content,
             max_width: width,
@@ -416,6 +417,7 @@ mod tests {
             theme: &theme,
             code_cache: &mut code_cache,
             selected_link: None,
+            images: &images,
         };
         parser::from_str(content)
             .into_iter()

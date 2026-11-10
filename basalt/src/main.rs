@@ -2,8 +2,13 @@ use clap::Parser;
 use std::path::PathBuf;
 
 use basalt_core::obsidian::{self, Error, Vault};
-use basalt_tui::{app::App, cli::Cli, debug_log};
+use basalt_tui::{
+    app::{App, Startup},
+    cli::Cli,
+    debug_log,
+};
 use ratatui::crossterm::{cursor::SetCursorStyle, execute};
+use ratatui_image::picker::Picker;
 
 fn main() -> Result<(), Error> {
     let cli = Cli::parse();
@@ -49,18 +54,35 @@ fn main() -> Result<(), Error> {
         _ => None,
     };
 
+    // `BASALT_EXP_IMAGE_HALFBLOCKS` forces half-blocks (e.g. for VHS).
+    let picker = match std::env::var_os("BASALT_EXP_IMAGE_HALFBLOCKS") {
+        Some(_) => Picker::halfblocks(),
+        None => Picker::from_query_stdio().unwrap_or_else(|_| Picker::halfblocks()),
+    };
+
     let terminal = ratatui::init();
 
-    let result = App::start(
+    // Only a main-thread panic restores the terminal; other threads catch theirs.
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        if std::thread::current().name() == Some("main") {
+            default_hook(info);
+        } else {
+            tracing::error!("background thread panicked: {info}");
+        }
+    }));
+
+    let result = App::start(Startup {
         terminal,
         vaults,
         initial_vault,
         initial_file,
-        cli.debug,
-        cli.log_level,
-        cli.theme,
+        debug: cli.debug,
+        log_level: cli.log_level,
+        theme_override: cli.theme,
         obsidian_config_error,
-    );
+        picker,
+    });
 
     let _ = execute!(std::io::stdout(), SetCursorStyle::DefaultUserShape);
     ratatui::restore();
