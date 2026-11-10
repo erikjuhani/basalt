@@ -117,7 +117,7 @@ Some text elements can have a decorative font style applied. The available style
 
 | Field              | Description                   | Unicode / Nerd Font  | ASCII    |
 | ------------------ | ----------------------------- | -------------------- | -------- |
-| `title_font_style` | Font style for the note title | `black-board-bold`   | *(none)* |
+| `title_font_style` | Font style for the note title | `script`             | *(none)* |
 | `h5_font_style`    | Font style for H5 headings    | `script`             | *(none)* |
 | `h6_font_style`    | Font style for H6 headings    | `script`             | *(none)* |
 
