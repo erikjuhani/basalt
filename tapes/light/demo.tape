@@ -2,12 +2,11 @@ Set Shell fish
 Set FontFamily "BlexMono Nerd Font Mono"
 Set FontSize 16
 Set Padding 32
-Set Width 1000
-Set Height 600
+Set Width 1200
+Set Height 720
+Set Framerate 12
 Source tapes/causeway-light.tape
 
 Output frames/
-
-Env BASALT_EXP_VAULT_PATH "docs"
 
 Source tapes/demo.tape

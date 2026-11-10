@@ -112,6 +112,25 @@ Install it using [`shm`](https://github.com/erikjuhani/shm?tab=readme-ov-file#in
 shm get --bin suzuki-shunsuke/pinact
 ```
 
+### Demo recordings
+
+The animations in `assets/` are recorded with [VHS](https://github.com/charmbracelet/vhs) and encoded to AVIF with `ffmpeg` and `avifenc` (`brew install libavif`). Each recording has a dark and a light variant:
+
+- `tapes/<name>.tape` holds the shared script.
+- `tapes/dark/<name>.tape` and `tapes/light/<name>.tape` set the theme and the size.
+
+To record all animations, run:
+
+```sh
+make avifs
+```
+
+To record one animation, give its path to `make`, for example `make assets/dark/demo.avif`.
+
+The main demo also needs [tmux](https://github.com/tmux/tmux). `tapes/demo/run.sh` starts Basalt in a tmux session with a temporary `HOME`, so your own config and vaults stay out of the recording. The tmux bar shows a caption and the keys for each chapter. The tape changes the caption while the recording is hidden.
+
+VHS drops frames when the machine is busy. `scripts/vhs-concat.sh` times each frame by when VHS captured it, so a busy recording plays less smoothly but at the correct speed. If an animation stutters, record it again when the load is lower.
+
 ## Changelog Trailers
 
 When making changes that should appear in the changelog, add a `Changelog:` trailer to your commit message. This helps automatically categorize your changes when generating release notes.

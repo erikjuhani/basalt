@@ -10,6 +10,12 @@ theme = "gruvbox-dark"
 
 By default Basalt uses `"default"`, which inherits your terminal's own colours (it sets no background of its own).
 
+To try a theme for one session, start Basalt with the `--theme` flag. The flag overrides the configured theme and leaves your config file unchanged:
+
+```
+basalt --theme nord
+```
+
 ## The theme picker
 
 Press `<leader>t` (`Space` then `t`) to open the theme picker. Scrolling **previews** each theme live across the whole UI, so you can see it before committing:

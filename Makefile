@@ -27,13 +27,16 @@ define record-avif
 	width=$$(awk '/^Set Width/ {print $$3}' $<); \
 	height=$$(awk '/^Set Height/ {print $$3}' $<); \
 	pad=$$(awk '/^Set Padding/ {print $$3}' $<); \
+	source_fps=$$(awk '/^Set Framerate/ {print $$3}' $<); \
 	theme=$$(awk '/^Source/ {print $$2; exit}' $<); \
 	bg=$$(sed -n 's/.*"background": *"\([^"]*\)".*/\1/p' $$theme | head -1); \
 	sed 's|^Output .*|Output "'"$$tmp"'/frames/"|' $< > $$tmp/record.tape; \
 	vhs $$tmp/record.tape >/dev/null && \
+	scripts/vhs-concat.sh $$tmp/frames text $${source_fps:-$(AVIF_SOURCE_FPS)} > $$tmp/text.txt && \
+	scripts/vhs-concat.sh $$tmp/frames cursor $${source_fps:-$(AVIF_SOURCE_FPS)} > $$tmp/cursor.txt && \
 	ffmpeg -v error -y \
-		-r $(AVIF_SOURCE_FPS) -start_number 1 -i $$tmp/frames/frame-text-%05d.png \
-		-r $(AVIF_SOURCE_FPS) -start_number 1 -i $$tmp/frames/frame-cursor-%05d.png \
+		-f concat -safe 0 -i $$tmp/text.txt \
+		-f concat -safe 0 -i $$tmp/cursor.txt \
 		-filter_complex "[0][1]overlay[merged];\
 			[merged]scale=$$((width - 2 * pad)):$$((height - 2 * pad)):force_original_aspect_ratio=1[scaled];\
 			[scaled]fps=$(AVIF_FPS),setpts=PTS/1[speed];\
