@@ -459,9 +459,19 @@ fn rewrite_body(
             out.push_str(line);
             continue;
         }
-        let rewritten = re.replace_all(line, |caps: &Captures<'_>| {
-            rewrite_wiki(caps, link_map, ctx, warnings)
-        });
+        let rewritten = line
+            .split('`')
+            .enumerate()
+            .map(|(index, segment)| match index % 2 {
+                0 => re
+                    .replace_all(segment, |caps: &Captures<'_>| {
+                        rewrite_wiki(caps, link_map, ctx, warnings)
+                    })
+                    .into_owned(),
+                _ => segment.to_string(),
+            })
+            .collect::<Vec<_>>()
+            .join("`");
         out.push_str(&rewritten);
     }
     out
@@ -718,5 +728,16 @@ mod tests {
         assert!(out.contains("[[X]] stays"));
         // Two outside-fence lookups fail and become plain text:
         assert_eq!(warnings, 2);
+    }
+
+    #[test]
+    fn skip_inline_code() {
+        let re = Regex::new(r"(!?)\[\[([^\]\|]+?)(?:\|([^\]]+))?\]\]").unwrap();
+        let link_map = HashMap::new();
+        let mut warnings = 0;
+        let body = "Use `![[embed]]` and `[[X]]`\n";
+        let out = rewrite_body(body, &re, &link_map, "test", &mut warnings);
+        assert!(out.contains("`![[embed]]`"));
+        assert_eq!(warnings, 0);
     }
 }
