@@ -93,6 +93,7 @@ gold = "#f6c177"
 | `list-marker` | List bullets and ordered-list numbers |
 | `task` | Task check-box marker |
 | `link` | Wikilinks, markdown links and bare URLs (always underlined) |
+| `folder` | Folder names in the explorer |
 | `mode-insert` | Status-bar mode block: insert / edit |
 | `mode-normal` | Status-bar mode block: vim normal |
 | `mode-read` | Status-bar mode block: read-only |
@@ -121,6 +122,23 @@ comment = "muted"
 function = "foam"
 type = "gold"
 constant = "rose"
+```
+
+### Text styles
+
+Some roles style text, so they take font modifiers as well as a colour: `heading-1` … `heading-6`, `blockquote`, `list-marker`, `task` and `folder`. Each accepts either form:
+
+- a bare colour, the same as any other role. The role keeps its default weight, so `heading-2 = "gold"` stays bold.
+- an inline table with a `color` and a `modifiers` list. The `modifiers` list replaces the role's default modifiers; leave it out to keep them, or set it to `[]` to clear them. An unset `color` keeps the role's default colour.
+
+The modifier keywords are `bold`, `italic`, `underline` and `dim`. By default headings 1 to 4 and folder names are bold.
+
+```toml
+# A bold, italic H1 in the accent colour.
+heading-1 = { color = "iris", modifiers = ["bold", "italic"] }
+
+# Folders are bold by default. Clear the list to turn that off.
+folder = { color = "gold", modifiers = [] }
 ```
 
 ### Borders

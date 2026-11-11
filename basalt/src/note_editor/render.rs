@@ -563,7 +563,7 @@ fn heading_lines<'a>(
         2 => lines.push(virtual_line!([synthetic_span!(symbols
             .h2_underline
             .repeat(fill_width)
-            .fg(theme.heading_2))])),
+            .fg(theme.heading_2.fg()))])),
         _ => {}
     }
     lines
@@ -634,7 +634,7 @@ fn decorate_line<'a>(
         let content_start = indent_len + marker_len;
         let (icon, content) = if checked {
             (
-                format!("{} ", symbols.task_checked).fg(theme.task),
+                Span::styled(format!("{} ", symbols.task_checked), theme.task.to_style()),
                 Span::raw(text[content_start..].to_string())
                     .fg(theme.muted)
                     .add_modifier(Modifier::CROSSED_OUT),
@@ -655,7 +655,10 @@ fn decorate_line<'a>(
         };
         let content_start = indent_len + marker_len;
         return render(
-            Some(format!("{bullet} ").fg(theme.list_marker)),
+            Some(Span::styled(
+                format!("{bullet} "),
+                theme.list_marker.to_style(),
+            )),
             content_start,
             Span::raw(text[content_start..].to_string()),
         );
@@ -663,7 +666,10 @@ fn decorate_line<'a>(
     if let Some(marker_len) = ordered_marker(rest) {
         let content_start = indent_len + marker_len;
         return render(
-            Some(rest[..marker_len].to_string().fg(theme.list_marker)),
+            Some(Span::styled(
+                rest[..marker_len].to_string(),
+                theme.list_marker.to_style(),
+            )),
             content_start,
             Span::raw(text[content_start..].to_string()),
         );
@@ -732,11 +738,7 @@ fn quote_prefix(rest: &str) -> Option<(usize, usize)> {
 }
 
 fn heading_span<'a>(text: &str, level: usize, theme: &Theme) -> Span<'a> {
-    let span = Span::raw(text.to_string()).bold();
-    match level {
-        2..=4 => span.fg(theme.heading(level)),
-        _ => span,
-    }
+    Span::styled(text.to_string(), theme.heading(level).to_style())
 }
 
 pub fn text_wrap<'a>(
@@ -831,41 +833,53 @@ pub fn heading<'a>(
     let underline_width = (max_width + horizontal_offset).saturating_sub(prefix_width);
     let mut lines = match level {
         H1 => h_with_underline(
-            if option.is_styled() {
-                text.to_uppercase().bold()
-            } else {
-                text.bold()
-            },
-            symbols.h1_underline.repeat(underline_width).into(),
+            Span::styled(
+                if option.is_styled() {
+                    text.to_uppercase()
+                } else {
+                    text
+                },
+                theme.heading(1).to_style(),
+            ),
+            symbols
+                .h1_underline
+                .repeat(underline_width)
+                .fg(theme.heading_1.fg()),
         ),
         H2 => h_with_underline(
-            text.bold().fg(theme.heading_2),
+            Span::styled(text, theme.heading(2).to_style()),
             symbols
                 .h2_underline
                 .repeat(underline_width)
-                .fg(theme.heading_2),
+                .fg(theme.heading_2.fg()),
         ),
         H3 => h(
-            format!("{} ", symbols.h3_marker).fg(theme.heading_3),
-            text.bold().fg(theme.heading_3),
+            format!("{} ", symbols.h3_marker).fg(theme.heading_3.fg()),
+            Span::styled(text, theme.heading(3).to_style()),
         ),
         H4 => h(
-            format!("{} ", symbols.h4_marker).fg(theme.heading_4),
-            text.bold().fg(theme.heading_4),
+            format!("{} ", symbols.h4_marker).fg(theme.heading_4.fg()),
+            Span::styled(text, theme.heading(4).to_style()),
         ),
         H5 => h(
-            format!("{} ", symbols.h5_marker).into(),
-            match symbols.h5_font_style {
-                Some(style) => stylize(&text, style).into(),
-                None => text.into(),
-            },
+            format!("{} ", symbols.h5_marker).fg(theme.heading_5.fg()),
+            Span::styled(
+                match symbols.h5_font_style {
+                    Some(style) => stylize(&text, style),
+                    None => text,
+                },
+                theme.heading(5).to_style(),
+            ),
         ),
         H6 => h(
-            format!("{} ", symbols.h6_marker).into(),
-            match symbols.h6_font_style {
-                Some(style) => stylize(&text, style).into(),
-                None => text.into(),
-            },
+            format!("{} ", symbols.h6_marker).fg(theme.heading_6.fg()),
+            Span::styled(
+                match symbols.h6_font_style {
+                    Some(style) => stylize(&text, style),
+                    None => text,
+                },
+                theme.heading(6).to_style(),
+            ),
         ),
     };
 
@@ -1189,11 +1203,11 @@ pub fn task<'a>(
                     text.into(),
                 ),
                 ast::TaskKind::LooselyChecked => (
-                    format!("{} ", symbols.task_checked).fg(theme.task),
+                    Span::styled(format!("{} ", symbols.task_checked), theme.task.to_style()),
                     text.fg(theme.muted),
                 ),
                 ast::TaskKind::Checked => (
-                    format!("{} ", symbols.task_checked).fg(theme.task),
+                    Span::styled(format!("{} ", symbols.task_checked), theme.task.to_style()),
                     text.fg(theme.muted).add_modifier(Modifier::CROSSED_OUT),
                 ),
             };
@@ -1254,14 +1268,16 @@ pub fn item<'a>(
             let text = text.to_string();
 
             let marker = match kind {
-                ast::ItemKind::Ordered(i) => format!("{i}. ").fg(theme.list_marker),
+                ast::ItemKind::Ordered(i) => {
+                    Span::styled(format!("{i}. "), theme.list_marker.to_style())
+                }
                 ast::ItemKind::Unordered => {
                     let marker = if symbols.list_markers.is_empty() {
                         "-"
                     } else {
                         &symbols.list_markers[list_depth % symbols.list_markers.len()]
                     };
-                    format!("{marker} ").fg(theme.list_marker)
+                    Span::styled(format!("{marker} "), theme.list_marker.to_style())
                 }
             };
 
@@ -1361,7 +1377,7 @@ fn quote_style(first_line: &str, theme: &Theme) -> QuoteStyle {
             callout: true,
         },
         None => QuoteStyle {
-            color: theme.blockquote,
+            color: theme.blockquote.fg(),
             callout: false,
         },
     }
@@ -1372,9 +1388,9 @@ fn quote_style(first_line: &str, theme: &Theme) -> QuoteStyle {
 fn callout_color(kind: &Option<ast::BlockQuoteKind>, theme: &Theme) -> Color {
     use ast::BlockQuoteKind::*;
     match kind {
-        None => theme.blockquote,
+        None => theme.blockquote.fg(),
         Some(Note | Info | Todo) => theme.info,
-        Some(Abstract | Tip) => theme.heading_3,
+        Some(Abstract | Tip) => theme.heading_3.fg(),
         Some(Success) => theme.success,
         Some(Question | Warning) => theme.warning,
         Some(Failure | Danger | Bug) => theme.error,
