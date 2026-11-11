@@ -57,7 +57,7 @@ Press `Space` then `s` (the [[Key mappings|leader]] followed by `s`) to open the
 
 ### Vault selector modal
 
-Press `Space` then `v` (the [[Key mappings|leader]] followed by `v`) to open the vault selector. It lists all your Obsidian vaults and lets you switch between them. Use `j`/`k` or arrow keys to navigate, `Enter` to open and `Esc` to close.
+Press `Ctrl+O` to open the vault selector. It lists all your Obsidian vaults and lets you switch between them. Use `j`/`k` or arrow keys to navigate, `Enter` to open and `Esc` to close.
 
 ![[vault-selector.avif]]
 
