@@ -90,6 +90,7 @@ pub enum LineNumbers {
     #[default]
     Absolute,
     Relative,
+    Both,
     Off,
 }
 

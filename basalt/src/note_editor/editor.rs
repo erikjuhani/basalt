@@ -178,7 +178,10 @@ fn render_gutter(
     line_numbers: LineNumbers,
     theme: &Theme,
 ) {
-    let number_width = area.width.saturating_sub(1) as usize;
+    let number_width = match line_numbers {
+        LineNumbers::Both => area.width.saturating_sub(2) / 2,
+        _ => area.width.saturating_sub(1),
+    } as usize;
     let numbers = gutter_numbers(doc, content);
     let cursor_line = content.as_bytes().get(..cursor_offset).map_or(0, |slice| {
         slice.iter().filter(|&&byte| byte == b'\n').count()
@@ -194,12 +197,18 @@ fn render_gutter(
         .for_each(|(index, source_line)| {
             let y = area.y + (index - viewport_top) as u16;
             let current = source_line == cursor_line;
-            let number = match (line_numbers, current) {
-                (LineNumbers::Relative, false) => source_line.abs_diff(cursor_line),
-                _ => source_line + 1,
+            let distance = source_line.abs_diff(cursor_line);
+            let text = match (line_numbers, current) {
+                (LineNumbers::Both, _) => {
+                    format!(
+                        "{:>number_width$} {distance:>number_width$} ",
+                        source_line + 1
+                    )
+                }
+                (LineNumbers::Relative, false) => format!("{distance:>number_width$} "),
+                _ => format!("{:>number_width$} ", source_line + 1),
             };
             let color = if current { theme.text } else { theme.muted };
-            let text = format!("{number:>number_width$} ");
             buf.set_stringn(area.x, y, text, area.width as usize, Style::new().fg(color));
         });
 }
@@ -1746,6 +1755,18 @@ mod tests {
         assert!(rows.iter().any(|row| row.contains(" 1 alpha")));
         assert!(rows.iter().any(|row| row.contains(" 1 beta")));
         assert!(rows.iter().any(|row| row.contains(" 2 gamma")));
+    }
+
+    #[test]
+    fn test_gutter_both_shows_absolute_and_relative_columns() {
+        let mut state = edit_state("alpha\nbeta\ngamma\n");
+        state.set_line_numbers(LineNumbers::Both);
+        let rows = rendered_rows(&mut state, 30, 10);
+
+        assert_eq!(state.gutter_width(), 6);
+        assert!(rows.iter().any(|row| row.contains(" 1  0 alpha")));
+        assert!(rows.iter().any(|row| row.contains(" 2  1 beta")));
+        assert!(rows.iter().any(|row| row.contains(" 3  2 gamma")));
     }
 
     #[test]
