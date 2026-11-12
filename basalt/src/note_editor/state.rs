@@ -393,7 +393,10 @@ impl<'a> NoteEditorState<'a> {
         let content = self.live_content();
         let source_lines = content.bytes().filter(|&byte| byte == b'\n').count() + 1;
         let digits = source_lines.to_string().len().max(2) as u16;
-        digits + 1
+        match self.line_numbers {
+            LineNumbers::Both => 2 * digits + 2,
+            _ => digits + 1,
+        }
     }
 
     pub fn editor_enabled(&self) -> bool {
