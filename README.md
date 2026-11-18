@@ -1,6 +1,8 @@
 <img align="left" width="125px" src="https://raw.githubusercontent.com/erikjuhani/basalt/refs/heads/main/assets/basalt.png?raw=true"><h3>Basalt&nbsp;&nbsp;</h3>
 <p>TUI Application to manage Obsidian notes&nbsp;&nbsp;&nbsp;&nbsp;</p>
 
+[![basalt on The Terminal Index](https://cli.masoko.net/badge/basalt.svg)](https://cli.masoko.net/tools/basalt/)
+
 <hr>
 
 TUI Application to manage Obsidian vaults and notes directly from the terminal ✨.
