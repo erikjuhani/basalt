@@ -174,7 +174,8 @@ wrap = true
 
 # Line-number gutter shown while editing a note. "absolute" numbers each line,
 # "relative" shows the distance from the cursor line (the cursor line keeps its
-# absolute number), and "off" hides the gutter.
+# absolute number), "both" shows the absolute and the relative number in two
+# columns, and "off" hides the gutter.
 line_numbers = "absolute"
 
 # The key that `<leader>` stands for in key bindings, e.g. `{ key =
