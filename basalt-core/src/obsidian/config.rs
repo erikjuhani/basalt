@@ -144,7 +144,8 @@ impl<'de> Deserialize<'de> for ObsidianConfig {
 /// On Windows, it then resolves to the default Obsidian directory located under the system's
 /// application data folder, typically `%APPDATA%\Obsidian`. On macOS, the function expects to find
 /// the configuration under `~/Library/Application Support/obsidian`. On Linux, the standard config
-/// directory is assumed to be `$XDG_CONFIG_HOME/obsidian`, or `~/.config/obsidian`.
+/// directory is assumed to be `$XDG_CONFIG_HOME/obsidian`, or `~/.config/obsidian`. All other Unix
+/// targets, such as FreeBSD, use the same location as Linux.
 ///
 /// For Linux users, the function also accounts for sandboxed installations. If Obsidian is
 /// installed via Flatpak, the configuration is likely found in
@@ -154,7 +155,7 @@ impl<'de> Deserialize<'de> for ObsidianConfig {
 /// For reference:
 /// - macOS:     `/Users/username/Library/Application Support/obsidian`
 /// - Windows:   `%APPDATA%\Obsidian\`
-/// - Linux:     `$XDG_CONFIG_HOME/obsidian` or `~/.config/obsidian`
+/// - Linux and other Unix, such as FreeBSD: `$XDG_CONFIG_HOME/obsidian` or `~/.config/obsidian`
 ///   - flatpak: `$HOME/.var/app/md.obsidian.Obsidian/config/obsidian`
 ///   - snap:    `$HOME/snap/obsidian/current/.config/obsidian`
 ///
@@ -206,4 +207,19 @@ pub fn obsidian_global_config_locations() -> Vec<PathBuf> {
         .chain(sandboxed_paths)
         .flatten()
         .collect()
+}
+
+#[cfg(all(test, not(target_os = "windows")))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_config_location_is_obsidian_under_xdg_config_dir() {
+        let expected = config_dir().map(|path| path.join("obsidian"));
+
+        assert!(obsidian_global_config_locations()
+            .into_iter()
+            .map(Some)
+            .any(|location| location == expected));
+    }
 }
