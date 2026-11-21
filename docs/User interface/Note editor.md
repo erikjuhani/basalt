@@ -21,10 +21,9 @@ Add `|width` or `|widthxheight` to size an image in pixels, matching Obsidian: `
 | `j` / `↓`         | Move cursor down                     |
 | `k` / `↑`         | Move cursor up                       |
 | `t`               | Toggle explorer pane                 |
+| `o`               | Toggle outline pane                  |
 | `Tab`             | Switch to next pane                  |
 | `Shift+Tab`       | Switch to previous pane              |
-| `Ctrl+B`          | Toggle explorer pane                 |
-| `Ctrl+O`          | Toggle outline pane                  |
 | `Ctrl+U`          | Scroll up half page                  |
 | `Ctrl+D`          | Scroll down half page                |
 | `Ctrl+Shift+↑`    | Jump to top of note                  |
