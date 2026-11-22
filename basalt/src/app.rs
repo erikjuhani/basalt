@@ -767,6 +767,7 @@ pub struct Startup<'a> {
     pub picker: Picker,
 }
 
+#[derive(Clone, PartialEq)]
 struct FlushFrame {
     buffer: Buffer,
     cursor: Option<Position>,
@@ -785,12 +786,18 @@ impl Flusher {
         let (frames, frame_rx) = mpsc::channel::<FlushFrame>();
         let thread_busy = Arc::clone(&busy);
         let handle = thread::spawn(move || {
-            while let Ok(FlushFrame {
-                buffer,
-                cursor,
-                cursor_style,
-            }) = frame_rx.recv()
-            {
+            let mut last_frame: Option<FlushFrame> = None;
+            while let Ok(frame) = frame_rx.recv() {
+                if last_frame.as_ref() == Some(&frame) {
+                    thread_busy.store(false, Ordering::Release);
+                    continue;
+                }
+                last_frame = Some(frame.clone());
+                let FlushFrame {
+                    buffer,
+                    cursor,
+                    cursor_style,
+                } = frame;
                 let _ = catch_unwind(AssertUnwindSafe(|| {
                     let mut terminal = terminal.lock().unwrap_or_else(|poison| poison.into_inner());
                     // Image escapes move the cursor, and ratatui shows it before moving it back.

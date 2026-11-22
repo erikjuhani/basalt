@@ -8,7 +8,7 @@ use ratatui::{
 
 use crate::{config::Theme, note_editor::state::Mode};
 
-const STATUSBAR_RIGHT_WIDTH: u16 = 192;
+const STATUSBAR_RIGHT_WIDTH: u16 = 28;
 
 /// Perceived brightness of an RGB colour (0..255). `None` for terminal-default
 /// or ANSI colours, whose real value the app can't know.
