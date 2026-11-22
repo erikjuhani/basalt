@@ -43,6 +43,8 @@ jobs:
             target: aarch64-unknown-linux-musl
           - os: ubuntu-latest
             target: armv7-unknown-linux-gnueabihf
+          - os: ubuntu-latest
+            target: x86_64-unknown-freebsd
           - os: windows-latest
             target: x86_64-pc-windows-gnu
           - os: windows-latest
@@ -70,7 +72,23 @@ jobs:
           sudo apt-get install -y gcc-arm-linux-gnueabihf \
                                   libc6-dev-armhf-cross \
                                   gcc-aarch64-linux-gnu \
-                                  musl-tools
+                                  musl-tools \
+                                  lld
+
+      - name: Install FreeBSD sysroot
+        shell: bash
+        if: matrix.target == 'x86_64-unknown-freebsd'
+        run: |
+          sysroot="${RUNNER_TEMP}/freebsd-sysroot"
+          mkdir -p "${sysroot}"
+          curl -fsSL https://download.freebsd.org/releases/amd64/14.3-RELEASE/base.txz \
+            | tar -xJ -C "${sysroot}" ./lib ./usr/lib ./usr/include
+          {
+            echo "CC_x86_64_unknown_freebsd=clang"
+            echo "CFLAGS_x86_64_unknown_freebsd=--target=x86_64-unknown-freebsd --sysroot=${sysroot}"
+            echo "CARGO_TARGET_X86_64_UNKNOWN_FREEBSD_LINKER=clang"
+            echo "CARGO_TARGET_X86_64_UNKNOWN_FREEBSD_RUSTFLAGS=-C link-arg=--target=x86_64-unknown-freebsd -C link-arg=--sysroot=${sysroot} -C link-arg=-fuse-ld=lld"
+          } >> "${GITHUB_ENV}"
 
       - name: Toolchain
         run: rustup toolchain install
