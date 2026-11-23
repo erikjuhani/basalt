@@ -43,6 +43,19 @@
       ],
       "depNameTemplate": "ghcr.io/renovatebot/renovate",
       "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/build\\.yml$/"
+      ],
+      "matchStrings": [
+        "releases/amd64/(?<currentValue>\\d+\\.\\d+)-RELEASE/"
+      ],
+      "depNameTemplate": "freebsd/freebsd-src",
+      "datasourceTemplate": "github-tags",
+      "extractVersionTemplate": "^release/(?<version>\\d+\\.\\d+)\\.0$",
+      "versioningTemplate": "loose"
     }
   ],
   "packageRules": [
@@ -63,6 +76,16 @@
         "ghcr.io/renovatebot/renovate"
       ],
       "pinDigests": false
+    },
+    {
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchDepNames": [
+        "freebsd/freebsd-src"
+      ],
+      "commitMessageTopic": "FreeBSD sysroot",
+      "allowedVersions": "/^14\\./"
     },
     {
       "matchManagers": [
