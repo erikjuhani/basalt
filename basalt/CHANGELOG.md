@@ -1,5 +1,354 @@
 # Changelog
 
+## [0.14.0](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.14.0) (Nov, 24 2026)
+
+### Added
+
+- [2ff62ad](https://github.com/erikjuhani/basalt/commit/2ff62adee0943fcffea3b653474813ca23b2055c) Cut to line end with Ctrl+K in insert mode by @symunona
+
+> The cut text goes to the clipboard and the register, like a yank. At
+> the end of a line Ctrl+K cuts the line break, so repeated presses
+> remove whole lines. Control and Alt characters no longer insert their
+> letter; AltGr (Control+Alt) characters still insert.
+
+- [919619f](https://github.com/erikjuhani/basalt/commit/919619f872c42c8cfa3ef5790b1a0d49ad7c5eb0) Add wikilink completion dropdown when typing [[ by @symunona
+
+> Typing [[ in edit mode opens a dropdown at the cursor listing the vault's
+> notes, fuzzy-filtered by the text after [[. Up/down and ctrl+p/ctrl+n move
+> the selection, enter or tab inserts the note and the closing ]], reusing
+> existing ]] after the cursor. Esc closes the dropdown and keeps the typed
+> text. Typing ]], deleting the [[, or moving the cursor out of the link also
+> closes it. A # after the note name completes that note's headings, and |
+> stops completion for the alias.
+>
+> Notes come from the explorer's already loaded tree, so opening the
+> dropdown never walks the vault on disk. The fuzzy ranking is shared with
+> the search modal.
+>
+> Closes #751
+
+- [e03a898](https://github.com/erikjuhani/basalt/commit/e03a8985364292d42f7581684bde7fab7941e0af) Highlight links in the note editor by @symunona
+
+> Wikilinks, markdown links and bare URLs are drawn underlined in the new
+> theme `link` colour, in read view and edit view alike. Read view and
+> inactive blocks show a link's alias or label, while the block being
+> edited keeps the source syntax visible, also styled.
+>
+> Link detection is shared with follow-link through `motion::link_ranges`.
+> Inline styles are now popped when their tag closes, so text after a
+> link (or bold span) no longer inherits its style.
+
+- [bae8c73](https://github.com/erikjuhani/basalt/commit/bae8c732ac6ab2430b194293dcaf897d8b60d7f1) Style inline marks in the note editor by @erikjuhani
+
+> Render emphasis, strong, strikethrough and inline code with their modifiers
+> in read and edit modes, layered on top of the link highlighting. Edit mode
+> keeps the raw markers visible and styled, so editing stays WYSIWYG, and
+> nested marks compose (bold inside italic carries both).
+>
+> Read mode derives the style runs from the parsed rich text; edit mode derives
+> them from the CommonMark parser's own source offsets, so ranges map 1:1 to the
+> source and the cursor stays aligned. Links, including wikilinks and bare URLs
+> that the inline parser does not mark, become style runs too, so one styling
+> pass handles every mark.
+
+- [129adb9](https://github.com/erikjuhani/basalt/commit/129adb9f845259017cbd8d21c163b5c1c33af493) Navigate between links in read view by @symunona
+
+> The read view cursor is line-wise and always sits at the start of the
+> line, so following a link only worked when the link opened the line.
+>
+> In read view, `]` and `[` now move the cursor to the next or previous
+> link and highlight the selected one; `enter` / `gd` follow it. When the
+> cursor is not on a link, `enter` / `gd` follow the first link on the
+> line.
+>
+> Link segments carry the source range of their link, so navigation skips
+> code and lands exactly on what is rendered as a link. The keys live in a
+> new `read_key_bindings` list under `[note_editor]` that only applies in
+> read view, so they do not shadow `]b` / `[b` while editing.
+
+- [343423c](https://github.com/erikjuhani/basalt/commit/343423cc179652b07a4e75b195646707917135be) Add configurable autosave for the note editor by @symunona
+
+> `[note_editor] autosave` picks when the editor writes changes on its own:
+>
+> - "off" (default) keeps saving manual.
+> - "on_idle" saves every modified tab once no key has been pressed in the
+>   editor for `autosave_delay_ms` (1000 by default).
+> - "on_leave" saves the note when leaving the edit view, switching or
+>   closing the tab, opening another note, opening a vault or moving focus
+>   to another pane.
+>
+> Unless off, modified notes are also saved on quit. Autosave includes text
+> still being typed in insert mode without leaving it and shows no toast.
+>
+> Closes #752
+
+- [32312f4](https://github.com/erikjuhani/basalt/commit/32312f456c918b9ba1fec19204c188167af9e41d) Add inline image rendering for notes by @erikjuhani
+
+> Notes render images inline in the reading and visual views. The parser
+> recognizes Obsidian `![[embed]]` syntax, standard markdown images and
+> remote URLs. Images scale to the content width and to a share of the
+> viewport height set by `image_max_height`. An Obsidian `|width` or
+> `|widthxheight` caps the size.
+>
+> Decoding and encoding run on worker threads, and the terminal flush runs
+> on its own thread, so a large image never freezes the interface. Terminals
+> without a graphics protocol fall back to half-blocks.
+
+- [33f4a62](https://github.com/erikjuhani/basalt/commit/33f4a62dbb965eb764bc944bfb006177fa955050) Let theme text roles set font modifiers by @erikjuhani
+
+> Headings, block quotes, list markers and task markers took only a
+> colour, and the renderer hard-coded which headings were bold. A theme
+> could not make a heading italic or drop the bold weight.
+>
+> These roles are now a TextStyle: an optional colour plus modifiers. A
+> theme sets one either as a bare colour, as before, or as a table with a
+> `color` and a `modifiers` list. A bare colour keeps the role's default
+> modifiers, so existing themes render as they did.
+
+- [b23155d](https://github.com/erikjuhani/basalt/commit/b23155dc41e0b55539a4e14e7295b043f266e98f) Show folder names in bold and let themes style them by @erikjuhani
+
+> Folder names in the explorer used the plain text style, so folders and
+> notes looked the same apart from the tree marker. Folders now render
+> bold by default.
+>
+> A new `folder` text-style role controls this, so a theme can change the
+> colour and modifiers, or clear the bold weight with `modifiers = []`.
+
+- [ffefd02](https://github.com/erikjuhani/basalt/commit/ffefd02cca1a74f9065c671c6cd9fe5e244af0ec) Show absolute and relative line numbers side by side by @erikjuhani
+
+> Users who jump by relative distance still want the absolute number to
+> orient themselves in the note. A new `line_numbers = "both"` value adds
+> a second gutter column so both numbers are visible at once. The cursor
+> line leaves the relative column empty instead of showing 0.
+
+### Changed
+
+- [a235418](https://github.com/erikjuhani/basalt/commit/a23541895ca7971c16f4ebd1a1b3eaf8f87673d8) Look up expanded folders by set when rebuilding the explorer by @symunona
+
+> Rebuilding the explorer after a vault change scanned every visible row
+> for each directory to restore its expanded state, which is quadratic in
+> large, expanded vaults. Collect the expanded paths into a set once per
+> rebuild instead.
+
+### Dependencies
+
+- [2043b25](https://github.com/erikjuhani/basalt/commit/2043b25dfaf948276b55a7838cc5a4d800ab5e78) Update Rust crate insta to v1.49.0 by @renovate-updater[bot]
+
+> | datasource | package | from   | to     |
+> | ---------- | ------- | ------ | ------ |
+> | crate      | insta   | 1.48.0 | 1.49.0 |
+
+- [9e982b9](https://github.com/erikjuhani/basalt/commit/9e982b94827c48d41a4bbd5e270f6434127b5bf8) Update Rust crate indoc to v2.0.8 by @renovate-updater[bot]
+
+> | datasource | package | from  | to    |
+> | ---------- | ------- | ----- | ----- |
+> | crate      | indoc   | 2.0.7 | 2.0.8 |
+
+### Fixed
+
+- [62226f8](https://github.com/erikjuhani/basalt/commit/62226f85a0b5371906a9a6d39b39af1c845e0932) Don't panic on startup when Obsidian config is missing (#724) by @symunona in [#724](https://github.com/erikjuhani/basalt/pull/724)
+
+> Basalt unwrapped the result of loading the global Obsidian config, so
+> it panicked with PathNotFound when Obsidian had never been installed or
+> run. This happened before BASALT_EXP_VAULT_PATH was read, so the
+> override could not help either.
+>
+> Fall back to an empty config instead, so Basalt starts with no known
+> vaults.
+>
+> Falling back to an empty config keeps Basalt from panicking, but leaves
+> the vault list empty with no explanation. Pass the load error to the
+> existing startup-warning toast so the user can see why no vaults are
+> listed and where Basalt looked for the config.
+>
+> Refs erikjuhani#67
+
+- [266ae99](https://github.com/erikjuhani/basalt/commit/266ae993fca02e9a5170bd55206d99a1f9955cc3) Walk the vault off the main thread on watcher changes (#726) by @symunona in [#726](https://github.com/erikjuhani/basalt/pull/726)
+
+> Every debounced watcher event ran a full recursive walk of the vault on
+> the main thread before the explorer refreshed. On a vault of ~16k files
+> that walk takes about a second, so the UI froze on every save or sync.
+>
+> Run the walk on a background thread and apply the entries once they
+> arrive. Only one walk runs at a time; events that land meanwhile mark it
+> dirty and start a single follow-up walk. Results from a vault that was
+> switched away from are dropped.
+>
+> Following a wiki link also walked the whole vault to resolve the name.
+> Resolve it against the explorer tree, which already holds every entry,
+> and only fall back to the disk walk on a miss so a stale tree never
+> creates a duplicate note.
+>
+> Co-authored-by: symunona <5897104+symunona@users.noreply.github.com>
+
+- [4401281](https://github.com/erikjuhani/basalt/commit/440128129f9a3c6543994c2aca6b1a058b191a44) Read frontmatter only from the top of a note (#734) by @symunona in [#734](https://github.com/erikjuhani/basalt/pull/734)
+
+> Read frontmatter only from the top of a note
+>
+> pulldown-cmark recognises a YAML metadata block at any unindented `---`
+> line with a matching closing line, so everything between two thematic
+> breaks was parsed as metadata and dropped from the read view.
+>
+> Detect frontmatter only when the note starts with `---`, skip it, and
+> parse the rest with metadata blocks disabled, shifting source ranges
+> back to the full text.
+>
+>
+> Show metadata blocks that are not at the top of a note
+>
+> pulldown-cmark accepts a metadata block after any blank line, and
+> Basalt made no node for it, so content between two `---` lines
+> disappeared from the read view.
+>
+> Hide a metadata block only at the top of the note, where it is
+> frontmatter. Keep any other one as plain source, like thematic breaks.
+>
+> Add a snapshot test for metadata blocks below the top of a note
+>
+> ---------
+>
+> Co-authored-by: symunona <5897104+symunona@users.noreply.github.com>
+> Co-authored-by: Erik Kinnunen <erik.kinn@gmail.com>
+
+- [4d02b36](https://github.com/erikjuhani/basalt/commit/4d02b360c30fc641efeea7888b99ef62807f7ca4) Skip ignored entries when walking and watching the vault (#732) by @symunona in [#732](https://github.com/erikjuhani/basalt/pull/732)
+
+> Skip ignored entries when walking and watching the vault (#732)
+>
+> The vault walk read every directory and dropped hidden entries only at
+> the top level after the whole tree was read. On a large vault, .git and
+> plugin node_modules under .obsidian made up almost half of the files
+> walked. Nested hidden folders such as .trash showed up in the explorer,
+> and a symlink loop recursed until the stack overflowed.
+>
+> Decide on each entry before it is read, so skipped directories are never
+> opened. Skip hidden entries at every depth. Don't follow symlinked
+> directories; symlinked notes are still included and dangling symlinks
+> are left out.
+>
+> Hide Obsidian's excluded files (userIgnoreFilters in .obsidian/app.json)
+> from the explorer and search. A filter is a path prefix, or a regular
+> expression wrapped in slashes. Link resolution and link updates on
+> rename still see excluded notes, so following a link to one never
+> creates a duplicate.
+>
+> The watcher uses the same filter. With inotify it watches each kept
+> directory non-recursively and follows directories as they are created,
+> renamed or removed, so ignored folders cost no watches. FSEvents and
+> ReadDirectoryChangesW keep the recursive watch and filter the events.
+> Events are matched against the canonical vault-relative path, so a vault
+> inside a hidden folder or opened through a symlink now reports changes.
+>
+> Closes #731
+>
+>
+> ---------
+>
+> Co-authored-by: symunona <5897104+symunona@users.noreply.github.com>
+> Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+> Co-authored-by: Erik Kinnunen <erik.kinn@gmail.com>
+
+- [60c67bc](https://github.com/erikjuhani/basalt/commit/60c67bced52cec0d5131cf10906357537924019a) Map rendered paragraph and code rows to their own source lines by @erikjuhani
+
+> Block art often starts with four or more spaces, so Markdown parses it
+> as an indented code block followed by a paragraph. Both renderers
+> measured each row's source range from the parsed text, which has lost
+> its indentation, and the code block renderer always skipped a fence
+> line that an indented block does not have. The ranges drifted further
+> with every line until the last code row overlapped the paragraph, and
+> the cursor in read view could not move past the block.
+>
+> Pair each parsed line with the source line it comes from instead, so a
+> row's range always starts and ends inside its own line.
+
+- [024d4be](https://github.com/erikjuhani/basalt/commit/024d4be8f41633e2cee682e3708b2f570b37f2bd) Keep the last letter of wrapped list and quote lines by @erikjuhani
+
+> The wrap width ignored the width of the line prefix and the list or
+> quote marker, so these lines ran one or more columns past the text area
+> and lost their last letters next to the scrollbar. Subtract the prefix
+> and marker from the first line and the wrap marker from continuation
+> lines, and fit a word by its visible width so a line can fill the area
+> exactly.
+
+- [a5714d0](https://github.com/erikjuhani/basalt/commit/a5714d0397ee064e2f665e82be0ae558102873e0) Fix Home, End and line-wrapping arrows in editor insert mode by @symunona
+
+> Home and End were dropped in the note editor's insert mode. Right
+> arrow at the end of a line now moves to the next line, and left arrow
+> at the start of a line moves to the end of the previous one.
+
+- [5635b28](https://github.com/erikjuhani/basalt/commit/5635b2819e0fce48c482cee47c933315fe24fb04) Use live content for insert-mode motions by @symunona
+
+> Insert-mode edits live in the text buffer until committed, while the
+> cursor offset already includes them. Home, End, line-wrapping arrows
+> and word motions read the stale committed content, panicking with an
+> out-of-bounds slice once the typed text pushed the cursor past its
+> end.
+
+- [b2c4aa7](https://github.com/erikjuhani/basalt/commit/b2c4aa7dcfad63f631869a954c395d3cd24d25bb) Make Delete remove the character after the cursor in insert mode by @symunona
+
+> At the end of a line it joins the next line, matching backspace's
+> block merging.
+
+- [34d4bae](https://github.com/erikjuhani/basalt/commit/34d4baedd1031016e695be971f7729d811e7a214) Wrap horizontal insert-mode motion through line movement by @symunona
+
+> Jumping to the byte after a newline could land between blocks, outside
+> any text buffer. Move up or down a line instead, which already switches
+> blocks, then go to the line end or start.
+
+- [ccd4864](https://github.com/erikjuhani/basalt/commit/ccd4864c5dc3fc85e1215b1403320609033ac05e) Save with Ctrl+X in insert mode by @symunona
+
+> Ctrl+X only saved outside insert mode, so saving meant pressing Esc
+> first. Commit the text buffer, save, and reopen the block at the
+> cursor so editing continues. List the insert-mode keys in the help.
+
+- [9dfab16](https://github.com/erikjuhani/basalt/commit/9dfab166b48071721c8cf7557974cbf52f40bd01) Skip vault rescans for reads and content edits by @symunona
+
+> The explorer tree only changes when entries are created, removed or
+> renamed, yet every write to an existing note walked the whole vault: a
+> sync client writing every 300ms walked it about three times a second.
+> The watcher now drops access events and content or metadata changes.
+>
+> The main loop also picked up a finished walk only after draining the
+> watcher, so a change arriving in that window marked the finished walk
+> dirty and started a redundant one.
+
+- [109e6eb](https://github.com/erikjuhani/basalt/commit/109e6eb15c7725e711be3ee91f497487130369dd) Show url opener failures as toasts instead of on screen by @symunona
+
+> Following a URL ran the platform opener with basalt's stdout and stderr
+> inherited, so when xdg-open failed (for example without a graphical
+> display) its errors were printed over the TUI, and basalt reported
+> nothing.
+>
+> The opener now runs with its output detached. A background thread waits
+> for it, and when it exits with an error its last stderr line is shown in
+> an error toast.
+
+- [85b5300](https://github.com/erikjuhani/basalt/commit/85b5300fa583c43c087a1c0307e29df2bd83e20b) Ask before quitting or closing a tab with unsaved edits by @symunona
+
+> Quitting (q, ctrl+c) exited immediately and closing a tab (ctrl+w)
+> dropped it, losing any unsaved edits. Both now open a prompt when a note
+> has unsaved changes: s saves, d discards, esc cancels. Quitting checks
+> every open tab, closing a tab checks only that tab. A failed save keeps
+> basalt open and shows an error toast. Nothing changes when there are no
+> unsaved edits.
+>
+> While the prompt is open it takes every key, so global bindings cannot
+> act behind it.
+>
+> Fixes #753
+
+- [62dde77](https://github.com/erikjuhani/basalt/commit/62dde7779e0c8ee6bf4c62b0e517556dab3324e0) Skip redundant frame flushes to stop the cursor flashing by @erikjuhani
+
+> The flusher hid, moved and showed the cursor on every redraw, about
+> every 250 ms while idle. Terminals restart the cursor blink on each of
+> those escapes, so the cursor flashed in edit mode. Compare each frame
+> with the last flushed frame and skip identical ones.
+
+- [8a9a362](https://github.com/erikjuhani/basalt/commit/8a9a362f481e25958016df72fc83bec5446bb38a) Restore the status bar right block to 28 columns by @erikjuhani
+
+> A refactor to a constant changed the width from 28 to 192. On terminals
+> narrower than 192 columns the right block took the whole bar, so the
+> mode label vanished and the word count appeared centered.
+
 ## [0.13.0](https://github.com/erikjuhani/basalt/releases/tag/basalt/0.13.0) (Oct, 04 2026)
 
 ### Added

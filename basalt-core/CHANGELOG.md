@@ -1,5 +1,104 @@
 # Changelog
 
+## [0.11.0](https://github.com/erikjuhani/basalt/releases/tag/basalt-core/0.11.0) (Nov, 24 2026)
+
+### Added
+
+- [391db16](https://github.com/erikjuhani/basalt/commit/391db167401acda12bbc5b62c9283a1001fda04c) Add FreeBSD support by @erikjuhani
+
+> The config lookup already compiles on FreeBSD because it uses
+> `cfg(not(...))` for the non Linux targets. Document that FreeBSD
+> shares the Linux config location and cover the default location
+> with a test.
+>
+> Add an x86_64-unknown-freebsd target to the build matrix. The Ubuntu
+> runner has no FreeBSD C sysroot, which `ring` needs, so the job
+> downloads the FreeBSD base sysroot and builds with the clang and lld
+> of the runner. This adds no new tool. List FreeBSD as a supported
+> platform in the README.
+
+### Changed
+
+- [0cec915](https://github.com/erikjuhani/basalt/commit/0cec915a2e2dd9b077af0e75917f6bc4618f5f10) Walk the vault in parallel with dua-core by @symunona
+
+> Every watcher change, wiki link miss and note rename walks the whole
+> vault. The walk was a single-threaded recursion that also stat-ed every
+> file to build its note.
+>
+> Walk with dua-core instead: directories are read on a work-stealing pool
+> and file types come from the directory entries, so only symlinks are
+> stat-ed. Behaviour is unchanged: the same skip filter, symlinked files
+> kept, symlinked and dangling directories left out, a symlinked vault
+> root followed.
+>
+> Release build, 12 cores, median of 21 warm runs and of 2 cold runs:
+>
+> | vault                         | warm old | warm new | cold old | cold new |
+> |-------------------------------|----------|----------|----------|----------|
+> | synthetic, 16k notes          | 69 ms    | 43 ms    | 284 ms   | 55 ms    |
+> | real, 8k files and 1.1k dirs  | 37 ms    | 25 ms    | 218 ms   | 30 ms    |
+>
+> Both walkers produce identical trees on the benchmarked vaults.
+
+### Dependencies
+
+- [9e982b9](https://github.com/erikjuhani/basalt/commit/9e982b94827c48d41a4bbd5e270f6434127b5bf8) Update Rust crate indoc to v2.0.8 by @renovate-updater[bot]
+
+> | datasource | package | from  | to    |
+> | ---------- | ------- | ----- | ----- |
+> | crate      | indoc   | 2.0.7 | 2.0.8 |
+
+### Fixed
+
+- [947240a](https://github.com/erikjuhani/basalt/commit/947240a33288fdd1181f2a9f5aa0865e11e1c935) Keep dots in directory names in the explorer (#728) by @symunona in [#728](https://github.com/erikjuhani/basalt/pull/728)
+
+> VaultEntry stripped everything after the last dot from every entry
+> name, directories included, so "57.02 The First Civilization" showed
+> up as "57". Only strip the extension from notes; a dot in a directory
+> name is part of the name.
+>
+> Closes #727
+>
+> Co-authored-by: symunona <5897104+symunona@users.noreply.github.com>
+
+- [4d02b36](https://github.com/erikjuhani/basalt/commit/4d02b360c30fc641efeea7888b99ef62807f7ca4) Skip ignored entries when walking and watching the vault (#732) by @symunona in [#732](https://github.com/erikjuhani/basalt/pull/732)
+
+> Skip ignored entries when walking and watching the vault (#732)
+>
+> The vault walk read every directory and dropped hidden entries only at
+> the top level after the whole tree was read. On a large vault, .git and
+> plugin node_modules under .obsidian made up almost half of the files
+> walked. Nested hidden folders such as .trash showed up in the explorer,
+> and a symlink loop recursed until the stack overflowed.
+>
+> Decide on each entry before it is read, so skipped directories are never
+> opened. Skip hidden entries at every depth. Don't follow symlinked
+> directories; symlinked notes are still included and dangling symlinks
+> are left out.
+>
+> Hide Obsidian's excluded files (userIgnoreFilters in .obsidian/app.json)
+> from the explorer and search. A filter is a path prefix, or a regular
+> expression wrapped in slashes. Link resolution and link updates on
+> rename still see excluded notes, so following a link to one never
+> creates a duplicate.
+>
+> The watcher uses the same filter. With inotify it watches each kept
+> directory non-recursively and follows directories as they are created,
+> renamed or removed, so ignored folders cost no watches. FSEvents and
+> ReadDirectoryChangesW keep the recursive watch and filter the events.
+> Events are matched against the canonical vault-relative path, so a vault
+> inside a hidden folder or opened through a symlink now reports changes.
+>
+> Closes #731
+>
+>
+> ---------
+>
+> Co-authored-by: symunona <5897104+symunona@users.noreply.github.com>
+> Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+> Co-authored-by: Erik Kinnunen <erik.kinn@gmail.com>
+
+
 ## [0.10.1](https://github.com/erikjuhani/basalt/releases/tag/basalt-core/0.10.1) (Oct, 04 2026)
 
 ### Added
