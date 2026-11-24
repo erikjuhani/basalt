@@ -12,6 +12,8 @@ use crate::app::{ActivePane, Message as AppMessage};
 use crate::config::Theme;
 use crate::motion;
 
+const INPUT_MODAL_WIDTH: u16 = 40;
+
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct TextInput {
     value: String,
@@ -396,7 +398,7 @@ impl StatefulWidget for Input {
         // Input widget height is set to 3 since we include the borders
         let height = 3;
 
-        let width = 40u16
+        let width = INPUT_MODAL_WIDTH
             .saturating_sub((state.offset_x * 2) as u16)
             .min(area.width);
 
