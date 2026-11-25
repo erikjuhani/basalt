@@ -1,0 +1,30 @@
+---
+source: basalt/src/panel.rs
+expression: "format!(\"{:?}\", render(panel(false)))"
+---
+Buffer {
+    area: Rect { x: 0, y: 0, width: 24, height: 6 },
+    content: [
+        "╭─ Explorer ───── docs ╮",
+        "│                      │",
+        "│                      │",
+        "│                      │",
+        "│                      │",
+        "╰──────────────────────╯",
+    ],
+    styles: [
+        x: 0, y: 0, fg: DarkGray, bg: Reset, underline: Reset, modifier: NONE,
+        x: 2, y: 0, fg: Gray, bg: Reset, underline: Reset, modifier: NONE,
+        x: 12, y: 0, fg: DarkGray, bg: Reset, underline: Reset, modifier: NONE,
+        x: 17, y: 0, fg: Gray, bg: Reset, underline: Reset, modifier: NONE,
+        x: 23, y: 0, fg: DarkGray, bg: Reset, underline: Reset, modifier: NONE,
+        x: 1, y: 1, fg: Reset, bg: Reset, underline: Reset, modifier: NONE,
+        x: 23, y: 1, fg: DarkGray, bg: Reset, underline: Reset, modifier: NONE,
+        x: 1, y: 2, fg: Reset, bg: Reset, underline: Reset, modifier: NONE,
+        x: 23, y: 2, fg: DarkGray, bg: Reset, underline: Reset, modifier: NONE,
+        x: 1, y: 3, fg: Reset, bg: Reset, underline: Reset, modifier: NONE,
+        x: 23, y: 3, fg: DarkGray, bg: Reset, underline: Reset, modifier: NONE,
+        x: 1, y: 4, fg: Reset, bg: Reset, underline: Reset, modifier: NONE,
+        x: 23, y: 4, fg: DarkGray, bg: Reset, underline: Reset, modifier: NONE,
+    ]
+}
