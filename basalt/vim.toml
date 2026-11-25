@@ -11,7 +11,7 @@ key_bindings = [
   { key = "ctrl+b", command = "note_editor_toggle_explorer" },
   { key = "ctrl+u", command = "note_editor_scroll_up_half_page" },
   { key = "ctrl+d", command = "note_editor_scroll_down_half_page" },
-  { key = "ctrl+o", command = "note_editor_toggle_outline" },
+  { key = "o", command = "note_editor_toggle_outline" },
   { key = "gg", command = "note_editor_cursor_doc_start" },
   { key = "G",  command = "note_editor_cursor_doc_end" },
 
@@ -84,7 +84,7 @@ key_bindings = [
   { key = "ctrl+b", command = "explorer_toggle" },
   { key = "ctrl+u", command = "explorer_scroll_up_half_page" },
   { key = "ctrl+d", command = "explorer_scroll_down_half_page" },
-  { key = "ctrl+o", command = "explorer_toggle_outline" },
+  { key = "o", command = "explorer_toggle_outline" },
   { key = "gg", command = "explorer_scroll_to_top" },
   { key = "G",  command = "explorer_scroll_to_bottom" },
 ]
@@ -95,7 +95,7 @@ key_bindings = [
   { key = "j", command = "outline_down" },
   { key = "up", command = "outline_up" },
   { key = "down", command = "outline_down" },
-  { key = "ctrl+o", command = "outline_toggle" },
+  { key = "o", command = "outline_toggle" },
   { key = "ctrl+b", command = "outline_toggle_explorer" },
   { key = "t", command = "outline_toggle_explorer" },
   { key = "tab", command = "outline_switch_pane_next" },

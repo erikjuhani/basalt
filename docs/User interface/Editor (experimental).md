@@ -36,13 +36,13 @@ Read view uses the `[note_editor]` key bindings, so it is fully configurable. Th
 | `Ctrl+Shift+↑`    | Jump to top of note       |
 | `i`               | Switch to edit view       |
 | `Ctrl+E`          | Toggle to edit view       |
-| `Ctrl+X`          | Save the note             |
+| `Ctrl+S`          | Save the note             |
 
 ### Edit view
 
 > [!WARNING]
 >
-> Edit view key mappings are hardcoded and cannot be configured. Every key not in the table below is inserted as text, so `Ctrl+X` types an `x` rather than saving. Leave edit view with `Esc` or `Ctrl+E` before saving.
+> Edit view key mappings are hardcoded and cannot be configured. Every key not in the table below is inserted as text, so `Ctrl+S` types an `s` rather than saving. Leave edit view with `Esc` or `Ctrl+E` before saving.
 
 | Mapping     | Description                        |
 | ----------- | ---------------------------------- |
@@ -63,7 +63,7 @@ Set `vim_mode = true` in `[note_editor]`. The edit view then gains Normal and In
 - `Esc` from `INSERT` returns to `NORMAL`, where the configurable `[note_editor]` bindings apply again
 - `Esc` from `NORMAL` returns to `READ`
 
-`NORMAL` is a configurable mode, so `Ctrl+X` saves there. It also carries the full vim preset: motions, operators, registers, undo and redo. See [[Configuration]] for the complete list.
+`NORMAL` is a configurable mode, so the vim preset's `Ctrl+X` saves there. It also carries the full vim preset: motions, operators, registers, undo and redo. See [[Configuration]] for the complete list.
 
 ## Link completion
 
@@ -80,7 +80,7 @@ When you type `[[` in edit view, a dropdown lists the notes in the vault. Type m
 
 ## Saving
 
-`Ctrl+X` saves the note to disk and shows a confirmation toast. It works from read view and from Normal mode in [[Configuration|vim mode]], but not while typing in edit view.
+`Ctrl+S` saves the note to disk and shows a confirmation toast. The vim preset uses `Ctrl+X` instead. It works from read view and from Normal mode in [[Configuration|vim mode]], but not while typing in edit view.
 
 To save without `Ctrl+X`, set `autosave = true` in `[note_editor]` (see [[Configuration]]). Autosave writes only modified notes, includes text still being typed, and shows no toast. The tab title's modified marker clears once the note is written.
 
