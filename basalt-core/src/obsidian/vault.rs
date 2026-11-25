@@ -2,14 +2,14 @@
 use std::{
     fs, io,
     ops::ControlFlow,
-    path::{self, Path, PathBuf},
+    path::{self, Component, Path, PathBuf},
     result,
 };
 
 use serde::{Deserialize, Deserializer};
 
 use crate::obsidian::{
-    directory::Directory, vault_entry::VaultEntry, vault_filter, workspace, Error, Note,
+    backup, directory::Directory, vault_entry::VaultEntry, vault_filter, workspace, Error, Note,
     VaultFilter, Workspace,
 };
 
@@ -689,6 +689,68 @@ impl Vault {
     ) -> result::Result<(), Error> {
         workspace::save_to(&self.path.join(CONFIG_DIR), open_files, active_file)
     }
+
+    /// Restores a backed-up note from the vault's `.trash` directory into the vault.
+    ///
+    /// `filepath` may be either a path inside [`backup::dir`] (such as an entry returned by
+    /// [`backup::file_entries`]), a path relative to `.trash`, or an absolute path to a backup
+    /// file. Subdirectory structure relative to `.trash` is preserved when restoring.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `filepath` contains parent-directory traversal (`..`) when relative,
+    /// does not exist or is not a file, if a file already exists at the destination, or if an I/O
+    /// operation fails.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::fs;
+    /// use tempfile::tempdir;
+    /// use basalt_core::obsidian::{backup, Vault, Error};
+    ///
+    /// let tmp_dir = tempdir()?;
+    /// let vault = Vault { path: tmp_dir.path().to_path_buf(), ..Default::default() };
+    /// let note_path = vault.path.join("Note.md");
+    /// fs::write(&note_path, "hello")?;
+    ///
+    /// let backed_up = backup::create(backup::dir(&vault.path), &note_path)?;
+    /// fs::remove_file(&note_path)?;
+    ///
+    /// let restored = vault.restore(&backed_up)?;
+    /// assert_eq!(restored.name(), "Note");
+    /// assert_eq!(restored.path(), note_path);
+    /// assert_eq!(fs::read_to_string(restored.path())?, "hello");
+    /// # Ok::<(), Error>(())
+    /// ```
+    pub fn restore<P: AsRef<Path>>(&self, filepath: P) -> result::Result<Note, Error> {
+        let filepath = filepath.as_ref();
+        let trash_dir = backup::dir(&self.path);
+
+        let source = if filepath.is_relative() {
+            if filepath
+                .components()
+                .any(|component| matches!(component, Component::ParentDir))
+            {
+                return Err(Error::InvalidPathName(filepath.to_path_buf()));
+            }
+            trash_dir.join(filepath)
+        } else {
+            filepath.to_path_buf()
+        };
+
+        let to_dir = source
+            .strip_prefix(&trash_dir)
+            .ok()
+            .and_then(|rel| rel.parent())
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .map(|parent| self.path.join(parent))
+            .unwrap_or_else(|| self.path.clone());
+
+        let restored_path = backup::restore(&to_dir, &source)?;
+        let name = basename(&restored_path, Some("md"))?;
+        Note::try_from((name, restored_path))
+    }
 }
 
 impl<'de> Deserialize<'de> for Vault {
@@ -789,5 +851,40 @@ mod tests {
 
         assert_eq!(names(&vault.entries()), ["note"]);
         assert!(vault.find_note("old").is_some());
+    }
+
+    #[test]
+    fn restore_accepts_relative_and_nested_trash_paths() {
+        let dir = tempdir().unwrap();
+        let vault = Vault {
+            path: dir.path().to_path_buf(),
+            ..Default::default()
+        };
+        let trash_dir = backup::dir(&vault.path);
+        fs::create_dir_all(trash_dir.join("notes")).unwrap();
+        fs::write(trash_dir.join("root.md"), "root").unwrap();
+        fs::write(trash_dir.join("notes/nested.md"), "nested").unwrap();
+
+        let root_note = vault.restore("root.md").unwrap();
+        assert_eq!(root_note.name(), "root");
+        assert_eq!(root_note.path(), vault.path.join("root.md"));
+        assert_eq!(fs::read_to_string(root_note.path()).unwrap(), "root");
+
+        let nested_note = vault.restore(trash_dir.join("notes/nested.md")).unwrap();
+        assert_eq!(nested_note.name(), "nested");
+        assert_eq!(nested_note.path(), vault.path.join("notes/nested.md"));
+        assert_eq!(fs::read_to_string(nested_note.path()).unwrap(), "nested");
+    }
+
+    #[test]
+    fn restore_rejects_parent_dir_traversal() {
+        let dir = tempdir().unwrap();
+        let vault = Vault {
+            path: dir.path().to_path_buf(),
+            ..Default::default()
+        };
+
+        let result = vault.restore("../outside.md");
+        assert!(matches!(result, Err(Error::InvalidPathName(_))));
     }
 }

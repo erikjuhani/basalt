@@ -15,6 +15,7 @@
 //! ```
 use std::{io, path::PathBuf, result};
 
+pub mod backup;
 pub mod config;
 pub mod directory;
 pub mod note;
